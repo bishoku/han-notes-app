@@ -11,6 +11,7 @@ import { useUiStore } from "@/store/uiStore";
 import { ResizableImageWidget } from "./widgets/ResizableImageWidget";
 import { TaskBadgeWidget } from "./widgets/TaskBadgeWidget";
 import { DecisionBadgeWidget } from "./widgets/DecisionBadgeWidget";
+import { TableWidget, parseMarkdownTable } from "./widgets/TableWidget";
 
 const hiddenMark = Decoration.replace({});
 const linkMark = Decoration.mark({
@@ -118,10 +119,79 @@ function livePreviewDecorations(view: EditorView) {
     const startLine = view.state.doc.lineAt(range.from).number;
     const endLine = view.state.doc.lineAt(range.to).number;
 
-    for (let l = startLine; l <= endLine; l++) {
-      if (frontmatterEndLine > 0 && l <= frontmatterEndLine) continue;
+    let l = startLine;
+    while (l <= endLine) {
+      if (frontmatterEndLine > 0 && l <= frontmatterEndLine) {
+        l++;
+        continue;
+      }
       const line = view.state.doc.line(l);
       const text = line.text;
+
+      // Detect Markdown Table blocks and render TableWidget when cursor is outside table
+      if (!isInsideFencedCode(line.from) && (text.trim().startsWith('|') || text.includes('|'))) {
+        let tableEndLine = l;
+        const tableLines = [text];
+
+        for (let nextL = l + 1; nextL <= endLine; nextL++) {
+          const nextLine = view.state.doc.line(nextL);
+          const nextText = nextLine.text;
+          if (nextText.trim().startsWith('|') || (nextText.includes('|') && !nextText.trim().startsWith('```'))) {
+            tableEndLine = nextL;
+            tableLines.push(nextText);
+          } else {
+            break;
+          }
+        }
+
+        const tableText = tableLines.join('\n');
+        const parsed = parseMarkdownTable(tableText);
+
+        if (parsed && tableLines.length >= 2) {
+          const firstLine = view.state.doc.line(l);
+          const lastLine = view.state.doc.line(tableEndLine);
+
+          // Replace line 1 content with interactive TableWidget (single-line boundary)
+          if (firstLine.from < firstLine.to) {
+            items.push({
+              from: firstLine.from,
+              to: firstLine.to,
+              dec: Decoration.replace({
+                widget: new TableWidget(tableText, firstLine.from, lastLine.to),
+              }),
+            });
+          } else {
+            items.push({
+              from: firstLine.from,
+              to: firstLine.from,
+              dec: Decoration.widget({
+                widget: new TableWidget(tableText, firstLine.from, lastLine.to),
+                side: 1,
+              }),
+            });
+          }
+
+          // Hide remaining table lines completely (0px height in DOM)
+          for (let hideL = l + 1; hideL <= tableEndLine; hideL++) {
+            const hLine = view.state.doc.line(hideL);
+            items.push({
+              from: hLine.from,
+              to: hLine.from,
+              dec: lineDecHidden,
+            });
+            if (hLine.from < hLine.to) {
+              items.push({
+                from: hLine.from,
+                to: hLine.to,
+                dec: hiddenMark,
+              });
+            }
+          }
+
+          l = tableEndLine + 1;
+          continue;
+        }
+      }
 
       // Apply line-level heading class (cm-h1..cm-h4)
       const hMatch = text.match(/^(#{1,4})\s+/);
@@ -217,24 +287,26 @@ function livePreviewDecorations(view: EditorView) {
         }
       }
 
-      if (l === cursorLine) continue; // Show full syntax when cursor is on active line
+      if (l !== cursorLine) {
+        // Hide [[ and ]] and style wikilinks
+        const re = /\[\[(.*?)\]\]/g;
+        let match: RegExpExecArray | null;
 
-      // Hide [[ and ]] and style wikilinks
-      const re = /\[\[(.*?)\]\]/g;
-      let match: RegExpExecArray | null;
+        while ((match = re.exec(text)) !== null) {
+          const matchFrom = line.from + match.index;
+          const matchTo = matchFrom + match[0].length;
+          const innerFrom = matchFrom + 2;
+          const innerTo = matchTo - 2;
 
-      while ((match = re.exec(text)) !== null) {
-        const matchFrom = line.from + match.index;
-        const matchTo = matchFrom + match[0].length;
-        const innerFrom = matchFrom + 2;
-        const innerTo = matchTo - 2;
-
-        items.push({ from: matchFrom, to: innerFrom, dec: hiddenMark });
-        if (innerTo > innerFrom) {
-          items.push({ from: innerFrom, to: innerTo, dec: linkMark });
+          items.push({ from: matchFrom, to: innerFrom, dec: hiddenMark });
+          if (innerTo > innerFrom) {
+            items.push({ from: innerFrom, to: innerTo, dec: linkMark });
+          }
+          items.push({ from: innerTo, to: matchTo, dec: hiddenMark });
         }
-        items.push({ from: innerTo, to: matchTo, dec: hiddenMark });
       }
+
+      l++;
     }
   }
 

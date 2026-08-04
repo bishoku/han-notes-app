@@ -68,10 +68,12 @@ export const MultiBadgeSelect: React.FC<MultiBadgeSelectProps> = ({
 
   return (
     <div className="flex flex-col gap-1.5 relative" ref={containerRef}>
-      <label className="font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-1">
-        {icon}
-        {label}
-      </label>
+      {Boolean(label && label.trim().length > 0) && (
+        <label className="font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-1">
+          {icon}
+          {label}
+        </label>
+      )}
 
       {/* Input container with inline pill badges */}
       <div className="flex flex-wrap items-center gap-1.5 p-2 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl focus-within:ring-2 focus-within:ring-mac-accent/40 min-h-[38px] transition-all">

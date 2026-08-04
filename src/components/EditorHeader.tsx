@@ -86,7 +86,6 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 
               <MultiBadgeSelect
                 label=""
-                icon={<Tag size={12} />}
                 values={currentTags}
                 onChange={onUpdateTags}
                 suggestions={vaultTags.map((t: TagCount) => t.tag)}

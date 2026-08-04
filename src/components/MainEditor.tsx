@@ -23,12 +23,49 @@ import { DecisionEditModal } from '@/components/DecisionEditModal';
 import type { DecisionEditData } from '@/components/DecisionEditModal';
 import { useTranslation } from 'react-i18next';
 import { SlashCommandMenu } from '@/components/SlashCommandMenu';
+import { Eye, FileCode } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 
 
+function extractTagsFromFrontmatter(content: string): string[] {
+  if (!content) return [];
+  const trimmed = content.trimStart();
+  if (!trimmed.startsWith("---")) return [];
+  const afterFirst = trimmed.slice(3);
+  const endIdx = afterFirst.indexOf("\n---");
+  if (endIdx === -1) return [];
+  const yamlStr = afterFirst.slice(0, endIdx);
+
+  const tags: string[] = [];
+  let inTags = false;
+
+  for (const line of yamlStr.split("\n")) {
+    const l = line.trim();
+    if (l.startsWith("tags:")) {
+      inTags = true;
+      const rest = l.slice(5).trim();
+      if (rest.startsWith("[") && rest.endsWith("]")) {
+        const inner = rest.slice(1, -1);
+        inner.split(",").forEach((t) => {
+          const clean = t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "");
+          if (clean) tags.push(clean);
+        });
+        inTags = false;
+      }
+    } else if (inTags && l.startsWith("-")) {
+      const clean = l.slice(1).trim().replace(/^["']|["']$/g, "").replace(/^#/, "");
+      if (clean) tags.push(clean);
+    } else if (l.includes(":")) {
+      inTags = false;
+    }
+  }
+
+  return tags;
+}
+
 export const MainEditor: React.FC = () => {
-  const { rightPanelOpen, toggleRightPanel, theme } = useUiStore();
+  const { rightPanelOpen, toggleRightPanel, theme, editorMode, setEditorMode } = useUiStore();
   const { currentNoteId, currentNoteContent, updateNote, selectNote, notes, vaultTags, updateNoteTags } = useNoteStore();
   const { updateTaskMetadata } = useTaskStore();
   const { updateDecisionMetadata } = useDecisionStore();
@@ -37,8 +74,19 @@ export const MainEditor: React.FC = () => {
   const [localContent, setLocalContent] = useState('');
   const [showTagPopover, setShowTagPopover] = useState(false);
 
-  const currentNote = notes.find((n: NoteInfo) => n.id === currentNoteId);
-  const currentTags = currentNote?.tags || [];
+  const cleanId = currentNoteId ? currentNoteId.replace(/\.md$/, '') : '';
+  const currentNote = notes.find((n: NoteInfo) => 
+    n.id === currentNoteId || 
+    n.id === cleanId || 
+    n.id.endsWith(`/${cleanId}`) ||
+    (currentNoteId && n.path.endsWith(currentNoteId))
+  );
+
+  const noteStoreTags = currentNote?.tags || [];
+  const frontmatterTags = useMemo(() => extractTagsFromFrontmatter(localContent), [localContent]);
+  const currentTags = useMemo(() => {
+    return Array.from(new Set([...noteStoreTags, ...frontmatterTags]));
+  }, [noteStoreTags, frontmatterTags]);
 
   // Task & Decision Edit Modal state
   const [taskModalData, setTaskModalData] = useState<TaskEditData | null>(null);
@@ -216,6 +264,19 @@ export const MainEditor: React.FC = () => {
     [executeSlashCommand, openImagePicker, t]
   );
 
+  const editorExtensions = useMemo(() => {
+    const exts = [
+      EditorView.lineWrapping,
+      markdown({ base: markdownLanguage, codeLanguages: languages }),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      wikilinkAutocomplete,
+    ];
+    if (editorMode === 'preview') {
+      exts.push(livePreviewPlugin);
+    }
+    return exts;
+  }, [editorMode]);
+
   if (!currentNoteId) {
     return (
       <main className="h-screen flex flex-col bg-mac-mainLight dark:bg-mac-mainDark flex-1 items-center justify-center text-gray-500">
@@ -283,13 +344,7 @@ export const MainEditor: React.FC = () => {
             }}
             onUpdate={handleEditorUpdate}
             theme={theme === 'dark' ? 'dark' : 'light'}
-            extensions={[
-              EditorView.lineWrapping,
-              markdown({ base: markdownLanguage, codeLanguages: languages }),
-              syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-              livePreviewPlugin,
-              wikilinkAutocomplete,
-            ]}
+            extensions={editorExtensions}
             className="text-lg text-gray-800 dark:text-gray-200 cm-theme-han"
             basicSetup={{
               lineNumbers: false,
@@ -301,6 +356,36 @@ export const MainEditor: React.FC = () => {
               highlightActiveLineGutter: false,
             }}
           />
+        </div>
+      </div>
+
+      {/* Editor Mode Switcher Footer (Preview / Raw) */}
+      <div className="py-2.5 flex items-center justify-center border-t border-gray-200/60 dark:border-zinc-800/80 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-md shrink-0 select-none">
+        <div className="flex items-center gap-1 p-1 bg-gray-200/60 dark:bg-zinc-800/80 rounded-xl border border-gray-200/50 dark:border-zinc-700/50 shadow-inner">
+          <button
+            onClick={() => setEditorMode('preview')}
+            className={cn(
+              "flex items-center gap-1.5 px-3.5 py-1 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer",
+              editorMode === 'preview'
+                ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-xs"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            )}
+          >
+            <Eye size={13} className={editorMode === 'preview' ? "text-mac-accent" : ""} />
+            {t('modePreview')}
+          </button>
+          <button
+            onClick={() => setEditorMode('raw')}
+            className={cn(
+              "flex items-center gap-1.5 px-3.5 py-1 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer",
+              editorMode === 'raw'
+                ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-xs"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            )}
+          >
+            <FileCode size={13} className={editorMode === 'raw' ? "text-mac-accent" : ""} />
+            {t('modeRaw')}
+          </button>
         </div>
       </div>
 

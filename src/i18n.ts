@@ -21,6 +21,8 @@ const resources = {
       "delete": "Delete",
       "decisions": "Decisions",
       "selectNotePrompt": "Select a note or create a new one.",
+      "modePreview": "Preview",
+      "modeRaw": "Raw",
 
       // ─── Editor Header ────────────────────────────────────────────
       "editNoteTags": "Edit Note Tags",
@@ -143,6 +145,8 @@ const resources = {
       "delete": "Sil",
       "decisions": "Kararlar",
       "selectNotePrompt": "Bir not seçin veya yeni bir not oluşturun.",
+      "modePreview": "Önizleme",
+      "modeRaw": "Ham Metin",
 
       // ─── Editor Header ────────────────────────────────────────────
       "editNoteTags": "Not Etiketlerini Düzenle",

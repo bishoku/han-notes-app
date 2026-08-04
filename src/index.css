@@ -210,6 +210,37 @@
   line-height: 1.7;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   CodeMirror Selection Layer — Ensure Text Selection is Visible Everywhere
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cm-theme-han .cm-selectionLayer {
+  z-index: 5 !important;
+}
+
+.cm-theme-han .cm-selectionBackground {
+  background: rgba(99, 102, 241, 0.28) !important;
+}
+
+.dark .cm-theme-han .cm-selectionBackground {
+  background: rgba(129, 140, 248, 0.40) !important;
+}
+
+.cm-theme-han .cm-focused .cm-selectionBackground {
+  background: rgba(99, 102, 241, 0.30) !important;
+}
+
+.dark .cm-theme-han .cm-focused .cm-selectionBackground {
+  background: rgba(129, 140, 248, 0.45) !important;
+}
+
+.cm-theme-han ::selection,
+.cm-theme-han .cm-line ::selection,
+.cm-theme-han .cm-line.cm-codeblock-line ::selection,
+.cm-theme-han .cm-line.cm-codeblock-fence ::selection {
+  background: rgba(99, 102, 241, 0.35) !important;
+}
+
 .cm-theme-han .cm-line.cm-hidden-frontmatter,
 .cm-hidden-frontmatter {
   display: none !important;
@@ -226,7 +257,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .cm-theme-han .cm-line.cm-codeblock-line {
-  background: #f8f9fb;
+  background: rgba(99, 102, 241, 0.04);
   font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace !important;
   font-size: 0.84em !important;
   line-height: 1.7 !important;
@@ -244,7 +275,7 @@
 
 /* Fence line (``` markers) — language label via data-lang attribute */
 .cm-theme-han .cm-line.cm-codeblock-fence {
-  background: #eef0f4;
+  background: rgba(99, 102, 241, 0.08);
   font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace !important;
   font-size: 0.75em !important;
   line-height: 1.5 !important;
