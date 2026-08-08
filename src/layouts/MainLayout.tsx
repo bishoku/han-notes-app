@@ -7,6 +7,7 @@ import { DecisionsView } from '@/components/DecisionsView';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { initBrowserStorage, pickBrowserDirectory } from '@/services/storage';
+import { PwaUpdateBanner } from '@/components/PwaUpdateBanner';
 import { FolderOpen } from 'lucide-react';
 
 /**
@@ -134,6 +135,7 @@ export const MainLayout: React.FC = () => {
       {viewMode === 'tasks' && <TasksView />}
       {viewMode === 'decisions' && <DecisionsView />}
       {viewMode === 'notes' && <RightPanel />}
+      {!isTauri() && <PwaUpdateBanner />}
     </div>
   );
 };
