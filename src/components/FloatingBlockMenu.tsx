@@ -58,7 +58,7 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
       {/* Floating Task Edit Settings Button */}
       {taskEditBtn.show && (
         <div 
-          className="absolute -left-6 md:-left-9 z-10 flex items-center justify-center h-7 transition-all duration-200"
+          className="absolute left-1 z-10 flex items-center justify-center h-7 transition-all duration-200"
           style={{ top: taskEditBtn.top - 2 }}
         >
           <button 
@@ -74,7 +74,7 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
       {/* Floating Decision Edit Settings Button */}
       {decisionEditBtn.show && (
         <div 
-          className="absolute -left-6 md:-left-9 z-10 flex items-center justify-center h-7 transition-all duration-200"
+          className="absolute left-1 z-10 flex items-center justify-center h-7 transition-all duration-200"
           style={{ top: decisionEditBtn.top - 2 }}
         >
           <button 
@@ -90,7 +90,7 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
       {/* Floating Block Menu (+ button on empty line) */}
       {menuPos.show && (
         <div 
-          className="absolute -left-6 md:-left-9 z-10 flex items-center justify-center h-7 gap-2 transition-all duration-200"
+          className="absolute left-1 z-10 flex items-center justify-center h-7 gap-2 transition-all duration-200"
           style={{ top: menuPos.top - 2 }}
         >
           <button 
