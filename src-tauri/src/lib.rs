@@ -1,167 +1,13 @@
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct FileNode {
-    pub name: String,
-    pub relative_path: String,
-    pub is_dir: bool,
-    pub children: Vec<FileNode>,
-}
+use han_core::*;
 
-#[derive(Serialize)]
-pub struct NoteInfo {
-    id: String, // relative path without extension
-    title: String,
-    path: String,
-    tags: Vec<String>,
-}
 
-#[derive(Serialize)]
-pub struct TagCount {
-    pub tag: String,
-    pub count: usize,
-}
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct NoteMetadata {
-    #[serde(default)]
-    pub tags: Vec<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, serde_json::Value>,
-}
-
-fn parse_yaml_frontmatter(content: &str) -> (NoteMetadata, String) {
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return (NoteMetadata::default(), content.to_string());
-    }
-
-    let after_first = &trimmed[3..];
-    if let Some(end_idx) = after_first.find("\n---") {
-        let yaml_str = &after_first[..end_idx];
-        let body = after_first[end_idx + 4..].trim_start_matches('\n').trim_start_matches('\r').to_string();
-
-        let mut tags = Vec::new();
-        let mut extra = BTreeMap::new();
-
-        let mut in_tags = false;
-        for line in yaml_str.lines() {
-            let l_trim = line.trim();
-            if l_trim.is_empty() || l_trim.starts_with('#') {
-                continue;
-            }
-
-            if l_trim.starts_with("tags:") {
-                in_tags = true;
-                let rest = l_trim["tags:".len()..].trim();
-                if rest.starts_with('[') && rest.ends_with(']') {
-                    let inner = &rest[1..rest.len() - 1];
-                    for t in inner.split(',') {
-                        let clean = t.trim().trim_matches('"').trim_matches('\'').trim_start_matches('#');
-                        if !clean.is_empty() {
-                            tags.push(clean.to_string());
-                        }
-                    }
-                    in_tags = false;
-                }
-            } else if in_tags && l_trim.starts_with('-') {
-                let tag_val = l_trim[1..].trim().trim_matches('"').trim_matches('\'').trim_start_matches('#');
-                if !tag_val.is_empty() {
-                    tags.push(tag_val.to_string());
-                }
-            } else if let Some(colon_idx) = l_trim.find(':') {
-                in_tags = false;
-                let key = l_trim[..colon_idx].trim().to_string();
-                let val_str = l_trim[colon_idx + 1..].trim();
-                if !key.is_empty() && key != "tags" {
-                    extra.insert(key, serde_json::Value::String(val_str.to_string()));
-                }
-            }
-        }
-
-        return (NoteMetadata { tags, extra }, body);
-    }
-
-    (NoteMetadata::default(), content.to_string())
-}
-
-fn inject_yaml_frontmatter(metadata: &NoteMetadata, body_content: &str) -> String {
-    let mut yaml_lines = Vec::new();
-    yaml_lines.push("---".to_string());
-    
-    if !metadata.tags.is_empty() {
-        yaml_lines.push("tags:".to_string());
-        for t in &metadata.tags {
-            yaml_lines.push(format!("  - {}", t));
-        }
-    }
-
-    for (k, v) in &metadata.extra {
-        if k == "tags" { continue; }
-        if let Some(s) = v.as_str() {
-            yaml_lines.push(format!("{}: {}", k, s));
-        } else {
-            yaml_lines.push(format!("{}: {}", k, v));
-        }
-    }
-
-    yaml_lines.push("---".to_string());
-
-    if metadata.tags.is_empty() && metadata.extra.is_empty() {
-        body_content.to_string()
-    } else {
-        format!("{}\n\n{}", yaml_lines.join("\n"), body_content.trim_start())
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct TaskMeta {
-    pub description: Option<String>,
-    pub start_date: Option<String>,
-    pub end_date: Option<String>,
-    pub priority: Option<String>,
-    pub assignee: Option<String>,
-    #[serde(default)]
-    pub assignees: Vec<String>,
-    pub progress: Option<u8>,
-    #[serde(default)]
-    pub tags: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct TaskInfo {
-    note_id: String,
-    line_number: usize,
-    content: String,
-    completed: bool,
-    description: Option<String>,
-    start_date: Option<String>,
-    end_date: Option<String>,
-    priority: Option<String>,
-    assignee: Option<String>,
-    assignees: Vec<String>,
-    progress: Option<u8>,
-    tags: Vec<String>,
-    raw_line: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct TaskRegistry {
-    pub assignees: Vec<String>,
-    pub tags: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct BacklinkInfo {
-    source_note_id: String,
-    snippet: String,
-    line_number: usize,
-}
 
 // Helper to get vault path
 fn get_vault_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -183,25 +29,7 @@ fn resolve_note_path(vault_dir: &Path, id: &str) -> PathBuf {
     }
 }
 
-/// Convert a relative path like "folder/note.md" to a note ID "folder/note".
-#[inline]
-fn path_to_note_id(rel_path: &str) -> String {
-    rel_path.strip_suffix(".md").unwrap_or(rel_path).to_string()
-}
 
-/// Split comma-separated values, trim each, and collect into a BTreeSet.
-fn collect_comma_separated<'a, I: IntoIterator<Item = &'a str>>(sources: I) -> BTreeSet<String> {
-    let mut set = BTreeSet::new();
-    for s in sources {
-        for part in s.split(',') {
-            let clean = part.trim();
-            if !clean.is_empty() {
-                set.insert(clean.to_string());
-            }
-        }
-    }
-    set
-}
 
 fn find_file_in_vault(vault_dir: &Path, rel_path: &str) -> Option<PathBuf> {
     let direct = vault_dir.join(rel_path);
@@ -532,42 +360,6 @@ fn resolve_asset_path(app: AppHandle, relative_path: String) -> Result<String, S
     Ok(full_path.to_string_lossy().to_string())
 }
 
-fn parse_task_line(line: &str) -> Option<(bool, String, TaskMeta)> {
-    let re = Regex::new(r"^\s*[-*+]\s*\[([ xX])\]\s*(.*)").ok()?;
-    let caps = re.captures(line)?;
-    let completed = &caps[1] != " ";
-    let raw_text = caps[2].to_string();
-
-    if raw_text.trim().is_empty() {
-        return None;
-    }
-
-    let mut meta = TaskMeta::default();
-
-    let text_without_comment = if let Some(idx) = raw_text.find("<!-- task:") {
-        let comment_part = &raw_text[idx + 10..];
-        if let Some(end_idx) = comment_part.find("-->") {
-            let json_str = comment_part[..end_idx].trim();
-            if let Ok(parsed) = serde_json::from_str::<TaskMeta>(json_str) {
-                meta = parsed;
-            }
-        }
-        raw_text[..idx].trim().to_string()
-    } else {
-        raw_text.trim().to_string()
-    };
-
-    // Always split assignees/assignee by comma into individual clean person names
-    let clean_assignees_set = collect_comma_separated(
-        meta.assignees.iter().map(|s| s.as_str()).chain(
-            meta.assignee.iter().map(|s| s.as_str())
-        )
-    );
-
-    meta.assignees = clean_assignees_set.into_iter().collect();
-
-    Some((completed, text_without_comment, meta))
-}
 
 fn scan_tasks_recursive(dir: &Path, base_vault: &Path, tasks: &mut Vec<TaskInfo>) {
     if let Ok(entries) = fs::read_dir(dir) {
@@ -894,39 +686,6 @@ fn update_note_tags(app: AppHandle, id: String, tags: Vec<String>) -> Result<(),
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct DecisionMeta {
-    pub description: Option<String>,
-    pub date: Option<String>,
-    pub status: Option<String>,
-    #[serde(default)]
-    pub participants: Vec<String>,
-    #[serde(default)]
-    pub approved_by: Vec<String>,
-    #[serde(default)]
-    pub tags: Vec<String>,
-}
-
-#[derive(Serialize)]
-pub struct DecisionInfo {
-    note_id: String,
-    line_number: usize,
-    content: String,
-    description: Option<String>,
-    date: Option<String>,
-    status: Option<String>,
-    participants: Vec<String>,
-    approved_by: Vec<String>,
-    tags: Vec<String>,
-    raw_line: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct DecisionRegistry {
-    pub participants: Vec<String>,
-    pub approved_by: Vec<String>,
-    pub tags: Vec<String>,
-}
 
 fn update_decision_registry_file(vault_dir: &Path, decisions: &[DecisionInfo]) {
     let attachments_dir = vault_dir.join(".attachments");
@@ -956,38 +715,6 @@ fn update_decision_registry_file(vault_dir: &Path, decisions: &[DecisionInfo]) {
     }
 }
 
-fn parse_decision_line(line: &str) -> Option<(String, DecisionMeta)> {
-    let trimmed = line.trim();
-    if !trimmed.starts_with("- [D]") && !trimmed.starts_with("- [d]") && !trimmed.contains("<!-- decision:") {
-        return None;
-    }
-
-    let mut raw_text = trimmed.to_string();
-    if raw_text.starts_with("- [D]") || raw_text.starts_with("- [d]") {
-        raw_text = raw_text[5..].trim().to_string();
-    }
-
-    let meta = if let Some(idx) = raw_text.find("<!-- decision:") {
-        let json_part = &raw_text[idx + 14..];
-        let end_idx = json_part.find("-->").unwrap_or(json_part.len());
-        let json_str = json_part[..end_idx].trim();
-        serde_json::from_str::<DecisionMeta>(json_str).unwrap_or_default()
-    } else {
-        DecisionMeta::default()
-    };
-
-    let content = if let Some(idx) = raw_text.find("<!-- decision:") {
-        raw_text[..idx].trim().to_string()
-    } else {
-        raw_text.trim().to_string()
-    };
-
-    if content.is_empty() {
-        return None;
-    }
-
-    Some((content, meta))
-}
 
 fn scan_decisions_recursive(dir: &Path, base_vault: &Path, decisions: &mut Vec<DecisionInfo>) {
     if let Ok(entries) = fs::read_dir(dir) {

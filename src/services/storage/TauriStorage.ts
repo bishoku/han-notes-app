@@ -1,0 +1,166 @@
+/**
+ * TauriStorage — Desktop (Native) storage provider.
+ * 
+ * Wraps Tauri's `invoke` API to call Rust backend commands.
+ * This is the production storage for macOS/Windows/Linux desktop apps.
+ */
+import { invoke } from '@tauri-apps/api/core';
+import type {
+  IStorageService,
+  FileNode,
+  NoteInfo,
+  TagCount,
+  BacklinkInfo,
+  TaskInfo,
+  TaskRegistry,
+  DecisionInfo,
+  DecisionRegistry,
+} from './types';
+
+export class TauriStorage implements IStorageService {
+  // ── Vault / File Tree ──
+
+  async getVaultFiles(): Promise<NoteInfo[]> {
+    return invoke<NoteInfo[]>('get_vault_files');
+  }
+
+  async getVaultTree(): Promise<FileNode[]> {
+    return invoke<FileNode[]>('get_vault_tree');
+  }
+
+  async getVaultTags(): Promise<TagCount[]> {
+    return invoke<TagCount[]>('get_vault_tags');
+  }
+
+  // ── Note CRUD ──
+
+  async readNote(id: string): Promise<string> {
+    return invoke<string>('read_note', { id });
+  }
+
+  async writeNote(id: string, content: string): Promise<void> {
+    await invoke('write_note', { id, content });
+  }
+
+  async createNoteInFolder(parentPath: string, title: string): Promise<void> {
+    await invoke('create_note_in_folder', { parentPath, title });
+  }
+
+  async createFolder(parentPath: string, folderName: string): Promise<void> {
+    await invoke('create_folder', { parentPath, folderName });
+  }
+
+  async moveNode(srcRelPath: string, destDirRelPath: string): Promise<void> {
+    await invoke('move_node', { srcRelPath, destDirRelPath });
+  }
+
+  async deleteNode(relativePath: string): Promise<void> {
+    await invoke('delete_node', { relativePath });
+  }
+
+  async renameNode(relativePath: string, newName: string): Promise<void> {
+    await invoke('rename_node', { relativePath, newName });
+  }
+
+  async updateNoteTags(id: string, tags: string[]): Promise<void> {
+    await invoke('update_note_tags', { id, tags });
+  }
+
+  // ── Tasks ──
+
+  async getGlobalTasks(): Promise<TaskInfo[]> {
+    return invoke<TaskInfo[]>('get_global_tasks');
+  }
+
+  async getTaskRegistry(): Promise<TaskRegistry> {
+    return invoke<TaskRegistry>('get_task_registry');
+  }
+
+  async toggleTask(noteId: string, lineNumber: number, completed: boolean): Promise<void> {
+    await invoke('toggle_task', { noteId, lineNumber, completed });
+  }
+
+  async updateTaskMetadata(
+    noteId: string,
+    lineNumber: number,
+    content: string,
+    completed: boolean,
+    description: string | null,
+    startDate: string | null,
+    endDate: string | null,
+    priority: string | null,
+    assignee: string | null,
+    assignees: string[],
+    progress: number | null,
+    tags: string[],
+  ): Promise<void> {
+    await invoke('update_task_metadata', {
+      noteId,
+      lineNumber,
+      content,
+      completed,
+      description,
+      startDate,
+      endDate,
+      priority,
+      assignee,
+      assignees,
+      progress,
+      tags,
+    });
+  }
+
+  // ── Decisions ──
+
+  async getGlobalDecisions(): Promise<DecisionInfo[]> {
+    return invoke<DecisionInfo[]>('get_global_decisions');
+  }
+
+  async getDecisionRegistry(): Promise<DecisionRegistry> {
+    return invoke<DecisionRegistry>('get_decision_registry');
+  }
+
+  async updateDecisionMetadata(
+    noteId: string,
+    lineNumber: number,
+    content: string,
+    description: string | null,
+    date: string | null,
+    status: string | null,
+    participants: string[],
+    approvedBy: string[],
+    tags: string[],
+  ): Promise<void> {
+    await invoke('update_decision_metadata', {
+      noteId,
+      lineNumber,
+      content,
+      description,
+      date,
+      status,
+      participants,
+      approvedBy,
+      tags,
+    });
+  }
+
+  // ── Backlinks ──
+
+  async getBacklinks(targetNoteId: string): Promise<BacklinkInfo[]> {
+    return invoke<BacklinkInfo[]>('get_backlinks', { targetNoteId });
+  }
+
+  // ── Assets / Images ──
+
+  async saveImageBytes(relativeNoteId: string, fileName: string, bytes: Uint8Array): Promise<string> {
+    return invoke<string>('save_image_bytes', {
+      relativeNoteId,
+      fileName,
+      bytes: Array.from(bytes),
+    });
+  }
+
+  async getImageDataUrl(relativePath: string): Promise<string> {
+    return invoke<string>('get_image_data_url', { relativePath });
+  }
+}

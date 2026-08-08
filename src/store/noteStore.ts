@@ -1,30 +1,9 @@
 import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { storage } from '@/services/storage';
+import type { FileNode, NoteInfo, TagCount, BacklinkInfo } from '@/services/storage';
 
-export interface FileNode {
-  name: string;
-  relative_path: string;
-  is_dir: boolean;
-  children: FileNode[];
-}
-
-export interface NoteInfo {
-  id: string;
-  title: string;
-  path: string;
-  tags: string[];
-}
-
-export interface TagCount {
-  tag: string;
-  count: number;
-}
-
-export interface BacklinkInfo {
-  source_note_id: string;
-  snippet: string;
-  line_number: number;
-}
+// Re-export types for backward compatibility with existing component imports
+export type { FileNode, NoteInfo, TagCount, BacklinkInfo };
 
 interface NoteState {
   notes: NoteInfo[];
@@ -66,7 +45,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   loadVault: async () => {
     try {
-      const notes = await invoke<NoteInfo[]>('get_vault_files');
+      const notes = await storage.getVaultFiles();
       set({ notes });
       await get().loadVaultTree();
       await get().loadVaultTags();
@@ -81,7 +60,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   loadVaultTree: async () => {
     try {
-      const fileTree = await invoke<FileNode[]>('get_vault_tree');
+      const fileTree = await storage.getVaultTree();
       set({ fileTree });
     } catch (e) {
       console.error("Failed to load vault tree:", e);
@@ -94,7 +73,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   selectNote: async (id: string) => {
     try {
-      const content = await invoke<string>('read_note', { id });
+      const content = await storage.readNote(id);
       const parts = id.split('/');
       const parentDir = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
       
@@ -110,7 +89,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     if (!noteId) return;
 
     try {
-      const backlinks = await invoke<BacklinkInfo[]>('get_backlinks', { targetNoteId: noteId });
+      const backlinks = await storage.getBacklinks(noteId);
       set({ backlinks });
     } catch (e) {
       console.error("Failed to load backlinks:", e);
@@ -119,7 +98,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   loadVaultTags: async () => {
     try {
-      const vaultTags = await invoke<TagCount[]>('get_vault_tags');
+      const vaultTags = await storage.getVaultTags();
       set({ vaultTags });
     } catch (e) {
       console.error("Failed to load vault tags:", e);
@@ -132,10 +111,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   updateNoteTags: async (id: string, tags: string[]) => {
     try {
-      await invoke('update_note_tags', { id, tags });
+      await storage.updateNoteTags(id, tags);
       await get().loadVault();
       if (get().currentNoteId === id) {
-        const content = await invoke<string>('read_note', { id });
+        const content = await storage.readNote(id);
         set({ currentNoteContent: content });
       }
     } catch (e) {
@@ -146,10 +125,12 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   updateNote: async (content: string) => {
     const { currentNoteId } = get();
     if (!currentNoteId) return;
-    set({ currentNoteContent: content });
     
     try {
-      await invoke('write_note', { id: currentNoteId, content });
+      await storage.writeNote(currentNoteId, content);
+      // Update store state after successful write
+      set({ currentNoteContent: content });
+      // Non-blocking backlink refresh — don't await
       get().loadBacklinks(currentNoteId);
     } catch (e) {
       console.error("Failed to write note:", e);
@@ -158,7 +139,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   
   createNote: async (title: string, parentPath = "") => {
     try {
-      await invoke('create_note_in_folder', { parentPath, title });
+      await storage.createNoteInFolder(parentPath, title);
       await get().loadVault();
       const newId = parentPath ? `${parentPath}/${title}` : title;
       await get().selectNote(newId);
@@ -169,7 +150,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   createFolder: async (folderName: string, parentPath = "") => {
     try {
-      await invoke('create_folder', { parentPath, folderName });
+      await storage.createFolder(parentPath, folderName);
       await get().loadVaultTree();
       set({ activeFolderPath: parentPath ? `${parentPath}/${folderName}` : folderName });
     } catch (e) {
@@ -179,7 +160,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   moveNode: async (srcRelPath: string, destDirRelPath: string) => {
     try {
-      await invoke('move_node', { srcRelPath, destDirRelPath });
+      await storage.moveNode(srcRelPath, destDirRelPath);
       await get().loadVault();
     } catch (e) {
       console.error("Failed to move item:", e);
@@ -188,7 +169,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   deleteNode: async (relPath: string) => {
     try {
-      await invoke('delete_node', { relativePath: relPath });
+      await storage.deleteNode(relPath);
       if (get().currentNoteId === relPath) {
         set({ currentNoteId: null, currentNoteContent: '' });
       }
@@ -203,7 +184,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   renameNode: async (relPath: string, newName: string) => {
     try {
-      await invoke('rename_node', { relativePath: relPath, newName });
+      await storage.renameNode(relPath, newName);
       await get().loadVault();
     } catch (e) {
       console.error("Failed to rename item:", e);
@@ -214,7 +195,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     const { currentNoteId } = get();
     if (!currentNoteId) return;
     try {
-      const content = await invoke<string>('read_note', { id: currentNoteId });
+      const content = await storage.readNote(currentNoteId);
       set({ currentNoteContent: content });
     } catch (e) {
       console.error("Failed to refresh current note:", e);

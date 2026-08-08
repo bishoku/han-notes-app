@@ -3,7 +3,7 @@
  * with drag-to-resize functionality inside the editor.
  */
 import { WidgetType, EditorView } from '@codemirror/view';
-import { invoke } from '@tauri-apps/api/core';
+import { storage } from '@/services/storage';
 
 export class ResizableImageWidget extends WidgetType {
   alt: string;
@@ -33,7 +33,7 @@ export class ResizableImageWidget extends WidgetType {
     if (this.relPath.startsWith('http') || this.relPath.startsWith('data:')) {
       img.src = this.relPath;
     } else {
-      invoke<string>('get_image_data_url', { relativePath: this.relPath })
+      storage.getImageDataUrl(this.relPath)
         .then((dataUrl) => { img.src = dataUrl; })
         .catch((err) => { console.error('Failed to load image data URL:', err); });
     }

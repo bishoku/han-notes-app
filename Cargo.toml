@@ -1,0 +1,3 @@
+[workspace]
+members = ["han-core", "src-tauri"]
+resolver = "2"

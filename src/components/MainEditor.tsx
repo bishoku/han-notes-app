@@ -4,7 +4,7 @@ import { EditorView } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
-import { invoke } from '@tauri-apps/api/core';
+import { storage } from '@/services/storage';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import type { NoteInfo } from '@/store/noteStore';
@@ -74,6 +74,10 @@ export const MainEditor: React.FC = () => {
   const [localContent, setLocalContent] = useState('');
   const [showTagPopover, setShowTagPopover] = useState(false);
 
+  // Debounce timer refs — prevent disk writes and heavy parsing on every keystroke
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tagParseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const cleanId = currentNoteId ? currentNoteId.replace(/\.md$/, '') : '';
   const currentNote = notes.find((n: NoteInfo) => 
     n.id === currentNoteId || 
@@ -83,10 +87,18 @@ export const MainEditor: React.FC = () => {
   );
 
   const noteStoreTags = currentNote?.tags || [];
-  const frontmatterTags = useMemo(() => extractTagsFromFrontmatter(localContent), [localContent]);
+  // Debounced frontmatter tag extraction — parse only after typing pauses
+  const [debouncedFrontmatterTags, setDebouncedFrontmatterTags] = useState<string[]>([]);
+  useEffect(() => {
+    if (tagParseTimerRef.current) clearTimeout(tagParseTimerRef.current);
+    tagParseTimerRef.current = setTimeout(() => {
+      setDebouncedFrontmatterTags(extractTagsFromFrontmatter(localContent));
+    }, 400);
+    return () => { if (tagParseTimerRef.current) clearTimeout(tagParseTimerRef.current); };
+  }, [localContent]);
   const currentTags = useMemo(() => {
-    return Array.from(new Set([...noteStoreTags, ...frontmatterTags]));
-  }, [noteStoreTags, frontmatterTags]);
+    return Array.from(new Set([...noteStoreTags, ...debouncedFrontmatterTags]));
+  }, [noteStoreTags, debouncedFrontmatterTags]);
 
   // Task & Decision Edit Modal state
   const [taskModalData, setTaskModalData] = useState<TaskEditData | null>(null);
@@ -112,10 +124,34 @@ export const MainEditor: React.FC = () => {
     setLocalContent(currentNoteContent);
   }, [currentNoteId, currentNoteContent]);
 
-  const handleUpdate = (val: string) => {
+  const handleUpdate = useCallback((val: string) => {
+    // Immediate: update local state for responsive typing
     setLocalContent(val);
-    updateNote(val);
-  };
+
+    // Debounced: write to disk after 500ms of inactivity
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      updateNote(val);
+    }, 500);
+  }, [updateNote]);
+
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (tagParseTimerRef.current) clearTimeout(tagParseTimerRef.current);
+    };
+  }, []);
+
+  // Flush pending save when switching notes
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [currentNoteId]);
 
   const insertText = (text: string) => {
     if (editorRef.current) {
@@ -136,12 +172,12 @@ export const MainEditor: React.FC = () => {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const bytes = Array.from(new Uint8Array(arrayBuffer));
-      const relPath = await invoke<string>('save_image_bytes', {
-        relativeNoteId: currentNoteId,
-        fileName: file.name,
+      const bytes = new Uint8Array(arrayBuffer);
+      const relPath = await storage.saveImageBytes(
+        currentNoteId,
+        file.name,
         bytes,
-      });
+      );
 
       const markdownImage = `![${file.name}|400](${relPath})\n`;
       insertText(markdownImage);

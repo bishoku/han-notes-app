@@ -1,27 +1,10 @@
 import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { storage } from '@/services/storage';
+import type { TaskInfo, TaskRegistry } from '@/services/storage';
 import { useNoteStore } from '@/store/noteStore';
 
-export interface TaskInfo {
-  note_id: string;
-  line_number: number;
-  content: string;
-  completed: boolean;
-  description?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  priority?: 'low' | 'medium' | 'high' | 'urgent' | string | null;
-  assignee?: string | null;
-  assignees?: string[];
-  progress?: number | null;
-  tags?: string[];
-  raw_line?: string;
-}
-
-export interface TaskRegistry {
-  assignees: string[];
-  tags: string[];
-}
+// Re-export types for backward compatibility
+export type { TaskInfo, TaskRegistry };
 
 interface TaskState {
   tasks: TaskInfo[];
@@ -53,7 +36,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   loadTasks: async () => {
     try {
-      const tasks = await invoke<TaskInfo[]>('get_global_tasks');
+      const tasks = await storage.getGlobalTasks();
       set({ tasks });
       await get().loadTaskRegistry();
     } catch (e) {
@@ -63,7 +46,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   loadTaskRegistry: async () => {
     try {
-      const registry = await invoke<TaskRegistry>('get_task_registry');
+      const registry = await storage.getTaskRegistry();
       set({ registry });
     } catch (e) {
       console.error("Failed to load task registry:", e);
@@ -72,7 +55,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   toggleTask: async (noteId, lineNumber, completed) => {
     try {
-      await invoke('toggle_task', { noteId, lineNumber, completed });
+      await storage.toggleTask(noteId, lineNumber, completed);
       await get().loadTasks();
       
       // Refresh editor content if toggled note is currently open
@@ -88,20 +71,20 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         ? metadata.assignees 
         : (metadata.assignee ? [metadata.assignee] : []);
 
-      await invoke('update_task_metadata', {
+      await storage.updateTaskMetadata(
         noteId,
         lineNumber,
         content,
         completed,
-        description: metadata.description || null,
-        startDate: metadata.startDate || null,
-        endDate: metadata.endDate || null,
-        priority: metadata.priority || null,
-        assignee: finalAssignees.join(', ') || null,
-        assignees: finalAssignees,
-        progress: metadata.progress !== undefined ? metadata.progress : null,
-        tags: metadata.tags || [],
-      });
+        metadata.description || null,
+        metadata.startDate || null,
+        metadata.endDate || null,
+        metadata.priority || null,
+        finalAssignees.join(', ') || null,
+        finalAssignees,
+        metadata.progress !== undefined ? metadata.progress : null,
+        metadata.tags || [],
+      );
       await get().loadTasks();
 
       // Refresh editor content if updated note is currently open
