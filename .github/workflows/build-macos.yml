@@ -37,7 +37,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Han Notes ${{ github.ref_name }}'
-          releaseBody: 'See the release assets below for the macOS app.'
-          releaseDraft: true
+          releaseName: 'H.A.N. ${{ github.ref_name }}'
+          releaseBody: |
+            ## H.A.N. — Hierarchical Adaptive Notebook
+
+            macOS uygulamasını indirmek için aşağıdaki `.dmg` dosyasını kullanın.
+
+            **Web versiyonu:** [bishoku.github.io/han-notes-app](https://bishoku.github.io/han-notes-app/)
+          releaseDraft: false
           prerelease: false
