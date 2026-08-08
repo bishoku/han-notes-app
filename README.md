@@ -1,6 +1,8 @@
 <div align="center">
 
-# ✦ H.A.N.
+<img src="docs/app-icon-128.png" alt="H.A.N." width="128" />
+
+# H.A.N.
 
 **Hierarchical Adaptive Notebook**
 
