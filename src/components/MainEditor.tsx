@@ -352,7 +352,10 @@ export const MainEditor: React.FC = () => {
       <div className="flex-1 overflow-y-auto bg-mac-mainLight dark:bg-mac-mainDark relative">
         <div 
           ref={wrapperRef} 
-          className="py-12 relative w-full mx-auto max-w-3xl pl-14 pr-8 md:pr-12"
+          className={cn(
+            "py-12 relative w-full mx-auto pl-14 pr-8 md:pr-12",
+            rightPanelOpen ? "max-w-3xl" : "max-w-4xl"
+          )}
         >
           <FloatingBlockMenu
             menuPos={menuPos}
