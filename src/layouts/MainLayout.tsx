@@ -85,9 +85,7 @@ export const MainLayout: React.FC = () => {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-indigo-950">
         <div className="text-center max-w-lg p-10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-200/50 dark:border-zinc-800/50">
-          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-            <span className="text-3xl">📝</span>
-          </div>
+          <img src="icon-192.png" alt="H.A.N." className="w-20 h-20 mx-auto mb-5 rounded-2xl shadow-lg" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Han Notes'a Hoş Geldiniz</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
             Notlarınızın saklanacağı bir klasör seçin. Mevcut bir not klasörünüz varsa onu seçebilir,
