@@ -42,7 +42,7 @@ interface SlashCommandDef {
   /** Where to place the cursor relative to the insert start. Defaults to end of snippet. */
   cursorOffset?: number;
   /** Special action type for non-insert commands */
-  action?: 'openTagModal' | 'openImagePicker';
+  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor';
 }
 
 // ─── Static Definitions ──────────────────────────────────────────────────────
@@ -151,6 +151,17 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     snippet: '',
     action: 'openImagePicker',
   },
+  {
+    id: 'diagram',
+    labelKey: 'slashDiagram', // Make sure to add this in translations or just fallback
+    command: '/diagram',
+    descriptionKey: 'slashDiagramDesc',
+    category: 'Format',
+    colorClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    icon: React.createElement(CheckSquare, { size: 14 }), // Use a generic icon or import a specific one like Network/Sitemap
+    snippet: '',
+    action: 'openDiagramEditor',
+  },
 ];
 
 // ─── Builder ─────────────────────────────────────────────────────────────────
@@ -164,6 +175,7 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
 export function buildSlashCommands(
   executeSlashCommand: (text: string, opts?: { cursorOffset?: number; openTagModal?: boolean }) => void,
   openImagePicker: () => void,
+  openDiagramEditor: () => void,
   t: TFunction,
 ): SlashCommand[] {
   return SLASH_COMMAND_DEFS.map((def) => ({
@@ -180,6 +192,9 @@ export function buildSlashCommands(
       } else if (def.action === 'openImagePicker') {
         executeSlashCommand('');
         openImagePicker();
+      } else if (def.action === 'openDiagramEditor') {
+        executeSlashCommand('');
+        openDiagramEditor();
       } else {
         executeSlashCommand(def.snippet, def.cursorOffset ? { cursorOffset: def.cursorOffset } : undefined);
       }

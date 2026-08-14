@@ -160,6 +160,18 @@ export class TauriStorage implements IStorageService {
     });
   }
 
+  async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {
+    return invoke<string>('save_text_asset', {
+      relativeNoteId,
+      fileName,
+      content,
+    });
+  }
+
+  async readTextAsset(relativePath: string): Promise<string> {
+    return invoke<string>('read_text_asset', { relativePath });
+  }
+
   async getImageDataUrl(relativePath: string): Promise<string> {
     return invoke<string>('get_image_data_url', { relativePath });
   }

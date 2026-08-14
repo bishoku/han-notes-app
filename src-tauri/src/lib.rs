@@ -144,6 +144,15 @@ fn get_vault_tree(app: AppHandle) -> Result<Vec<FileNode>, String> {
     Ok(tree)
 }
 
+#[tauri::command]
+fn read_text_asset(app: AppHandle, relative_path: String) -> Result<String, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let full_path = find_file_in_vault(&vault_dir, &relative_path)
+        .ok_or_else(|| "File not found in vault".to_string())?;
+    
+    fs::read_to_string(full_path).map_err(|e| e.to_string())
+}
+
 fn scan_vault_files_recursive(dir: &Path, base_vault: &Path, notes: &mut Vec<NoteInfo>) {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -321,6 +330,38 @@ fn save_image_bytes(app: AppHandle, relative_note_id: String, file_name: String,
     };
 
     Ok(rel_path)
+}
+
+#[tauri::command]
+fn save_text_asset(app: AppHandle, relative_note_id: String, file_name: String, content: String) -> Result<String, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let parent_dir = if relative_note_id.contains('/') {
+        let parts: Vec<&str> = relative_note_id.split('/').collect();
+        parts[..parts.len() - 1].join("/")
+    } else {
+        String::new()
+    };
+
+    let target_dir = if parent_dir.is_empty() {
+        vault_dir.join(".attachments")
+    } else {
+        vault_dir.join(&parent_dir).join(".attachments")
+    };
+
+    if !target_dir.exists() {
+        fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+    }
+
+    let target_path = target_dir.join(&file_name);
+    fs::write(&target_path, content).map_err(|e| e.to_string())?;
+
+    let relative_asset_path = if parent_dir.is_empty() {
+        format!(".attachments/{}", file_name)
+    } else {
+        format!("{}/.attachments/{}", parent_dir, file_name)
+    };
+
+    Ok(relative_asset_path)
 }
 
 #[tauri::command]
@@ -634,6 +675,8 @@ pub fn run() {
             update_task_metadata,
             get_backlinks,
             save_image_bytes,
+            save_text_asset,
+            read_text_asset,
             get_image_data_url,
             resolve_asset_path,
             get_global_decisions,

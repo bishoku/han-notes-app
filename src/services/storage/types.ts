@@ -130,5 +130,7 @@ export interface IStorageService {
 
   // ── Assets / Images ──
   saveImageBytes(relativeNoteId: string, fileName: string, bytes: Uint8Array): Promise<string>;
+  saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string>;
+  readTextAsset(relativePath: string): Promise<string>;
   getImageDataUrl(relativePath: string): Promise<string>;
 }

@@ -709,6 +709,48 @@ export class BrowserStorage implements IStorageService {
     return parentDir ? `${parentDir}/.attachments/${fileName}` : `.attachments/${fileName}`;
   }
 
+  async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {
+    const dir = this.getDir();
+    const parentDir = relativeNoteId.includes('/')
+      ? relativeNoteId.split('/').slice(0, -1).join('/')
+      : '';
+
+    const attachmentsPath = parentDir
+      ? `${parentDir}/.attachments`
+      : '.attachments';
+
+    // Ensure .attachments directory exists
+    let current = dir;
+    for (const part of attachmentsPath.split('/').filter(Boolean)) {
+      current = await current.getDirectoryHandle(part, { create: true });
+    }
+
+    const fileHandle = await current.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
+
+    return parentDir
+      ? `${parentDir}/.attachments/${fileName}`
+      : `.attachments/${fileName}`;
+  }
+
+  async readTextAsset(relativePath: string): Promise<string> {
+    const dir = this.getDir();
+    const parts = relativePath.split('/').filter(Boolean);
+    const fileName = parts.pop();
+    if (!fileName) throw new Error('Invalid path');
+
+    let current = dir;
+    for (const part of parts) {
+      current = await current.getDirectoryHandle(part);
+    }
+
+    const fileHandle = await current.getFileHandle(fileName);
+    const file = await fileHandle.getFile();
+    return await file.text();
+  }
+
   async getImageDataUrl(relativePath: string): Promise<string> {
     const dir = this.getDir();
     const handle = await getOrCreateFile(dir, relativePath);

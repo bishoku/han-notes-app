@@ -21,6 +21,7 @@ import { TaskEditModal } from '@/components/TaskEditModal';
 import type { TaskEditData } from '@/components/TaskEditModal';
 import { DecisionEditModal } from '@/components/DecisionEditModal';
 import type { DecisionEditData } from '@/components/DecisionEditModal';
+import { DiagramEditorModal, type DiagramPayload } from '@/components/DiagramEditorModal';
 import { useTranslation } from 'react-i18next';
 import { SlashCommandMenu } from '@/components/SlashCommandMenu';
 import { Eye, FileCode } from 'lucide-react';
@@ -103,6 +104,10 @@ export const MainEditor: React.FC = () => {
   // Task & Decision Edit Modal state
   const [taskModalData, setTaskModalData] = useState<TaskEditData | null>(null);
   const [decisionModalData, setDecisionModalData] = useState<DecisionEditData | null>(null);
+  const [diagramModalOpen, setDiagramModalOpen] = useState(false);
+  const [diagramInitialJson, setDiagramInitialJson] = useState<string | null>(null);
+  const [, setEditingDiagramId] = useState<string | null>(null);
+  const editingDiagramIdRef = useRef<string | null>(null);
 
   const editorRef = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -295,9 +300,91 @@ export const MainEditor: React.FC = () => {
     fileInputRef.current?.click();
   }, []);
 
+  const openDiagramEditor = useCallback(async (diagramId?: string) => {
+    if (diagramId && currentNoteId) {
+      try {
+        const jsonContent = await storage.readTextAsset(`.attachments/diagram-${diagramId}.json`);
+        setDiagramInitialJson(jsonContent);
+        setEditingDiagramId(diagramId);
+        editingDiagramIdRef.current = diagramId;
+      } catch (err) {
+        console.error('Failed to load diagram', err);
+        setDiagramInitialJson(null);
+        setEditingDiagramId(null);
+        editingDiagramIdRef.current = null;
+      }
+    } else {
+      setDiagramInitialJson(null);
+      setEditingDiagramId(null);
+      editingDiagramIdRef.current = null;
+    }
+    setDiagramModalOpen(true);
+  }, [currentNoteId]);
+
+  useEffect(() => {
+    const handleEditDiagram = (e: CustomEvent<string>) => {
+      openDiagramEditor(e.detail);
+    };
+    window.addEventListener('edit-diagram', handleEditDiagram as EventListener);
+    return () => window.removeEventListener('edit-diagram', handleEditDiagram as EventListener);
+  }, [openDiagramEditor]);
+
+  const handleSaveDiagram = async (payload: DiagramPayload) => {
+    if (!currentNoteId) return;
+
+    try {
+      const isEditing = !!editingDiagramIdRef.current;
+      const diagramId = editingDiagramIdRef.current || crypto.randomUUID();
+      
+      // Update ref immediately to prevent race conditions on rapid rapid auto-saves
+      if (!editingDiagramIdRef.current) {
+        editingDiagramIdRef.current = diagramId;
+        setEditingDiagramId(diagramId);
+      }
+
+      const fileNameJson = `diagram-${diagramId}.json`;
+      const fileNamePng = `diagram-${diagramId}.png`;
+      const contentStr = JSON.stringify({
+        logicalData: payload.logicalJson ? JSON.parse(payload.logicalJson) : {},
+        visualData: payload.visualJson ? JSON.parse(payload.visualJson) : {},
+      });
+
+      // Save JSON
+      await storage.saveTextAsset(currentNoteId, fileNameJson, contentStr);
+      
+      let markdownImage = '';
+      if (payload.previewDataUri) {
+        // Save PNG if exists
+        const base64Data = payload.previewDataUri.replace(/^data:image\/\w+;base64,/, '');
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, bytes);
+        markdownImage = `\n![${fileNamePng}](${relPathPng})\n`;
+      }
+      
+      if (!isEditing) {
+        insertText(`\n<!-- diagram:${diagramId} -->${markdownImage}`);
+      }
+      
+      // Dispatch custom event to instantly update image widget in CodeMirror view
+      window.dispatchEvent(
+        new CustomEvent('refresh-diagram-image', {
+          detail: { diagramId, dataUrl: payload.previewDataUri },
+        })
+      );
+    } catch (err) {
+      console.error('Failed to save diagram', err);
+    } finally {
+      setEditingDiagramId(null);
+    }
+  };
+
   const slashCommands = useMemo(
-    () => buildSlashCommands(executeSlashCommand, openImagePicker, t),
-    [executeSlashCommand, openImagePicker, t]
+    () => buildSlashCommands(executeSlashCommand, openImagePicker, openDiagramEditor, t),
+    [executeSlashCommand, openImagePicker, openDiagramEditor, t]
   );
 
   const editorExtensions = useMemo(() => {
@@ -439,6 +526,14 @@ export const MainEditor: React.FC = () => {
           onClose={() => setDecisionModalData(null)}
         />
       )}
+
+      {/* Diagram Editor Modal */}
+      <DiagramEditorModal
+        isOpen={diagramModalOpen}
+        initialJson={diagramInitialJson}
+        onClose={() => setDiagramModalOpen(false)}
+        onSave={handleSaveDiagram}
+      />
 
       {/* Floating Slash Command Menu (fixed to viewport) */}
       {slashMenuState.show && (

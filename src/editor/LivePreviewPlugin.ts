@@ -9,8 +9,8 @@ import { syntaxTree } from "@codemirror/language";
 import { useNoteStore } from "@/store/noteStore";
 import { useUiStore } from "@/store/uiStore";
 import { ResizableImageWidget } from "./widgets/ResizableImageWidget";
-import { TaskBadgeWidget } from "./widgets/TaskBadgeWidget";
 import { DecisionBadgeWidget } from "./widgets/DecisionBadgeWidget";
+import { TaskBadgeWidget } from "./widgets/TaskBadgeWidget";
 import { TableWidget, parseMarkdownTable } from "./widgets/TableWidget";
 
 const hiddenMark = Decoration.replace({});
@@ -285,6 +285,15 @@ function livePreviewDecorations(view: EditorView) {
         } catch (e) {
           items.push({ from: commentFrom, to: commentTo, dec: hiddenMark });
         }
+      }
+
+      // Hide <!-- diagram:UUID --> comment metadata ALWAYS
+      const diagramCommentRe = /<!--\s*diagram:(.*?)\s*-->/g;
+      let diagMatch: RegExpExecArray | null;
+      while ((diagMatch = diagramCommentRe.exec(text)) !== null) {
+        const commentFrom = line.from + diagMatch.index;
+        const commentTo = commentFrom + diagMatch[0].length;
+        items.push({ from: commentFrom, to: commentTo, dec: hiddenMark });
       }
 
       if (l !== cursorLine) {
