@@ -33,10 +33,17 @@ Built with the philosophy that your notes should be **yours**, H.A.N. combines t
 ### 📝 Editor
 - **Live Preview** — See formatted Markdown as you type, switch to raw mode anytime
 - **Wiki-links** — Connect notes with `[[note-name]]` syntax, auto-complete included
-- **Slash Commands** — Type `/` to insert headings, lists, code blocks, images, and more
+- **Slash Commands** — Type `/` to insert headings, lists, code blocks, images, diagrams, and more
 - **Tables** — Notion-style table editing with add row/column controls
 - **Code Blocks** — Syntax highlighting for 100+ languages
 - **Image Support** — Drag & drop or paste images directly into notes
+
+### 📐 Architecture Diagramming (YADA Integration)
+- **Embedded Diagram Editor** — Create and edit interactive system architecture diagrams directly inside your notes using the embedded [YADA](https://github.com/bishoku/yada) editor modal.
+- **Slash Command Integration** — Type `/diagram` anywhere in the editor to insert a new architecture diagram.
+- **Local-First & Markdown Native** — Diagrams are saved locally alongside your notes in `.attachments/` as clean PNG preview images and `.json` layout definitions (`<!-- diagram:uuid -->`).
+- **Interactive Re-editing** — Hover over any diagram in the live preview and click the floating edit button to instantly update the diagram.
+- **Auto-Centered Export** — Automatic framing & centering (`fitView`) ensures rendered diagram attachments are perfectly captured.
 
 ### ✅ Tasks
 - **Global Task View** — See all tasks across your entire vault in one place
