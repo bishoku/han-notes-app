@@ -20,6 +20,11 @@ import {
   Quote,
   Table,
   Image as ImageIcon,
+  Workflow,
+  Info,
+  AlertTriangle,
+  Lightbulb,
+  Minus,
 } from 'lucide-react';
 import type { SlashCommand } from '@/components/SlashCommandMenu';
 import type { TFunction } from 'i18next';
@@ -153,14 +158,54 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
   },
   {
     id: 'diagram',
-    labelKey: 'slashDiagram', // Make sure to add this in translations or just fallback
+    labelKey: 'slashDiagram',
     command: '/diagram',
     descriptionKey: 'slashDiagramDesc',
     category: 'Format',
     colorClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-    icon: React.createElement(CheckSquare, { size: 14 }), // Use a generic icon or import a specific one like Network/Sitemap
+    icon: React.createElement(Workflow, { size: 14 }),
     snippet: '',
     action: 'openDiagramEditor',
+  },
+  {
+    id: 'note',
+    labelKey: 'slashNoteCallout',
+    command: '/note',
+    descriptionKey: 'slashNoteCalloutDesc',
+    category: 'Format',
+    colorClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    icon: React.createElement(Info, { size: 14 }),
+    snippet: '> [!NOTE] Bilgi Notu\n> Açıklama metninizi buraya yazabilirsiniz.\n',
+  },
+  {
+    id: 'warning',
+    labelKey: 'slashWarningCallout',
+    command: '/warning',
+    descriptionKey: 'slashWarningCalloutDesc',
+    category: 'Format',
+    colorClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    icon: React.createElement(AlertTriangle, { size: 14 }),
+    snippet: '> [!WARNING] Uyarı Notu\n> Uyarı açıklamasını buraya yazabilirsiniz.\n',
+  },
+  {
+    id: 'tip',
+    labelKey: 'slashTipCallout',
+    command: '/tip',
+    descriptionKey: 'slashTipCalloutDesc',
+    category: 'Format',
+    colorClass: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    icon: React.createElement(Lightbulb, { size: 14 }),
+    snippet: '> [!TIP] İpucu Notu\n> İpucu açıklamasını buraya yazabilirsiniz.\n',
+  },
+  {
+    id: 'hr',
+    labelKey: 'slashHR',
+    command: '/hr',
+    descriptionKey: 'slashHRDesc',
+    category: 'Format',
+    colorClass: 'bg-gray-500/15 text-gray-600 dark:text-gray-400',
+    icon: React.createElement(Minus, { size: 14 }),
+    snippet: '---\n',
   },
 ];
 

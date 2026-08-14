@@ -7,7 +7,6 @@ import { TaskEditModal } from '@/components/TaskEditModal';
 import type { TaskEditData } from '@/components/TaskEditModal';
 import { 
   Link2, 
-  Sparkles, 
   List, 
   FileText, 
   ArrowRight, 
@@ -34,7 +33,7 @@ export const RightPanel: React.FC = () => {
   const { backlinks, selectNote, currentNoteId, currentNoteContent } = useNoteStore();
   const { tasks, loadTasks, toggleTask, updateTaskMetadata } = useTaskStore();
   
-  const [activeTab, setActiveTab] = useState<'links' | 'ai' | 'outline'>('links');
+  const [activeTab, setActiveTab] = useState<'links' | 'outline'>('links');
   const [editingTask, setEditingTask] = useState<TaskEditData | null>(null);
 
   // Automatically refresh tasks list when current note changes or panel is active
@@ -96,16 +95,6 @@ export const RightPanel: React.FC = () => {
           )}
         </button>
         <button 
-          onClick={() => setActiveTab('ai')}
-          className={cn(
-            "flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150",
-            activeTab === 'ai' ? "bg-white dark:bg-zinc-800 shadow-mac-panel text-mac-accent" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-          )}
-          title={t('aiAssistant')}
-        >
-          <Sparkles size={16} />
-        </button>
-        <button 
           onClick={() => setActiveTab('outline')}
           className={cn(
             "flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150 relative",
@@ -160,34 +149,6 @@ export const RightPanel: React.FC = () => {
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {activeTab === 'ai' && (
-          <div className="flex flex-col h-full">
-            <div className="text-xs font-semibold mb-4 text-gray-400 uppercase tracking-wider">{t('aiAssistant')}</div>
-            <div className="flex-1 flex flex-col gap-4">
-              <div className="flex justify-end">
-                <div className="bg-mac-accent text-white text-xs px-3 py-2 rounded-2xl rounded-tr-sm max-w-[85%] shadow-sm">
-                  Can you summarize this note?
-                </div>
-              </div>
-              <div className="flex justify-start">
-                <div className="bg-gray-200 dark:bg-zinc-800 text-gray-800 dark:text-gray-200 text-xs px-3 py-2 rounded-2xl rounded-tl-sm max-w-[85%] shadow-sm leading-relaxed border border-transparent dark:border-white/5">
-                  This note outlines your project goals and references other notes via [[Wikilinks]].
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 relative pt-2">
-              <input 
-                type="text" 
-                placeholder="Ask AI..." 
-                className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-full py-2 pl-4 pr-10 text-xs focus:outline-none focus:ring-2 focus:ring-mac-accent/30 focus:border-mac-accent/50 transition-all shadow-sm"
-              />
-              <button className="absolute right-1.5 top-[13px] p-1.5 bg-mac-accent text-white rounded-full hover:bg-blue-600 transition-colors shadow-sm">
-                <Sparkles size={12} />
-              </button>
-            </div>
           </div>
         )}
 

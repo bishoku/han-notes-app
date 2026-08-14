@@ -66,7 +66,7 @@ function extractTagsFromFrontmatter(content: string): string[] {
 }
 
 export const MainEditor: React.FC = () => {
-  const { rightPanelOpen, toggleRightPanel, theme, editorMode, setEditorMode } = useUiStore();
+  const { rightPanelOpen, toggleRightPanel, theme, fontSize, editorMode, setEditorMode } = useUiStore();
   const { currentNoteId, currentNoteContent, updateNote, selectNote, notes, vaultTags, updateNoteTags } = useNoteStore();
   const { updateTaskMetadata } = useTaskStore();
   const { updateDecisionMetadata } = useDecisionStore();
@@ -465,7 +465,12 @@ export const MainEditor: React.FC = () => {
             onUpdate={handleEditorUpdate}
             theme={theme === 'dark' ? 'dark' : 'light'}
             extensions={editorExtensions}
-            className="text-lg text-gray-800 dark:text-gray-200 cm-theme-han"
+            className={cn(
+              "text-gray-800 dark:text-gray-200 cm-theme-han",
+              fontSize === 'sm' && "cm-fontsize-sm",
+              fontSize === 'md' && "cm-fontsize-md",
+              fontSize === 'lg' && "cm-fontsize-lg"
+            )}
             basicSetup={{
               lineNumbers: false,
               foldGutter: false,

@@ -8,6 +8,7 @@ const resources = {
       "tasks": "All Tasks",
       "settings": "Settings",
       "theme": "Theme",
+      "language": "Language",
       "search": "Search (Cmd+K)",
       "backlinks": "Backlinks",
       "aiAssistant": "AI Assistant",
@@ -98,6 +99,16 @@ const resources = {
       "slashImageDesc": "Upload image or GIF",
       "slashTag": "Tag Note",
       "slashTagDesc": "Add tag to note",
+      "slashDiagram": "Architecture Diagram",
+      "slashDiagramDesc": "Create interactive YADA diagram",
+      "slashNoteCallout": "Note Callout",
+      "slashNoteCalloutDesc": "Insert info callout box",
+      "slashWarningCallout": "Warning Callout",
+      "slashWarningCalloutDesc": "Insert warning callout box",
+      "slashTipCallout": "Tip Callout",
+      "slashTipCalloutDesc": "Insert tip callout box",
+      "slashHR": "Divider",
+      "slashHRDesc": "Insert horizontal line divider",
       "slashMenuCommands": "Commands",
       "slashMenuHint": "↑↓ select · ↵ apply",
 
@@ -124,6 +135,10 @@ const resources = {
       "pendingDrafts": "Pending / Drafts",
       "drafts": "Drafts",
       "editDecisionTitle": "Edit Decision",
+
+      // ─── Diagram Modal ─────────────────────────────────────────────
+      "diagramEditorTitle": "Diagram Editor (YADA)",
+      "loading": "Loading...",
     }
   },
   tr: {
@@ -132,6 +147,7 @@ const resources = {
       "tasks": "Tüm Görevler",
       "settings": "Ayarlar",
       "theme": "Tema",
+      "language": "Dil",
       "search": "Hızlı Arama (Cmd+K)",
       "backlinks": "Bağlantılar",
       "aiAssistant": "AI Asistan",
@@ -222,6 +238,16 @@ const resources = {
       "slashImageDesc": "Görsel veya GIF yükle",
       "slashTag": "Not Etiketle",
       "slashTagDesc": "Nota etiket ekle",
+      "slashDiagram": "Mimari Diyagram",
+      "slashDiagramDesc": "Etkileşimli YADA diyagramı oluştur",
+      "slashNoteCallout": "Bilgi Kutusu",
+      "slashNoteCalloutDesc": "Bilgi notu kutusu ekle",
+      "slashWarningCallout": "Uyarı Kutusu",
+      "slashWarningCalloutDesc": "Uyarı notu kutusu ekle",
+      "slashTipCallout": "İpucu Kutusu",
+      "slashTipCalloutDesc": "İpucu notu kutusu ekle",
+      "slashHR": "Yatay Çizgi",
+      "slashHRDesc": "Yatay ayırıcı çizgi ekle",
       "slashMenuCommands": "Komutlar",
       "slashMenuHint": "↑↓ seç · ↵ uygula",
 
@@ -248,6 +274,10 @@ const resources = {
       "pendingDrafts": "Taslak / Bekleyen",
       "drafts": "Taslaklar",
       "editDecisionTitle": "Kararı Düzenle",
+
+      // ─── Diagram Modal ─────────────────────────────────────────────
+      "diagramEditorTitle": "Diyagram Düzenleyici (Yada)",
+      "loading": "Yükleniyor...",
     }
   }
 };

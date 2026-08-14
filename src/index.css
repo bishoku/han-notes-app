@@ -253,75 +253,48 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Fenced Code Block — Premium Styling with Language Label
+   Fenced Code Block — Premium 100% Continuous Unified Container
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .cm-theme-han .cm-line.cm-codeblock-line {
-  background: rgba(99, 102, 241, 0.04);
-  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace !important;
-  font-size: 0.84em !important;
-  line-height: 1.7 !important;
-  padding: 0.1rem 1.2rem !important;
-  border-left: 3px solid #6366f1;
+  background: rgba(99, 102, 241, 0.05) !important;
+  border-left: 3px solid #6366f1 !important;
   margin-left: 0.5rem !important;
   margin-right: 0.5rem !important;
-}
-
-/* First code line after fence — rounded top */
-.cm-theme-han .cm-line.cm-codeblock-fence + .cm-line.cm-codeblock-line {
-  border-top-right-radius: 0 !important;
-  padding-top: 0.4rem !important;
-}
-
-/* Fence line (``` markers) — language label via data-lang attribute */
-.cm-theme-han .cm-line.cm-codeblock-fence {
-  background: rgba(99, 102, 241, 0.08);
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-left: 1.25rem !important;
+  padding-right: 1rem !important;
   font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace !important;
-  font-size: 0.75em !important;
-  line-height: 1.5 !important;
-  padding: 0.35rem 1.2rem !important;
-  color: #64748b;
-  border-left: 3px solid #6366f1;
-  margin-left: 0.5rem !important;
-  margin-right: 0.5rem !important;
-  border-radius: 8px 8px 0 0;
+  font-size: 0.85em !important;
+  line-height: 1.65 !important;
+  color: #334155;
   position: relative;
 }
 
-/* Language label badge — shown via CSS ::after pseudo-element */
-.cm-theme-han .cm-line.cm-codeblock-fence[data-lang]::after {
-  content: attr(data-lang);
-  position: absolute;
-  top: 4px;
-  right: 12px;
-  background: #6366f1;
-  color: #fff;
-  font-family: 'Geist Variable', system-ui, sans-serif !important;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 4px;
-  line-height: 1.4;
-}
-
-/* Last fence line (closing ```) — rounded bottom */
-.cm-theme-han .cm-line.cm-codeblock-line + .cm-line.cm-codeblock-fence {
-  border-radius: 0 0 8px 8px !important;
-  padding-bottom: 0.35rem !important;
-}
-
-/* ─── Dark Mode ─── */
 .dark .cm-theme-han .cm-line.cm-codeblock-line {
-  background: rgba(99, 102, 241, 0.06);
-  border-left-color: #818cf8;
+  background: rgba(99, 102, 241, 0.10) !important;
+  border-left-color: #818cf8 !important;
+  color: #e2e8f0;
 }
 
-.dark .cm-theme-han .cm-line.cm-codeblock-fence {
-  background: rgba(99, 102, 241, 0.10);
-  border-left-color: #818cf8;
-  color: #94a3b8;
+/* Opening Fence Header Line */
+.cm-theme-han .cm-line.cm-codeblock-header {
+  border-top-left-radius: 8px !important;
+  border-top-right-radius: 8px !important;
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  font-weight: 600;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+/* Closing Fence Footer Line */
+.cm-theme-han .cm-line.cm-codeblock-footer {
+  border-bottom-left-radius: 8px !important;
+  border-bottom-right-radius: 8px !important;
+  padding-bottom: 0.35rem !important;
 }
 
 .dark .cm-theme-han .cm-line.cm-codeblock-fence[data-lang]::after {
@@ -427,3 +400,221 @@
 .dark ._3w_5u {
   fill: #52525b !important;
 }
+
+/* ─── 6 Themes CSS Overrides ─────────────────────────────────────────── */
+
+.theme-nord {
+  --color-mac-sidebarDark: #2e3440;
+  --color-mac-mainDark: #3b4252;
+  --color-mac-borderDark: #4c566a;
+  --color-mac-accent: #88c0d0;
+}
+
+.theme-dracula {
+  --color-mac-sidebarDark: #21222c;
+  --color-mac-mainDark: #282a36;
+  --color-mac-borderDark: #44475a;
+  --color-mac-accent: #bd93f9;
+}
+
+.theme-synthwave {
+  --color-mac-sidebarDark: #181528;
+  --color-mac-mainDark: #241e3a;
+  --color-mac-borderDark: #3b2d54;
+  --color-mac-accent: #ff79c6;
+}
+
+.theme-retro {
+  --color-mac-sidebarDark: #1a1412;
+  --color-mac-mainDark: #261e1b;
+  --color-mac-borderDark: #42352f;
+  --color-mac-accent: #d97706;
+}
+
+/* ─── Callouts & Formatting Styles ─────────────────────────────────── */
+
+.cm-hr-line {
+  position: relative;
+}
+.cm-hr-line::after {
+  content: '';
+  display: block;
+  height: 1px;
+  background-color: #e5e7eb;
+  margin: 0.75rem 0;
+}
+.dark .cm-hr-line::after {
+  background-color: #27272a;
+}
+
+.cm-inline-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  padding: 0.15em 0.35em;
+  border-radius: 0.375rem;
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #d97706;
+}
+.dark .cm-inline-code {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fbbf24;
+}
+
+.cm-strikethrough {
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+
+.cm-highlight {
+  background-color: rgba(254, 240, 138, 0.7);
+  color: #713f12;
+  padding: 0.1em 0.25em;
+  border-radius: 0.25rem;
+}
+.dark .cm-highlight {
+  background-color: rgba(234, 179, 8, 0.25);
+  color: #fef08a;
+}
+
+/* ─── Line-based Callout Containers ─── */
+
+.cm-editor .cm-line.cm-callout-header {
+  border-left-width: 4px !important;
+  border-top-left-radius: 0.6rem !important;
+  border-top-right-radius: 0.6rem !important;
+  font-weight: 600 !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.4rem !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+  margin: 0 !important;
+}
+
+.cm-editor .cm-line.cm-callout-body {
+  border-left-width: 4px !important;
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+  margin: 0 !important;
+}
+
+.cm-editor .cm-line.cm-callout-single {
+  border-left-width: 4px !important;
+  border-radius: 0.6rem !important;
+  font-weight: 600 !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+  margin: 0 !important;
+}
+
+.cm-editor .cm-line.cm-callout-last {
+  border-bottom-left-radius: 0.6rem !important;
+  border-bottom-right-radius: 0.6rem !important;
+  padding-bottom: 0.75rem !important;
+  margin: 0 !important;
+}
+
+/* NOTE (Blue) */
+.cm-callout-note {
+  background-color: rgba(239, 246, 255, 0.75);
+  border-left-color: #3b82f6;
+  color: #1e3a8a;
+}
+.dark .cm-callout-note {
+  background-color: rgba(30, 58, 138, 0.25);
+  border-left-color: #60a5fa;
+  color: #dbeafe;
+}
+
+/* TIP (Green) */
+.cm-callout-tip {
+  background-color: rgba(236, 253, 245, 0.75);
+  border-left-color: #10b981;
+  color: #064e3b;
+}
+.dark .cm-callout-tip {
+  background-color: rgba(6, 78, 59, 0.25);
+  border-left-color: #34d399;
+  color: #d1fae5;
+}
+
+/* IMPORTANT (Purple) */
+.cm-callout-important {
+  background-color: rgba(243, 232, 255, 0.75);
+  border-left-color: #a855f7;
+  color: #581c87;
+}
+.dark .cm-callout-important {
+  background-color: rgba(88, 28, 135, 0.25);
+  border-left-color: #c084fc;
+  color: #f3e8ff;
+}
+
+/* WARNING (Amber) */
+.cm-callout-warning {
+  background-color: rgba(254, 243, 199, 0.75);
+  border-left-color: #f59e0b;
+  color: #78350f;
+}
+.dark .cm-callout-warning {
+  background-color: rgba(120, 53, 15, 0.25);
+  border-left-color: #fbbf24;
+  color: #fef3c7;
+}
+
+/* CAUTION (Red) */
+.cm-callout-caution {
+  background-color: rgba(254, 226, 226, 0.75);
+  border-left-color: #ef4444;
+  color: #7f1d1d;
+}
+.dark .cm-callout-caution {
+  background-color: rgba(127, 29, 29, 0.25);
+  border-left-color: #f87171;
+  color: #fee2e2;
+}
+
+/* ─── Editor Font Size Overrides ─── */
+
+.cm-fontsize-sm .cm-content {
+  font-size: 13px !important;
+}
+.cm-fontsize-md .cm-content {
+  font-size: 14px !important;
+}
+.cm-fontsize-lg .cm-content {
+  font-size: 16px !important;
+}
+
+/* Base Body Text Lines (Exclude Headings) */
+.cm-fontsize-sm .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4) {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+.cm-fontsize-md .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4) {
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+.cm-fontsize-lg .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4) {
+  font-size: 16px !important;
+  line-height: 1.75 !important;
+}
+
+/* Heading Hierarchy Scaling for Small, Medium, Large */
+.cm-fontsize-sm .cm-h1, .cm-fontsize-sm .tok-heading1 { font-size: 2.0rem !important; line-height: 2.4rem !important; }
+.cm-fontsize-sm .cm-h2, .cm-fontsize-sm .tok-heading2 { font-size: 1.5rem !important; line-height: 1.9rem !important; }
+.cm-fontsize-sm .cm-h3, .cm-fontsize-sm .tok-heading3 { font-size: 1.2rem !important; line-height: 1.6rem !important; }
+.cm-fontsize-sm .cm-h4, .cm-fontsize-sm .tok-heading4 { font-size: 1.05rem !important; line-height: 1.45rem !important; }
+
+.cm-fontsize-md .cm-h1, .cm-fontsize-md .tok-heading1 { font-size: 2.25rem !important; line-height: 2.6rem !important; }
+.cm-fontsize-md .cm-h2, .cm-fontsize-md .tok-heading2 { font-size: 1.75rem !important; line-height: 2.1rem !important; }
+.cm-fontsize-md .cm-h3, .cm-fontsize-md .tok-heading3 { font-size: 1.35rem !important; line-height: 1.75rem !important; }
+.cm-fontsize-md .cm-h4, .cm-fontsize-md .tok-heading4 { font-size: 1.1rem !important; line-height: 1.5rem !important; }
+
+.cm-fontsize-lg .cm-h1, .cm-fontsize-lg .tok-heading1 { font-size: 2.6rem !important; line-height: 3.0rem !important; }
+.cm-fontsize-lg .cm-h2, .cm-fontsize-lg .tok-heading2 { font-size: 2.0rem !important; line-height: 2.4rem !important; }
+.cm-fontsize-lg .cm-h3, .cm-fontsize-lg .tok-heading3 { font-size: 1.5rem !important; line-height: 1.9rem !important; }
+.cm-fontsize-lg .cm-h4, .cm-fontsize-lg .tok-heading4 { font-size: 1.2rem !important; line-height: 1.6rem !important; }

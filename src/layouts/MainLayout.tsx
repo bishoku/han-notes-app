@@ -10,6 +10,9 @@ import { initBrowserStorage, pickBrowserDirectory } from '@/services/storage';
 import { PwaUpdateBanner } from '@/components/PwaUpdateBanner';
 import { FolderOpen } from 'lucide-react';
 
+import { SettingsModal } from '@/components/SettingsModal';
+import { applyAppTheme } from '@/utils/theme';
+
 /**
  * Detect if we're running inside a Tauri desktop app.
  */
@@ -18,22 +21,19 @@ function isTauri(): boolean {
 }
 
 export const MainLayout: React.FC = () => {
-  const { theme, viewMode } = useUiStore();
+  const { theme, viewMode, initPreferences } = useUiStore();
   const { loadVault } = useNoteStore();
   const [storageReady, setStorageReady] = useState(false);
   const [needsDirectoryPick, setNeedsDirectoryPick] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
 
-  // ── Theme ──
+  // ── Theme & Preferences Init ──
   useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-    let activeTheme = theme;
-    if (theme === 'system') {
-      activeTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    root.classList.add(activeTheme);
-    root.style.colorScheme = activeTheme;
+    initPreferences();
+  }, [initPreferences]);
+
+  useEffect(() => {
+    applyAppTheme(theme);
   }, [theme]);
 
   // ── Storage Init ──
@@ -136,6 +136,7 @@ export const MainLayout: React.FC = () => {
       {viewMode === 'decisions' && <DecisionsView />}
       {viewMode === 'notes' && <RightPanel />}
       {!isTauri() && <PwaUpdateBanner />}
+      <SettingsModal />
     </div>
   );
 };

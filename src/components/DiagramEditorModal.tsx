@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+
+import { useUiStore } from '@/store/uiStore';
 
 export interface DiagramPayload {
   logicalJson: string;
@@ -21,11 +24,13 @@ export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
   onClose,
   onSave
 }) => {
+  const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeReady, setIframeReady] = useState(false);
 
+  const { theme, language } = useUiStore();
   const YADA_URL = import.meta.env.VITE_YADA_URL || 'https://bishoku.github.io/yada/';
-  const iframeSrc = `${YADA_URL}?embed=true`;
+  const iframeSrc = `${YADA_URL}?embed=true&theme=${theme}&lang=${language}`;
 
   useEffect(() => {
     if (!isOpen) {
@@ -89,7 +94,7 @@ export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            Diyagram Düzenleyici (Yada)
+            {t('diagramEditorTitle')}
           </h2>
           <button
             onClick={handleRequestClose}
@@ -103,7 +108,7 @@ export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
         <div className="flex-1 w-full bg-white dark:bg-zinc-900 relative">
           {!iframeReady && (
             <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-              Yükleniyor...
+              {t('loading')}
             </div>
           )}
           <iframe

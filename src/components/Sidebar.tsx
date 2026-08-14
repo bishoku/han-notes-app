@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { FileTreeNode } from '@/components/FileTreeNode';
-import { Search, Settings, Sun, Moon, CheckCircle, FolderPlus, FilePlus, Folder, FileCheck, Tag, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Search, Settings, CheckCircle, FolderPlus, FilePlus, Folder, FileCheck, Tag, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
-  const { sidebarOpen, theme, setTheme, setViewMode, viewMode } = useUiStore();
+  const { sidebarOpen, setSettingsModalOpen, setViewMode, viewMode } = useUiStore();
   const { fileTree, notes, activeFolderPath, createNote, createFolder, moveNode, vaultTags, activeTagFilter, setActiveTagFilter } = useNoteStore();
   
   const [isRootDragOver, setIsRootDragOver] = useState(false);
@@ -334,22 +334,12 @@ export const Sidebar: React.FC = () => {
           <FileCheck size={16} />
           Karar Kayıtları (Decisions)
         </button>
-        <button className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 transition-colors">
+        <button 
+          onClick={() => setSettingsModalOpen(true)}
+          className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"
+        >
           <Settings size={16} />
           {t('settings')}
-        </button>
-        <button 
-          onClick={() => {
-            const isDarkNow = document.documentElement.classList.contains('dark');
-            setTheme(isDarkNow ? 'light' : 'dark');
-          }}
-          className="flex items-center justify-between px-2 py-1.5 text-xs rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
-            {t('theme')}
-          </div>
-          <span className="text-[10px] text-gray-400 uppercase font-mono">{theme}</span>
         </button>
       </div>
     </aside>

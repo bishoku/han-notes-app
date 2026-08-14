@@ -15,6 +15,9 @@ import {
   X,
 } from 'lucide-react';
 
+import { useUiStore } from '@/store/uiStore';
+import { cn } from '@/lib/utils';
+
 interface EditorHeaderProps {
   currentNoteId: string;
   localContent: string;
@@ -41,6 +44,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onUpdateTags,
 }) => {
   const { t } = useTranslation();
+  const { fontSize, setFontSize } = useUiStore();
   const readMinutes = Math.max(1, Math.ceil(localContent.split(' ').length / 200));
 
   return (
@@ -97,9 +101,51 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </div>
       </div>
 
-      <button onClick={onToggleRightPanel} className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 transition-colors">
-        {rightPanelOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-      </button>
+      <div className="flex items-center gap-2">
+        {/* Font Size Segmented Control (Small, Medium, Large) */}
+        <div className="flex items-center bg-gray-100 dark:bg-zinc-800/80 p-0.5 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 select-none">
+          <button
+            onClick={() => setFontSize('sm')}
+            className={cn(
+              "px-2 py-0.5 text-[11px] font-medium rounded-md transition-all",
+              fontSize === 'sm'
+                ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-2xs font-semibold"
+                : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            )}
+            title="Küçük Font (13px)"
+          >
+            Small
+          </button>
+          <button
+            onClick={() => setFontSize('md')}
+            className={cn(
+              "px-2 py-0.5 text-[11px] font-medium rounded-md transition-all",
+              fontSize === 'md'
+                ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-2xs font-semibold"
+                : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            )}
+            title="Orta Font (14px)"
+          >
+            Medium
+          </button>
+          <button
+            onClick={() => setFontSize('lg')}
+            className={cn(
+              "px-2 py-0.5 text-[11px] font-medium rounded-md transition-all",
+              fontSize === 'lg'
+                ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-2xs font-semibold"
+                : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            )}
+            title="Büyük Font (16px)"
+          >
+            Large
+          </button>
+        </div>
+
+        <button onClick={onToggleRightPanel} className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 transition-colors">
+          {rightPanelOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+        </button>
+      </div>
     </header>
   );
 };
