@@ -42,15 +42,18 @@ export class ResizableImageWidget extends WidgetType {
     const handle = document.createElement('div');
     handle.className = 'absolute -bottom-1 -right-1 w-4 h-4 bg-mac-accent rounded-full opacity-0 group-hover:opacity-100 cursor-nwse-resize shadow-md transition-opacity border-2 border-white z-10';
 
-    // Diagram Edit Button (top-right) if it's a diagram
+    // Diagram / Sketch Edit Button (top-right) if it's a diagram or sketch
     let editBtn: HTMLDivElement | null = null;
-    const diagramMatch = this.relPath.match(/diagram-([a-z0-9\-]+)\.png$/);
+    const diagramMatch = this.relPath.match(/(diagram|sketch)-([a-z0-9\-]+)\.png$/);
     if (diagramMatch) {
-      const diagramId = diagramMatch[1];
+      const isSketch = diagramMatch[1] === 'sketch';
+      const diagramId = `${diagramMatch[1]}-${diagramMatch[2]}`;
       
       editBtn = document.createElement('div');
-      editBtn.title = "Diyagramı Düzenle";
-      editBtn.className = "absolute -top-3 -right-3 w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 border border-gray-200 dark:border-zinc-700 shadow-md cursor-pointer opacity-0 group-hover:opacity-100 transition-all hover:scale-105 select-none z-20";
+      editBtn.title = isSketch ? "Serbest Çizimi Düzenle (Excalidraw)" : "Diyagramı Düzenle (YADA)";
+      editBtn.className = `absolute -top-3 -right-3 w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-zinc-800 ${
+        isSketch ? 'text-orange-600 dark:text-orange-400' : 'text-indigo-600 dark:text-indigo-400'
+      } border border-gray-200 dark:border-zinc-700 shadow-md cursor-pointer opacity-0 group-hover:opacity-100 transition-all hover:scale-105 select-none z-20`;
       
       editBtn.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -72,7 +75,7 @@ export class ResizableImageWidget extends WidgetType {
 
       const onRefresh = (e: Event) => {
         const customEvt = e as CustomEvent<{ diagramId: string; dataUrl?: string }>;
-        if (customEvt.detail && customEvt.detail.diagramId === diagramId) {
+        if (customEvt.detail && (customEvt.detail.diagramId === diagramId || customEvt.detail.diagramId === diagramMatch[2])) {
           if (customEvt.detail.dataUrl) {
             img.src = customEvt.detail.dataUrl;
           } else {

@@ -1,13 +1,11 @@
 /**
  * useEditorFloatingUI.ts — Custom hook for managing all floating UI elements
  * in the CodeMirror editor: block menu (+), task edit button, decision edit button,
- * slash command menu, and related popover states.
- *
- * Extracts the entire `onUpdate` callback logic from MainEditor, eliminating
- * duplicated coordinate calculations and reducing the component's complexity.
+ * slash command menu, and selection bubble menu (Medium / Notion style).
  */
 import { useState, useRef, useCallback } from 'react';
 import type { ViewUpdate } from '@codemirror/view';
+import type { SelectionBubbleState } from '@/components/SelectionBubbleMenu';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +39,14 @@ const INITIAL_SLASH: SlashMenuState = {
   slashTo: 0,
   anchorRect: { top: 0, left: 0, bottom: 0 },
 };
+const INITIAL_BUBBLE: SelectionBubbleState = {
+  show: false,
+  top: 0,
+  left: 0,
+  from: 0,
+  to: 0,
+  selectedText: '',
+};
 
 // ─── Line type detection regexes (hoisted for performance) ───────────────────
 
@@ -60,6 +66,10 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
   const [taskEditBtn, setTaskEditBtn] = useState<FloatingButtonState>(INITIAL_BUTTON);
   const [decisionEditBtn, setDecisionEditBtn] = useState<FloatingButtonState>(INITIAL_BUTTON);
 
+  // Selection Bubble Menu (Medium / Notion style)
+  const [selectionBubble, setSelectionBubble] = useState<SelectionBubbleState>(INITIAL_BUBBLE);
+  const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Slash command menu
   const [slashMenuState, setSlashMenuState] = useState<SlashMenuState>(INITIAL_SLASH);
   const slashStateRef = useRef<SlashMenuState>(INITIAL_SLASH);
@@ -77,7 +87,7 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
   }, [wrapperRef]);
 
   /**
-   * Hides all floating buttons/menus. Called when cursor moves to an unrecognized line type.
+   * Hides all line-based floating buttons/menus.
    */
   const hideAll = useCallback(() => {
     setMenuPos(prev => prev.show ? { ...prev, show: false } : prev);
@@ -88,21 +98,60 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
   }, []);
 
   /**
-   * Main CodeMirror `onUpdate` handler. Detects the current line type and shows
-   * the appropriate floating UI element.
+   * Main CodeMirror `onUpdate` handler. Detects current selection and line type.
    */
   const handleEditorUpdate = useCallback((update: ViewUpdate) => {
     if (!update.selectionSet && !update.docChanged && !update.geometryChanged) return;
 
-    const head = update.state.selection.main.head;
+    const sel = update.state.selection.main;
+
+    // ── 1. Selection Bubble Menu (Medium / Notion Style with 60ms debounce) ──
+    if (bubbleTimerRef.current) {
+      clearTimeout(bubbleTimerRef.current);
+      bubbleTimerRef.current = null;
+    }
+
+    if (!sel.empty) {
+      const from = sel.from;
+      const to = sel.to;
+      const selectedText = update.state.sliceDoc(from, to);
+
+      if (selectedText.trim().length > 0) {
+        // Wait 60ms after selection finishes moving before displaying bubble menu
+        bubbleTimerRef.current = setTimeout(() => {
+          const coordsFrom = update.view.coordsAtPos(from);
+          const coordsTo = update.view.coordsAtPos(to);
+          const wrapperDOM = wrapperRef.current?.getBoundingClientRect();
+
+          if (coordsFrom && coordsTo && wrapperDOM) {
+            const top = Math.min(coordsFrom.top, coordsTo.top) - wrapperDOM.top;
+            const left = (coordsFrom.left + coordsTo.right) / 2 - wrapperDOM.left;
+            setSelectionBubble({
+              show: true,
+              top,
+              left,
+              from,
+              to,
+              selectedText,
+            });
+          }
+        }, 60);
+      } else {
+        setSelectionBubble(prev => prev.show ? { ...prev, show: false } : prev);
+      }
+    } else {
+      setSelectionBubble(prev => prev.show ? { ...prev, show: false } : prev);
+    }
+
+    const head = sel.head;
     const line = update.state.doc.lineAt(head);
     const lineNumber = line.number - 1;
 
-    // ── 1. Slash Command Trigger ──
+    // ── 2. Slash Command Trigger ──
     const textBeforeHead = line.text.slice(0, head - line.from);
     const slashMatch = textBeforeHead.match(SLASH_TRIGGER_RE);
 
-    if (slashMatch) {
+    if (slashMatch && sel.empty) {
       const slashOffset = textBeforeHead.lastIndexOf('/');
       const slashPos = line.from + slashOffset;
       const coords = update.view.coordsAtPos(slashPos);
@@ -119,7 +168,12 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
       setSlashMenuState(prev => ({ ...prev, show: false }));
     }
 
-    // ── 2. Line-type detection for floating buttons ──
+    // ── 3. Line-type detection for floating buttons (+, Task, Decision) ──
+    if (!sel.empty) {
+      hideAll();
+      return;
+    }
+
     const lineText = line.text;
 
     if (lineText.trim() === '') {
@@ -153,7 +207,7 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
 
     // No match → hide everything
     hideAll();
-  }, [getRelativeTop, hideAll]);
+  }, [getRelativeTop, hideAll, wrapperRef]);
 
   return {
     // Block menu
@@ -166,6 +220,10 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
     // Floating buttons
     taskEditBtn,
     decisionEditBtn,
+
+    // Selection bubble menu
+    selectionBubble,
+    setSelectionBubble,
 
     // Slash menu
     slashMenuState,

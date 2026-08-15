@@ -16,13 +16,21 @@ interface FileTreeNodeProps {
   }) => void;
 }
 
-export const FileTreeNode: React.FC<FileTreeNodeProps> = ({ node, level = 0, openInputDialog }) => {
+export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, level = 0, openInputDialog }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
-  const { selectNote, currentNoteId, activeFolderPath, setActiveFolder, createNote, createFolder, moveNode, deleteNode, renameNode } = useNoteStore();
-  const { setViewMode } = useUiStore();
+  const currentNoteId = useNoteStore(state => state.currentNoteId);
+  const activeFolderPath = useNoteStore(state => state.activeFolderPath);
+  const selectNote = useNoteStore(state => state.selectNote);
+  const setActiveFolder = useNoteStore(state => state.setActiveFolder);
+  const createNote = useNoteStore(state => state.createNote);
+  const createFolder = useNoteStore(state => state.createFolder);
+  const moveNode = useNoteStore(state => state.moveNode);
+  const deleteNode = useNoteStore(state => state.deleteNode);
+  const renameNode = useNoteStore(state => state.renameNode);
+  const setViewMode = useUiStore(state => state.setViewMode);
 
   const isSelected = !node.is_dir && (currentNoteId === node.relative_path || currentNoteId === node.name);
   const isFolderActive = node.is_dir && activeFolderPath === node.relative_path;
@@ -203,4 +211,4 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = ({ node, level = 0, ope
       )}
     </div>
   );
-};
+});

@@ -14,6 +14,7 @@ interface NoteState {
   backlinks: BacklinkInfo[];
   vaultTags: TagCount[];
   activeTagFilter: string | null;
+  vaultPath: string | null;
   
   loadVault: () => Promise<void>;
   loadVaultTree: () => Promise<void>;
@@ -42,11 +43,13 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   backlinks: [],
   vaultTags: [],
   activeTagFilter: null,
+  vaultPath: null,
 
   loadVault: async () => {
     try {
       const notes = await storage.getVaultFiles();
-      set({ notes });
+      const vaultPath = await storage.getVaultPath().catch(() => null);
+      set({ notes, vaultPath });
       await get().loadVaultTree();
       await get().loadVaultTags();
       

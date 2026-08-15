@@ -1,16 +1,11 @@
 /**
- * BrowserStorage — Web / PWA storage provider.
+ * BrowserStorage — Web / PWA storage provider powered by Rust WASM (han-core).
  * 
  * Uses the File System Access API (showDirectoryPicker) to read/write
- * actual .md files on the user's local disk (e.g., ~/.han directory).
+ * actual .md files on the user's local disk.
  * 
- * Logic operations (parsing tasks, decisions, backlinks from markdown)
- * are implemented in TypeScript here but will be replaced with WASM
- * calls to han-core once the WASM build pipeline is integrated.
- * 
- * Browser Compatibility:
- * - Chrome, Edge, Opera: Full support (showDirectoryPicker)
- * - Safari, Firefox: NOT supported for local directory access
+ * Markdown parsing (tasks, decisions, backlinks, YAML frontmatter)
+ * is executed by compiled WebAssembly from the shared `han-core` crate.
  */
 import type {
   IStorageService,
@@ -23,6 +18,25 @@ import type {
   DecisionInfo,
   DecisionRegistry,
 } from './types';
+import initWasm, {
+  wasm_parse_yaml_frontmatter,
+  wasm_inject_yaml_frontmatter,
+  wasm_parse_tasks_from_content,
+  wasm_parse_decisions_from_content,
+  wasm_find_backlinks,
+} from '@/wasm/han-core/han_core';
+import wasmUrl from '@/wasm/han-core/han_core_bg.wasm?url';
+
+// ─── WebAssembly Initialization ──────────────────────────────────────────
+
+let wasmPromise: Promise<any> | null = null;
+
+async function ensureWasmLoaded(): Promise<void> {
+  if (!wasmPromise) {
+    wasmPromise = initWasm({ module_or_path: wasmUrl });
+  }
+  await wasmPromise;
+}
 
 // ─── IndexedDB for persisting the directory handle across sessions ──────
 
@@ -72,22 +86,44 @@ async function getOrCreateFile(
   create = false,
 ): Promise<FileSystemFileHandle | null> {
   const parts = path.split('/').filter(Boolean);
-  let current = dir;
+  const fileName = parts.pop();
+  if (!fileName) return null;
 
-  for (let i = 0; i < parts.length - 1; i++) {
+  let current = dir;
+  for (const part of parts) {
     try {
-      current = await current.getDirectoryHandle(parts[i], { create });
+      current = await current.getDirectoryHandle(part, { create });
     } catch {
       return null;
     }
   }
 
-  const fileName = parts[parts.length - 1];
   try {
     return await current.getFileHandle(fileName, { create });
   } catch {
     return null;
   }
+}
+
+async function listAllMdFiles(
+  dir: FileSystemDirectoryHandle,
+  prefix = '',
+): Promise<Array<{ name: string; relativePath: string }>> {
+  const results: Array<{ name: string; relativePath: string }> = [];
+
+  for await (const entry of (dir as any).values()) {
+    if (entry.name.startsWith('.')) continue;
+
+    const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.kind === 'directory') {
+      const sub = await listAllMdFiles(entry as FileSystemDirectoryHandle, entryPath);
+      results.push(...sub);
+    } else if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+      results.push({ name: entry.name, relativePath: entryPath });
+    }
+  }
+
+  return results;
 }
 
 async function readFileText(
@@ -112,39 +148,18 @@ async function writeFileText(
   await writable.close();
 }
 
-async function listAllMdFiles(
-  dir: FileSystemDirectoryHandle,
-  basePath = '',
-): Promise<{ relativePath: string; name: string }[]> {
-  const results: { relativePath: string; name: string }[] = [];
-
-  for await (const entry of (dir as any).values()) {
-    const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
-
-    if (entry.kind === 'directory' && !entry.name.startsWith('.')) {
-      const subDir = await dir.getDirectoryHandle(entry.name);
-      results.push(...await listAllMdFiles(subDir, entryPath));
-    } else if (entry.kind === 'file' && entry.name.endsWith('.md')) {
-      results.push({ relativePath: entryPath, name: entry.name });
-    }
-  }
-
-  return results;
-}
-
 async function buildFileTree(
   dir: FileSystemDirectoryHandle,
-  basePath = '',
+  prefix = '',
 ): Promise<FileNode[]> {
   const nodes: FileNode[] = [];
 
   for await (const entry of (dir as any).values()) {
     if (entry.name.startsWith('.')) continue;
-    const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
 
+    const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.kind === 'directory') {
-      const subDir = await dir.getDirectoryHandle(entry.name);
-      const children = await buildFileTree(subDir, entryPath);
+      const children = await buildFileTree(entry as FileSystemDirectoryHandle, entryPath);
       nodes.push({
         name: entry.name,
         relative_path: entryPath,
@@ -170,159 +185,8 @@ async function buildFileTree(
   return nodes;
 }
 
-// ─── Markdown Parsing Helpers (mirrors Rust han-core logic) ─────────────
-
-function parseYamlFrontmatter(content: string): { tags: string[]; body: string } {
-  const trimmed = content.trimStart();
-  if (!trimmed.startsWith('---')) return { tags: [], body: content };
-
-  const afterFirst = trimmed.slice(3);
-  const endIdx = afterFirst.indexOf('\n---');
-  if (endIdx === -1) return { tags: [], body: content };
-
-  const yamlStr = afterFirst.slice(0, endIdx);
-  const body = afterFirst.slice(endIdx + 4).replace(/^\n+/, '');
-  const tags: string[] = [];
-  let inTags = false;
-
-  for (const line of yamlStr.split('\n')) {
-    const l = line.trim();
-    if (l.startsWith('tags:')) {
-      inTags = true;
-      const rest = l.slice(5).trim();
-      if (rest.startsWith('[') && rest.endsWith(']')) {
-        const inner = rest.slice(1, -1);
-        inner.split(',').forEach(t => {
-          const clean = t.trim().replace(/^["']|["']$/g, '').replace(/^#/, '');
-          if (clean) tags.push(clean);
-        });
-        inTags = false;
-      }
-    } else if (inTags && l.startsWith('-')) {
-      const clean = l.slice(1).trim().replace(/^["']|["']$/g, '').replace(/^#/, '');
-      if (clean) tags.push(clean);
-    } else if (l.includes(':')) {
-      inTags = false;
-    }
-  }
-
-  return { tags, body };
-}
-
-function injectYamlFrontmatter(tags: string[], body: string): string {
-  if (tags.length === 0) return body;
-  const yamlLines = ['---', 'tags:'];
-  for (const t of tags) {
-    yamlLines.push(`  - ${t}`);
-  }
-  yamlLines.push('---');
-  return `${yamlLines.join('\n')}\n\n${body.trimStart()}`;
-}
-
 function pathToNoteId(relPath: string): string {
   return relPath.replace(/\.md$/, '');
-}
-
-interface ParsedTask {
-  completed: boolean;
-  displayText: string;
-  meta: {
-    description?: string | null;
-    start_date?: string | null;
-    end_date?: string | null;
-    priority?: string | null;
-    assignee?: string | null;
-    assignees: string[];
-    progress?: number | null;
-    tags: string[];
-  };
-}
-
-function parseTaskLine(line: string): ParsedTask | null {
-  const match = line.match(/^\s*[-*+]\s*\[([ xX])\]\s*(.*)/);
-  if (!match) return null;
-
-  const completed = match[1] !== ' ';
-  const rawText = match[2];
-  if (!rawText.trim()) return null;
-
-  let meta: ParsedTask['meta'] = { assignees: [], tags: [] };
-  let displayText = rawText.trim();
-
-  const commentIdx = rawText.indexOf('<!-- task:');
-  if (commentIdx !== -1) {
-    const afterComment = rawText.slice(commentIdx + 10);
-    const endIdx = afterComment.indexOf('-->');
-    if (endIdx !== -1) {
-      const jsonStr = afterComment.slice(0, endIdx).trim();
-      try {
-        const parsed = JSON.parse(jsonStr);
-        meta = {
-          description: parsed.description ?? null,
-          start_date: parsed.start_date ?? null,
-          end_date: parsed.end_date ?? null,
-          priority: parsed.priority ?? null,
-          assignee: parsed.assignee ?? null,
-          assignees: parsed.assignees ?? [],
-          progress: parsed.progress ?? null,
-          tags: parsed.tags ?? [],
-        };
-      } catch { /* ignore parse errors */ }
-    }
-    displayText = rawText.slice(0, commentIdx).trim();
-  }
-
-  return { completed, displayText, meta };
-}
-
-interface ParsedDecision {
-  content: string;
-  meta: {
-    description?: string | null;
-    date?: string | null;
-    status?: string | null;
-    participants: string[];
-    approved_by: string[];
-    tags: string[];
-  };
-}
-
-function parseDecisionLine(line: string): ParsedDecision | null {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith('- [D]') && !trimmed.startsWith('- [d]') && !trimmed.includes('<!-- decision:')) {
-    return null;
-  }
-
-  let rawText = trimmed;
-  if (rawText.startsWith('- [D]') || rawText.startsWith('- [d]')) {
-    rawText = rawText.slice(5).trim();
-  }
-
-  let meta: ParsedDecision['meta'] = { participants: [], approved_by: [], tags: [] };
-  const commentIdx = rawText.indexOf('<!-- decision:');
-  if (commentIdx !== -1) {
-    const jsonPart = rawText.slice(commentIdx + 14);
-    const endIdx = jsonPart.indexOf('-->');
-    if (endIdx !== -1) {
-      const jsonStr = jsonPart.slice(0, endIdx).trim();
-      try {
-        const parsed = JSON.parse(jsonStr);
-        meta = {
-          description: parsed.description ?? null,
-          date: parsed.date ?? null,
-          status: parsed.status ?? null,
-          participants: parsed.participants ?? [],
-          approved_by: parsed.approved_by ?? [],
-          tags: parsed.tags ?? [],
-        };
-      } catch { /* ignore */ }
-    }
-  }
-
-  const content = commentIdx !== -1 ? rawText.slice(0, commentIdx).trim() : rawText.trim();
-  if (!content) return null;
-
-  return { content, meta };
 }
 
 // ─── BrowserStorage Implementation ──────────────────────────────────────
@@ -336,9 +200,9 @@ export class BrowserStorage implements IStorageService {
    * Throws if no saved handle or permission not already granted.
    */
   async init(): Promise<void> {
+    await ensureWasmLoaded();
     const saved = await loadHandle();
     if (saved) {
-      // queryPermission is silent and does not require user gesture
       const perm = await (saved as any).queryPermission({ mode: 'readwrite' });
       if (perm === 'granted') {
         this.dirHandle = saved;
@@ -352,6 +216,7 @@ export class BrowserStorage implements IStorageService {
    * Show the directory picker dialog. MUST be called from a user gesture (click).
    */
   async pickDirectory(): Promise<void> {
+    await ensureWasmLoaded();
     this.dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
     if (this.dirHandle) {
       await saveHandle(this.dirHandle);
@@ -368,13 +233,15 @@ export class BrowserStorage implements IStorageService {
   // ── Vault / File Tree ──
 
   async getVaultFiles(): Promise<NoteInfo[]> {
+    await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
     const notes: NoteInfo[] = [];
 
     for (const f of files) {
       const content = await readFileText(dir, f.relativePath);
-      const { tags } = parseYamlFrontmatter(content);
+      const parsed = wasm_parse_yaml_frontmatter(content);
+      const tags: string[] = parsed?.[0]?.tags || [];
       const noteId = pathToNoteId(f.relativePath);
       const title = f.name.replace(/\.md$/, '');
       notes.push({ id: noteId, title, path: f.relativePath, tags });
@@ -388,18 +255,23 @@ export class BrowserStorage implements IStorageService {
     return buildFileTree(this.getDir());
   }
 
+  async getVaultPath(): Promise<string> {
+    return this.dirHandle?.name ? `/${this.dirHandle.name}` : 'Local Vault';
+  }
+
   async getVaultTags(): Promise<TagCount[]> {
     const notes = await this.getVaultFiles();
     const counts = new Map<string, number>();
+
     for (const note of notes) {
       for (const tag of note.tags) {
         counts.set(tag, (counts.get(tag) ?? 0) + 1);
       }
     }
-    const list: TagCount[] = Array.from(counts.entries())
-      .map(([tag, count]) => ({ tag, count }));
-    list.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
-    return list;
+
+    return Array.from(counts.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
   }
 
   // ── Note CRUD ──
@@ -434,13 +306,10 @@ export class BrowserStorage implements IStorageService {
 
   async moveNode(srcRelPath: string, destDirRelPath: string): Promise<void> {
     const dir = this.getDir();
-    // Read source content
     const content = await readFileText(dir, srcRelPath);
     const fileName = srcRelPath.split('/').pop() ?? srcRelPath;
     const destPath = destDirRelPath ? `${destDirRelPath}/${fileName}` : fileName;
-    // Write to destination
     await writeFileText(dir, destPath, content);
-    // Delete source
     await this.deleteFileByPath(dir, srcRelPath);
   }
 
@@ -462,15 +331,18 @@ export class BrowserStorage implements IStorageService {
   }
 
   async updateNoteTags(id: string, tags: string[]): Promise<void> {
+    await ensureWasmLoaded();
     const content = await this.readNote(id);
-    const { body } = parseYamlFrontmatter(content);
-    const newContent = injectYamlFrontmatter(tags, body);
+    const parsed = wasm_parse_yaml_frontmatter(content);
+    const body: string = parsed?.[1] ?? content;
+    const newContent = wasm_inject_yaml_frontmatter(JSON.stringify({ tags }), body);
     await this.writeNote(id, newContent);
   }
 
   // ── Tasks ──
 
   async getGlobalTasks(): Promise<TaskInfo[]> {
+    await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
     const tasks: TaskInfo[] = [];
@@ -478,28 +350,8 @@ export class BrowserStorage implements IStorageService {
     for (const f of files) {
       const content = await readFileText(dir, f.relativePath);
       const noteId = pathToNoteId(f.relativePath);
-      const lines = content.split('\n');
-
-      for (let i = 0; i < lines.length; i++) {
-        const parsed = parseTaskLine(lines[i]);
-        if (parsed) {
-          tasks.push({
-            note_id: noteId,
-            line_number: i,
-            content: parsed.displayText,
-            completed: parsed.completed,
-            description: parsed.meta.description,
-            start_date: parsed.meta.start_date,
-            end_date: parsed.meta.end_date,
-            priority: parsed.meta.priority,
-            assignee: parsed.meta.assignee,
-            assignees: parsed.meta.assignees,
-            progress: parsed.meta.progress,
-            tags: parsed.meta.tags,
-            raw_line: lines[i],
-          });
-        }
-      }
+      const fileTasks: TaskInfo[] = wasm_parse_tasks_from_content(content, noteId) || [];
+      tasks.push(...fileTasks);
     }
 
     return tasks;
@@ -577,6 +429,7 @@ export class BrowserStorage implements IStorageService {
   // ── Decisions ──
 
   async getGlobalDecisions(): Promise<DecisionInfo[]> {
+    await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
     const decisions: DecisionInfo[] = [];
@@ -584,25 +437,8 @@ export class BrowserStorage implements IStorageService {
     for (const f of files) {
       const content = await readFileText(dir, f.relativePath);
       const noteId = pathToNoteId(f.relativePath);
-      const lines = content.split('\n');
-
-      for (let i = 0; i < lines.length; i++) {
-        const parsed = parseDecisionLine(lines[i]);
-        if (parsed) {
-          decisions.push({
-            note_id: noteId,
-            line_number: i,
-            content: parsed.content,
-            description: parsed.meta.description,
-            date: parsed.meta.date,
-            status: parsed.meta.status,
-            participants: parsed.meta.participants,
-            approved_by: parsed.meta.approved_by,
-            tags: parsed.meta.tags,
-            raw_line: lines[i],
-          });
-        }
-      }
+      const fileDecisions: DecisionInfo[] = wasm_parse_decisions_from_content(content, noteId) || [];
+      decisions.push(...fileDecisions);
     }
 
     return decisions;
@@ -653,31 +489,18 @@ export class BrowserStorage implements IStorageService {
   // ── Backlinks ──
 
   async getBacklinks(targetNoteId: string): Promise<BacklinkInfo[]> {
+    await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
     const backlinks: BacklinkInfo[] = [];
-
-    const titleStem = targetNoteId.split('/').pop()?.replace(/\.md$/, '') ?? targetNoteId;
-    const pattern = new RegExp(
-      `\\[\\[(?:${escapeRegex(targetNoteId)}|${escapeRegex(titleStem)})\\s*(?:\\|[^\\]]*)?\\]\\]`,
-    );
 
     for (const f of files) {
       const noteId = pathToNoteId(f.relativePath);
       if (noteId.toLowerCase() === targetNoteId.toLowerCase()) continue;
 
       const content = await readFileText(dir, f.relativePath);
-      const lines = content.split('\n');
-
-      for (let i = 0; i < lines.length; i++) {
-        if (pattern.test(lines[i])) {
-          backlinks.push({
-            source_note_id: noteId,
-            snippet: lines[i].trim(),
-            line_number: i,
-          });
-        }
-      }
+      const links: BacklinkInfo[] = wasm_find_backlinks(content, noteId, targetNoteId) || [];
+      backlinks.push(...links);
     }
 
     return backlinks;
@@ -695,7 +518,6 @@ export class BrowserStorage implements IStorageService {
       ? `${parentDir}/.attachments`
       : '.attachments';
 
-    // Ensure .attachments directory exists
     let current = dir;
     for (const part of attachmentsPath.split('/').filter(Boolean)) {
       current = await current.getDirectoryHandle(part, { create: true });
@@ -719,7 +541,6 @@ export class BrowserStorage implements IStorageService {
       ? `${parentDir}/.attachments`
       : '.attachments';
 
-    // Ensure .attachments directory exists
     let current = dir;
     for (const part of attachmentsPath.split('/').filter(Boolean)) {
       current = await current.getDirectoryHandle(part, { create: true });
@@ -748,63 +569,52 @@ export class BrowserStorage implements IStorageService {
 
     const fileHandle = await current.getFileHandle(fileName);
     const file = await fileHandle.getFile();
-    return await file.text();
+    return file.text();
   }
 
   async getImageDataUrl(relativePath: string): Promise<string> {
     const dir = this.getDir();
-    const handle = await getOrCreateFile(dir, relativePath);
-    if (!handle) throw new Error(`Image not found: ${relativePath}`);
+    const parts = relativePath.split('/').filter(Boolean);
+    const fileName = parts.pop();
+    if (!fileName) throw new Error('Invalid path');
 
-    const file = await handle.getFile();
-    const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-
-    const ext = relativePath.split('.').pop()?.toLowerCase() ?? 'png';
-    const mimeMap: Record<string, string> = {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-      svg: 'image/svg+xml',
-    };
-    const mime = mimeMap[ext] ?? 'image/png';
-
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    let current = dir;
+    for (const part of parts) {
+      current = await current.getDirectoryHandle(part);
     }
-    const b64 = btoa(binary);
 
-    return `data:${mime};base64,${b64}`;
+    const fileHandle = await current.getFileHandle(fileName);
+    const file = await fileHandle.getFile();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
-  // ── Private Helpers ──
+  async resolveAssetUrl(_currentNoteId: string, assetPath: string): Promise<string> {
+    return this.getImageDataUrl(assetPath);
+  }
 
   private async deleteFileByPath(dir: FileSystemDirectoryHandle, path: string): Promise<void> {
     const parts = path.split('/').filter(Boolean);
-    let current = dir;
+    const targetName = parts.pop();
+    if (!targetName) return;
 
-    for (let i = 0; i < parts.length - 1; i++) {
+    let current = dir;
+    for (const part of parts) {
       try {
-        current = await current.getDirectoryHandle(parts[i]);
+        current = await current.getDirectoryHandle(part);
       } catch {
-        return; // Parent doesn't exist, nothing to delete
+        return;
       }
     }
 
-    const target = parts[parts.length - 1];
     try {
-      await current.removeEntry(target, { recursive: true });
+      await current.removeEntry(targetName, { recursive: true });
     } catch {
-      // Entry doesn't exist
+      // Entry might not exist
     }
   }
-}
-
-// ─── Utility ────────────────────────────────────────────────────────────
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -38,12 +38,12 @@ Built with the philosophy that your notes should be **yours**, H.A.N. combines t
 - **Code Blocks** — Syntax highlighting for 100+ languages
 - **Image Support** — Drag & drop or paste images directly into notes
 
-### 📐 Architecture Diagramming (YADA Integration)
-- **Embedded Diagram Editor** — Create and edit interactive system architecture diagrams directly inside your notes using the embedded [YADA](https://github.com/bishoku/yada) editor modal.
-- **Slash Command Integration** — Type `/diagram` anywhere in the editor to insert a new architecture diagram.
-- **Local-First & Markdown Native** — Diagrams are saved locally alongside your notes in `.attachments/` as clean PNG preview images and `.json` layout definitions (`<!-- diagram:uuid -->`).
-- **Interactive Re-editing** — Hover over any diagram in the live preview and click the floating edit button to instantly update the diagram.
-- **Auto-Centered Export** — Automatic framing & centering (`fitView`) ensures rendered diagram attachments are perfectly captured.
+### 📐 Visual Diagramming & Sketching (Dual Engines)
+- **Architecture Diagrams (YADA)** — Create and edit interactive system architecture diagrams, flowcharts, and C4 models directly inside your notes using the embedded [YADA](https://github.com/bishoku/yada) editor modal (`/diagram`).
+- **Freehand Sketching & Whiteboard (Excalidraw)** — Draw hand-crafted sketches, wireframes, and mind-maps natively with the embedded [Excalidraw](https://github.com/excalidraw/excalidraw) canvas (`/sketch`).
+- **100% Local-First & Markdown Native** — Both engines generate transparent, high-resolution `.png` preview images alongside editable vector `.json` definitions in `.attachments/` (`<!-- diagram:uuid -->`).
+- **Seamless Live Preview Re-editing** — Hover over any diagram or sketch in the live preview and click the floating edit button to instantly reopen its native editor modal and continue where you left off.
+- **Dynamic Code-Splitting** — Excalidraw and diagram engines are lazily loaded on demand to keep initial app startup instant.
 
 ### ✅ Tasks
 - **Global Task View** — See all tasks across your entire vault in one place
@@ -154,6 +154,7 @@ han-notes-app/
 |-------|-----------|
 | **Frontend** | React 19, TypeScript, Zustand |
 | **Editor** | CodeMirror 6, custom live preview plugins |
+| **Diagrams & Sketching** | Excalidraw (freehand whiteboard), YADA (architecture flowcharts) |
 | **Styling** | Tailwind CSS 4, Lucide icons, Geist font |
 | **Desktop** | Tauri 2, Rust |
 | **Core Logic** | Rust (WASM-ready via `wasm-bindgen`) |

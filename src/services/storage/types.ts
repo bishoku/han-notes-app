@@ -80,6 +80,7 @@ export interface IStorageService {
   getVaultFiles(): Promise<NoteInfo[]>;
   getVaultTree(): Promise<FileNode[]>;
   getVaultTags(): Promise<TagCount[]>;
+  getVaultPath(): Promise<string>;
 
   // ── Note CRUD ──
   readNote(id: string): Promise<string>;

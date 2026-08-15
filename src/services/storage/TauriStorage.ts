@@ -32,6 +32,10 @@ export class TauriStorage implements IStorageService {
     return invoke<TagCount[]>('get_vault_tags');
   }
 
+  async getVaultPath(): Promise<string> {
+    return invoke<string>('get_vault_path_str');
+  }
+
   // ── Note CRUD ──
 
   async readNote(id: string): Promise<string> {

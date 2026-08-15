@@ -219,26 +219,25 @@
 }
 
 .cm-theme-han .cm-selectionBackground {
-  background: rgba(99, 102, 241, 0.28) !important;
+  background: rgba(99, 102, 241, 0.30) !important;
+  border-radius: 2px !important;
 }
 
 .dark .cm-theme-han .cm-selectionBackground {
-  background: rgba(129, 140, 248, 0.40) !important;
+  background: rgba(129, 140, 248, 0.42) !important;
+  border-radius: 2px !important;
 }
 
 .cm-theme-han .cm-focused .cm-selectionBackground {
-  background: rgba(99, 102, 241, 0.30) !important;
+  background: rgba(99, 102, 241, 0.35) !important;
 }
 
 .dark .cm-theme-han .cm-focused .cm-selectionBackground {
-  background: rgba(129, 140, 248, 0.45) !important;
+  background: rgba(129, 140, 248, 0.48) !important;
 }
 
-.cm-theme-han ::selection,
-.cm-theme-han .cm-line ::selection,
-.cm-theme-han .cm-line.cm-codeblock-line ::selection,
-.cm-theme-han .cm-line.cm-codeblock-fence ::selection {
-  background: rgba(99, 102, 241, 0.35) !important;
+.cm-theme-han .cm-line.cm-activeLine {
+  background-color: transparent !important;
 }
 
 .cm-theme-han .cm-line.cm-hidden-frontmatter,

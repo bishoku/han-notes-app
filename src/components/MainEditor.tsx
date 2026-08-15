@@ -17,53 +17,18 @@ import { parseTaskLineText, parseDecisionLineText } from '@/utils/lineParser';
 import { useEditorFloatingUI } from '@/hooks/useEditorFloatingUI';
 import { EditorHeader } from '@/components/EditorHeader';
 import { FloatingBlockMenu } from '@/components/FloatingBlockMenu';
+import { SelectionBubbleMenu, type FormatType } from '@/components/SelectionBubbleMenu';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import type { TaskEditData } from '@/components/TaskEditModal';
 import { DecisionEditModal } from '@/components/DecisionEditModal';
 import type { DecisionEditData } from '@/components/DecisionEditModal';
 import { DiagramEditorModal, type DiagramPayload } from '@/components/DiagramEditorModal';
+import { ExcalidrawEditorModal, type ExcalidrawSavePayload } from '@/components/ExcalidrawEditorModal';
 import { useTranslation } from 'react-i18next';
 import { SlashCommandMenu } from '@/components/SlashCommandMenu';
 import { Eye, FileCode } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-
-
-function extractTagsFromFrontmatter(content: string): string[] {
-  if (!content) return [];
-  const trimmed = content.trimStart();
-  if (!trimmed.startsWith("---")) return [];
-  const afterFirst = trimmed.slice(3);
-  const endIdx = afterFirst.indexOf("\n---");
-  if (endIdx === -1) return [];
-  const yamlStr = afterFirst.slice(0, endIdx);
-
-  const tags: string[] = [];
-  let inTags = false;
-
-  for (const line of yamlStr.split("\n")) {
-    const l = line.trim();
-    if (l.startsWith("tags:")) {
-      inTags = true;
-      const rest = l.slice(5).trim();
-      if (rest.startsWith("[") && rest.endsWith("]")) {
-        const inner = rest.slice(1, -1);
-        inner.split(",").forEach((t) => {
-          const clean = t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "");
-          if (clean) tags.push(clean);
-        });
-        inTags = false;
-      }
-    } else if (inTags && l.startsWith("-")) {
-      const clean = l.slice(1).trim().replace(/^["']|["']$/g, "").replace(/^#/, "");
-      if (clean) tags.push(clean);
-    } else if (l.includes(":")) {
-      inTags = false;
-    }
-  }
-
-  return tags;
-}
+import { extractTagsFromFrontmatter } from '@/utils/lineParser';
 
 export const MainEditor: React.FC = () => {
   const { rightPanelOpen, toggleRightPanel, theme, fontSize, editorMode, setEditorMode } = useUiStore();
@@ -109,6 +74,12 @@ export const MainEditor: React.FC = () => {
   const [, setEditingDiagramId] = useState<string | null>(null);
   const editingDiagramIdRef = useRef<string | null>(null);
 
+  // Excalidraw Modal state
+  const [excalidrawModalOpen, setExcalidrawModalOpen] = useState(false);
+  const [sketchInitialJson, setSketchInitialJson] = useState<string | null>(null);
+  const [, setEditingSketchId] = useState<string | null>(null);
+  const editingSketchIdRef = useRef<string | null>(null);
+
   const editorRef = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,6 +91,7 @@ export const MainEditor: React.FC = () => {
     showNotePicker, setShowNotePicker,
     taskEditBtn,
     decisionEditBtn,
+    selectionBubble,
     slashMenuState, setSlashMenuState,
     slashStateRef,
     handleEditorUpdate,
@@ -303,10 +275,11 @@ export const MainEditor: React.FC = () => {
   const openDiagramEditor = useCallback(async (diagramId?: string) => {
     if (diagramId && currentNoteId) {
       try {
-        const jsonContent = await storage.readTextAsset(`.attachments/diagram-${diagramId}.json`);
+        const cleanId = diagramId.replace(/^diagram-/, '');
+        const jsonContent = await storage.readTextAsset(`.attachments/diagram-${cleanId}.json`);
         setDiagramInitialJson(jsonContent);
-        setEditingDiagramId(diagramId);
-        editingDiagramIdRef.current = diagramId;
+        setEditingDiagramId(cleanId);
+        editingDiagramIdRef.current = cleanId;
       } catch (err) {
         console.error('Failed to load diagram', err);
         setDiagramInitialJson(null);
@@ -321,13 +294,40 @@ export const MainEditor: React.FC = () => {
     setDiagramModalOpen(true);
   }, [currentNoteId]);
 
+  const openExcalidrawEditor = useCallback(async (sketchId?: string) => {
+    if (sketchId && currentNoteId) {
+      try {
+        const cleanId = sketchId.replace(/^sketch-/, '');
+        const jsonContent = await storage.readTextAsset(`.attachments/sketch-${cleanId}.json`);
+        setSketchInitialJson(jsonContent);
+        setEditingSketchId(cleanId);
+        editingSketchIdRef.current = cleanId;
+      } catch (err) {
+        console.error('Failed to load sketch', err);
+        setSketchInitialJson(null);
+        setEditingSketchId(null);
+        editingSketchIdRef.current = null;
+      }
+    } else {
+      setSketchInitialJson(null);
+      setEditingSketchId(null);
+      editingSketchIdRef.current = null;
+    }
+    setExcalidrawModalOpen(true);
+  }, [currentNoteId]);
+
   useEffect(() => {
     const handleEditDiagram = (e: CustomEvent<string>) => {
-      openDiagramEditor(e.detail);
+      const id = e.detail;
+      if (id.startsWith('sketch-')) {
+        openExcalidrawEditor(id);
+      } else {
+        openDiagramEditor(id);
+      }
     };
     window.addEventListener('edit-diagram', handleEditDiagram as EventListener);
     return () => window.removeEventListener('edit-diagram', handleEditDiagram as EventListener);
-  }, [openDiagramEditor]);
+  }, [openDiagramEditor, openExcalidrawEditor]);
 
   const handleSaveDiagram = async (payload: DiagramPayload) => {
     if (!currentNoteId) return;
@@ -336,7 +336,7 @@ export const MainEditor: React.FC = () => {
       const isEditing = !!editingDiagramIdRef.current;
       const diagramId = editingDiagramIdRef.current || crypto.randomUUID();
       
-      // Update ref immediately to prevent race conditions on rapid rapid auto-saves
+      // Update ref immediately to prevent race conditions on rapid auto-saves
       if (!editingDiagramIdRef.current) {
         editingDiagramIdRef.current = diagramId;
         setEditingDiagramId(diagramId);
@@ -382,9 +382,183 @@ export const MainEditor: React.FC = () => {
     }
   };
 
+  const handleSaveSketch = async (payload: ExcalidrawSavePayload) => {
+    if (!currentNoteId) return;
+
+    try {
+      const isEditing = !!editingSketchIdRef.current;
+      const sketchId = editingSketchIdRef.current || crypto.randomUUID();
+
+      if (!editingSketchIdRef.current) {
+        editingSketchIdRef.current = sketchId;
+        setEditingSketchId(sketchId);
+      }
+
+      const fileNameJson = `sketch-${sketchId}.json`;
+      const fileNamePng = `sketch-${sketchId}.png`;
+
+      // Save JSON
+      await storage.saveTextAsset(currentNoteId, fileNameJson, payload.sketchJson);
+
+      // Save PNG Blob
+      const arrayBuffer = await payload.pngBlob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, bytes);
+
+      const markdownImage = `\n![${fileNamePng}](${relPathPng})\n`;
+      if (!isEditing) {
+        insertText(`\n<!-- diagram:sketch-${sketchId} {"engine":"excalidraw"} -->${markdownImage}`);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('refresh-diagram-image', {
+          detail: { diagramId: `sketch-${sketchId}` },
+        })
+      );
+    } catch (err) {
+      console.error('Failed to save Excalidraw sketch:', err);
+    } finally {
+      setEditingSketchId(null);
+    }
+  };
+
+  const handleFormat = useCallback((type: FormatType, payload?: string) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const { from, to } = selectionBubble;
+    if (from === to) return;
+
+    const doc = view.state.doc;
+    const selectedText = doc.sliceString(from, to);
+
+    let replacement = '';
+
+    switch (type) {
+      case 'bold': {
+        if (selectedText.startsWith('**') && selectedText.endsWith('**') && selectedText.length >= 4) {
+          replacement = selectedText.slice(2, -2);
+        } else {
+          replacement = `**${selectedText}**`;
+        }
+        break;
+      }
+      case 'italic': {
+        if (selectedText.startsWith('*') && selectedText.endsWith('*') && !selectedText.startsWith('**') && selectedText.length >= 2) {
+          replacement = selectedText.slice(1, -1);
+        } else {
+          replacement = `*${selectedText}*`;
+        }
+        break;
+      }
+      case 'strikethrough': {
+        if (selectedText.startsWith('~~') && selectedText.endsWith('~~') && selectedText.length >= 4) {
+          replacement = selectedText.slice(2, -2);
+        } else {
+          replacement = `~~${selectedText}~~`;
+        }
+        break;
+      }
+      case 'highlight': {
+        if (selectedText.startsWith('==') && selectedText.endsWith('==') && selectedText.length >= 4) {
+          replacement = selectedText.slice(2, -2);
+        } else {
+          replacement = `==${selectedText}==`;
+        }
+        break;
+      }
+      case 'code': {
+        if (selectedText.startsWith('`') && selectedText.endsWith('`') && selectedText.length >= 2) {
+          replacement = selectedText.slice(1, -1);
+        } else {
+          replacement = `\`${selectedText}\``;
+        }
+        break;
+      }
+      case 'color': {
+        if (!payload) {
+          const spanMatch = selectedText.match(/^<span[^>]*style="color:\s*[^"]*"[^>]*>([\s\S]*?)<\/span>$/i);
+          if (spanMatch) {
+            replacement = spanMatch[1];
+          } else {
+            replacement = selectedText;
+          }
+        } else {
+          replacement = `<span style="color: ${payload}">${selectedText}</span>`;
+        }
+        break;
+      }
+      case 'heading': {
+        const line = doc.lineAt(from);
+        const level = parseInt(payload || '1', 10);
+        const cleanLineText = line.text.replace(/^(#{1,6}\s+|>\s*)/, '');
+        const newPrefix = level > 0 ? '#'.repeat(level) + ' ' : '';
+        const newLineText = newPrefix + cleanLineText;
+
+        view.dispatch({
+          changes: { from: line.from, to: line.to, insert: newLineText },
+          selection: { anchor: line.from + newLineText.length },
+        });
+        view.focus();
+        return;
+      }
+      case 'quote': {
+        const line = doc.lineAt(from);
+        if (line.text.startsWith('> ')) {
+          const newLineText = line.text.slice(2);
+          view.dispatch({
+            changes: { from: line.from, to: line.to, insert: newLineText },
+            selection: { anchor: line.from + newLineText.length },
+          });
+        } else {
+          const newLineText = `> ${line.text}`;
+          view.dispatch({
+            changes: { from: line.from, to: line.to, insert: newLineText },
+            selection: { anchor: line.from + newLineText.length },
+          });
+        }
+        view.focus();
+        return;
+      }
+      case 'callout': {
+        const line = doc.lineAt(from);
+        const typeTag = payload || 'NOTE';
+        const cleanLineText = line.text.replace(/^>\s*\[\![A-Z]+\]\s*|^>\s*|^#{1,6}\s*/i, '');
+        const newLineText = `> [!${typeTag}] ${cleanLineText || selectedText}\n> `;
+
+        view.dispatch({
+          changes: { from: line.from, to: line.to, insert: newLineText },
+          selection: { anchor: line.from + newLineText.length },
+        });
+        view.focus();
+        return;
+      }
+      case 'link': {
+        const url = payload || 'https://';
+        replacement = `[${selectedText}](${url})`;
+        break;
+      }
+      case 'wikilink': {
+        if (selectedText.startsWith('[[') && selectedText.endsWith(']]')) {
+          replacement = selectedText.slice(2, -2);
+        } else {
+          replacement = `[[${selectedText}]]`;
+        }
+        break;
+      }
+      default:
+        return;
+    }
+
+    view.dispatch({
+      changes: { from, to, insert: replacement },
+      selection: { anchor: from, head: from + replacement.length },
+    });
+    view.focus();
+  }, [selectionBubble]);
+
   const slashCommands = useMemo(
-    () => buildSlashCommands(executeSlashCommand, openImagePicker, openDiagramEditor, t),
-    [executeSlashCommand, openImagePicker, openDiagramEditor, t]
+    () => buildSlashCommands(executeSlashCommand, openImagePicker, openDiagramEditor, openExcalidrawEditor, t),
+    [executeSlashCommand, openImagePicker, openDiagramEditor, openExcalidrawEditor, t]
   );
 
   const editorExtensions = useMemo(() => {
@@ -454,6 +628,13 @@ export const MainEditor: React.FC = () => {
             onOpenTaskModal={handleOpenTaskModal}
             onOpenDecisionModal={handleOpenDecisionModal}
             onOpenImagePicker={() => fileInputRef.current?.click()}
+            onOpenDiagramEditor={openDiagramEditor}
+            onOpenExcalidrawEditor={openExcalidrawEditor}
+          />
+
+          <SelectionBubbleMenu
+            bubbleState={selectionBubble}
+            onFormat={handleFormat}
           />
 
           <CodeMirror
@@ -532,12 +713,20 @@ export const MainEditor: React.FC = () => {
         />
       )}
 
-      {/* Diagram Editor Modal */}
+      {/* Diagram Editor Modal (YADA) */}
       <DiagramEditorModal
         isOpen={diagramModalOpen}
         initialJson={diagramInitialJson}
         onClose={() => setDiagramModalOpen(false)}
         onSave={handleSaveDiagram}
+      />
+
+      {/* Excalidraw Editor Modal */}
+      <ExcalidrawEditorModal
+        isOpen={excalidrawModalOpen}
+        initialJson={sketchInitialJson}
+        onClose={() => setExcalidrawModalOpen(false)}
+        onSave={handleSaveSketch}
       />
 
       {/* Floating Slash Command Menu (fixed to viewport) */}

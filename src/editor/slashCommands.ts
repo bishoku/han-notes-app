@@ -21,6 +21,7 @@ import {
   Table,
   Image as ImageIcon,
   Workflow,
+  Sparkles,
   Info,
   AlertTriangle,
   Lightbulb,
@@ -47,7 +48,7 @@ interface SlashCommandDef {
   /** Where to place the cursor relative to the insert start. Defaults to end of snippet. */
   cursorOffset?: number;
   /** Special action type for non-insert commands */
-  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor';
+  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor' | 'openExcalidrawEditor';
 }
 
 // ─── Static Definitions ──────────────────────────────────────────────────────
@@ -168,6 +169,17 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     action: 'openDiagramEditor',
   },
   {
+    id: 'sketch',
+    labelKey: 'slashSketch',
+    command: '/sketch',
+    descriptionKey: 'slashSketchDesc',
+    category: 'Format',
+    colorClass: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    icon: React.createElement(Sparkles, { size: 14 }),
+    snippet: '',
+    action: 'openExcalidrawEditor',
+  },
+  {
     id: 'note',
     labelKey: 'slashNoteCallout',
     command: '/note',
@@ -221,6 +233,7 @@ export function buildSlashCommands(
   executeSlashCommand: (text: string, opts?: { cursorOffset?: number; openTagModal?: boolean }) => void,
   openImagePicker: () => void,
   openDiagramEditor: () => void,
+  openExcalidrawEditor: () => void,
   t: TFunction,
 ): SlashCommand[] {
   return SLASH_COMMAND_DEFS.map((def) => ({
@@ -240,6 +253,9 @@ export function buildSlashCommands(
       } else if (def.action === 'openDiagramEditor') {
         executeSlashCommand('');
         openDiagramEditor();
+      } else if (def.action === 'openExcalidrawEditor') {
+        executeSlashCommand('');
+        openExcalidrawEditor();
       } else {
         executeSlashCommand(def.snippet, def.cursorOffset ? { cursorOffset: def.cursorOffset } : undefined);
       }

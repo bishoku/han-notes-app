@@ -19,6 +19,8 @@ import {
   Image as ImageIcon,
   FileCheck,
   ShieldCheck,
+  Workflow,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +37,8 @@ interface FloatingBlockMenuProps {
   onOpenTaskModal: () => void;
   onOpenDecisionModal: () => void;
   onOpenImagePicker: () => void;
+  onOpenDiagramEditor?: () => void;
+  onOpenExcalidrawEditor?: () => void;
 }
 
 export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
@@ -50,6 +54,8 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
   onOpenTaskModal,
   onOpenDecisionModal,
   onOpenImagePicker,
+  onOpenDiagramEditor,
+  onOpenExcalidrawEditor,
 }) => {
   const { t } = useTranslation();
 
@@ -160,6 +166,24 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
               >
                 <ImageIcon size={16} />
               </button>
+              {onOpenDiagramEditor && (
+                <button 
+                  onClick={onOpenDiagramEditor}
+                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-md transition-colors"
+                  title="YADA Diyagramı Ekle"
+                >
+                  <Workflow size={16} />
+                </button>
+              )}
+              {onOpenExcalidrawEditor && (
+                <button 
+                  onClick={onOpenExcalidrawEditor}
+                  className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 rounded-md transition-colors"
+                  title="Excalidraw Serbest Çizim Ekle"
+                >
+                  <Sparkles size={16} />
+                </button>
+              )}
 
               {/* Dropdown list of existing notes (max 10) */}
               {showNotePicker && (

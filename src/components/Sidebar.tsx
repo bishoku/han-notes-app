@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
   const { sidebarOpen, setSettingsModalOpen, setViewMode, viewMode } = useUiStore();
-  const { fileTree, notes, activeFolderPath, createNote, createFolder, moveNode, vaultTags, activeTagFilter, setActiveTagFilter } = useNoteStore();
+  const { fileTree, notes, activeFolderPath, createNote, createFolder, moveNode, vaultTags, activeTagFilter, setActiveTagFilter, vaultPath } = useNoteStore();
   
   const [isRootDragOver, setIsRootDragOver] = useState(false);
   const [rootContextMenu, setRootContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -112,11 +112,19 @@ export const Sidebar: React.FC = () => {
           isRootDragOver && "bg-mac-accent/10 border-2 border-dashed border-mac-accent"
         )}
       >
-        <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 mb-2 px-2 uppercase tracking-wider">
-          <div className="flex items-center gap-1.5">
-            <span>Explorer</span>
+        <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 mb-2 px-2 uppercase tracking-wider min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
+            <span className="shrink-0">Explorer</span>
+            {vaultPath && (
+              <span
+                className="text-[9px] font-mono text-gray-500 dark:text-gray-400 truncate normal-case tracking-normal cursor-help hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                title={vaultPath}
+              >
+                ({vaultPath})
+              </span>
+            )}
             {activeTagFilter && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[9px] font-mono capitalize">
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[9px] font-mono capitalize shrink-0">
                 #{activeTagFilter}
                 <X 
                   size={10} 
@@ -130,7 +138,7 @@ export const Sidebar: React.FC = () => {
             )}
           </div>
           {activeFolderPath && (
-            <span className="text-[9px] text-mac-accent lowercase font-mono truncate max-w-[100px]">
+            <span className="text-[9px] text-mac-accent lowercase font-mono truncate max-w-[80px] shrink-0" title={`Klasör: /${activeFolderPath}`}>
               /{activeFolderPath}
             </span>
           )}

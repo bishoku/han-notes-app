@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -16,8 +16,8 @@ import {
   AlertTriangle, 
   Calendar, 
   User, 
-  Tag,
-  AlignLeft
+  Tag, 
+  AlignLeft 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +26,19 @@ interface OutlineHeading {
   text: string;
   line: number;
 }
+
+// Matching helper for folder sub-paths vs note ID
+const isMatchingNote = (taskNoteId: string, currentId: string | null) => {
+  if (!currentId) return false;
+  const cleanTask = taskNoteId.replace(/\.md$/, '').trim().toLowerCase();
+  const cleanCurrent = currentId.replace(/\.md$/, '').trim().toLowerCase();
+  
+  if (cleanTask === cleanCurrent) return true;
+  
+  const taskStem = cleanTask.split('/').pop();
+  const currentStem = cleanCurrent.split('/').pop();
+  return !!taskStem && taskStem === currentStem;
+};
 
 export const RightPanel: React.FC = () => {
   const { t } = useTranslation();
@@ -41,41 +54,30 @@ export const RightPanel: React.FC = () => {
     if (rightPanelOpen) {
       loadTasks();
     }
-  }, [rightPanelOpen, currentNoteId, currentNoteContent, loadTasks]);
-
-  if (!rightPanelOpen) return null;
-
-  // Matching helper for folder sub-paths vs note ID
-  const isMatchingNote = (taskNoteId: string, currentId: string | null) => {
-    if (!currentId) return false;
-    const cleanTask = taskNoteId.replace(/\.md$/, '').trim().toLowerCase();
-    const cleanCurrent = currentId.replace(/\.md$/, '').trim().toLowerCase();
-    
-    if (cleanTask === cleanCurrent) return true;
-    
-    const taskStem = cleanTask.split('/').pop();
-    const currentStem = cleanCurrent.split('/').pop();
-    return !!taskStem && taskStem === currentStem;
-  };
+  }, [rightPanelOpen, currentNoteId, loadTasks]);
 
   // Filter tasks belonging ONLY to the currently active note
-  const noteTasks = tasks.filter(t => isMatchingNote(t.note_id, currentNoteId));
+  const noteTasks = useMemo(() => {
+    return tasks.filter(t => isMatchingNote(t.note_id, currentNoteId));
+  }, [tasks, currentNoteId]);
 
   // Extract H1-H4 headings dynamically from active note content
-  const headings: OutlineHeading[] = [];
-  if (currentNoteContent) {
+  const headings = useMemo<OutlineHeading[]>(() => {
+    if (!currentNoteContent) return [];
+    const list: OutlineHeading[] = [];
     const lines = currentNoteContent.split('\n');
     lines.forEach((line, index) => {
       const match = line.match(/^(#{1,4})\s+(.*)/);
       if (match) {
-        headings.push({
+        list.push({
           level: match[1].length,
           text: match[2].replace(/#+\s*$/, '').trim(),
           line: index,
         });
       }
     });
-  }
+    return list;
+  }, [currentNoteContent]);
 
   return (
     <aside className="w-[25%] min-w-[250px] h-screen bg-mac-sidebarLight dark:bg-mac-sidebarDark border-l border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease">

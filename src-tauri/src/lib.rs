@@ -646,6 +646,12 @@ fn get_backlinks(app: AppHandle, target_note_id: String) -> Result<Vec<BacklinkI
     Ok(backlinks)
 }
 
+#[tauri::command]
+fn get_vault_path_str(app: AppHandle) -> Result<String, String> {
+    let vault_dir = get_vault_path(&app)?;
+    Ok(vault_dir.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -662,6 +668,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_vault_tree,
             get_vault_files,
+            get_vault_path_str,
             read_note,
             write_note,
             create_folder,

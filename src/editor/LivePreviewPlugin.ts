@@ -2,17 +2,17 @@ import {
   Decoration,
   EditorView,
   ViewPlugin,
-  WidgetType,
 } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
-import { useNoteStore } from "@/store/noteStore";
-import { useUiStore } from "@/store/uiStore";
 import { ResizableImageWidget } from "./widgets/ResizableImageWidget";
 import { DecisionBadgeWidget } from "./widgets/DecisionBadgeWidget";
 import { TaskBadgeWidget } from "./widgets/TaskBadgeWidget";
 import { TableWidget, parseMarkdownTable } from "./widgets/TableWidget";
+import { CALLOUT_ICONS, calloutLineDecs, IconWidget } from "./preview/calloutDeco";
+import { CodeCopyButtonWidget } from "./preview/codeBlockDeco";
+import { handleEditorMouseDown } from "./preview/eventHandlers";
 
 const hiddenMark = Decoration.replace({});
 const linkMark = Decoration.mark({
@@ -38,120 +38,6 @@ const lineDecCodeHeader = Decoration.line({ attributes: { class: "cm-codeblock-l
 const lineDecCodeFooter = Decoration.line({ attributes: { class: "cm-codeblock-line cm-codeblock-footer" } });
 const lineDecBlockquote = Decoration.line({ attributes: { class: "cm-blockquote-line" } });
 const lineDecHR = Decoration.line({ attributes: { class: "cm-hr-line" } });
-
-const CALLOUT_ICONS: Record<string, string> = {
-  NOTE: "ℹ️",
-  TIP: "💡",
-  IMPORTANT: "🟣",
-  WARNING: "⚠️",
-  CAUTION: "🚨",
-};
-
-const calloutLineDecs: Record<string, { header: Decoration; body: Decoration; single: Decoration }> = {
-  NOTE: {
-    header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-note" } }),
-    body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-note" } }),
-    single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-note" } }),
-  },
-  TIP: {
-    header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-tip" } }),
-    body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-tip" } }),
-    single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-tip" } }),
-  },
-  IMPORTANT: {
-    header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-important" } }),
-    body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-important" } }),
-    single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-important" } }),
-  },
-  WARNING: {
-    header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-warning" } }),
-    body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-warning" } }),
-    single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-warning" } }),
-  },
-  CAUTION: {
-    header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-caution" } }),
-    body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-caution" } }),
-    single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-caution" } }),
-  },
-};
-
-class IconWidget extends WidgetType {
-  private icon: string;
-  private type: string;
-  private pos: number;
-
-  constructor(icon: string, type: string, pos: number) {
-    super();
-    this.icon = icon;
-    this.type = type;
-    this.pos = pos;
-  }
-
-  eq(other: IconWidget) {
-    return (
-      other.icon === this.icon &&
-      other.type === this.type &&
-      other.pos === this.pos
-    );
-  }
-
-  toDOM() {
-    const span = document.createElement("span");
-    span.className =
-      "cm-callout-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold mr-2 select-none cursor-pointer hover:opacity-80 transition-opacity bg-black/5 dark:bg-white/10";
-    span.setAttribute("data-callout-pos", String(this.pos));
-    span.setAttribute("data-callout-type", this.type);
-    span.title = "Tıkla: Callout türünü değiştir (NOTE -> TIP -> WARNING -> IMPORTANT -> CAUTION)";
-    span.textContent = `${this.icon} ${this.type}`;
-    return span;
-  }
-}
-
-class CodeCopyButtonWidget extends WidgetType {
-  private codeText: string;
-
-  constructor(codeText: string) {
-    super();
-    this.codeText = codeText;
-  }
-
-  eq(other: CodeCopyButtonWidget) {
-    return other.codeText === this.codeText;
-  }
-
-  toDOM() {
-    const btn = document.createElement("button");
-    btn.className =
-      "inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/70 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-700 px-2 py-0.5 rounded border border-gray-200/70 dark:border-zinc-700/70 shadow-2xs transition-all cursor-pointer select-none ml-auto pointer-events-auto";
-    btn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-      <span>Copy</span>
-    `;
-
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (this.codeText) {
-        navigator.clipboard.writeText(this.codeText).then(() => {
-          btn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><polyline points="20 6 9 17 4 12"/></svg>
-            <span class="text-emerald-600 dark:text-emerald-400 font-bold">Copied!</span>
-          `;
-          setTimeout(() => {
-            btn.innerHTML = `
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              <span>Copy</span>
-            `;
-          }, 2000);
-        }).catch((err) => {
-          console.error("Failed to copy code:", err);
-        });
-      }
-    });
-
-    return btn;
-  }
-}
 
 interface DecItem {
   from: number;
@@ -263,17 +149,15 @@ function livePreviewDecorations(view: EditorView) {
           dec: isSingleLine ? calloutDecs.single : calloutDecs.header,
         });
 
-        // ALWAYS replace prefix `> [!NOTE] ` with IconWidget so Title text is 100% clean and selectable!
+        // ALWAYS replace prefix `> [!NOTE] ` with atomic IconWidget so Title text is 100% clean and selectable!
         const prefixMatch = text.match(/^>\s*\[\!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i);
         if (prefixMatch) {
           const prefixFrom = line.from;
           const prefixTo = line.from + prefixMatch[0].length;
-          items.push({
-            from: prefixFrom,
-            to: prefixFrom,
-            dec: Decoration.widget({ widget: new IconWidget(icon, type, prefixFrom), side: -1 }),
+          const widgetDec = Decoration.replace({
+            widget: new IconWidget(icon, type, prefixFrom),
           });
-          items.push({ from: prefixFrom, to: prefixTo, dec: hiddenMark });
+          items.push({ from: prefixFrom, to: prefixTo, dec: widgetDec });
         }
 
         // Line decorations for Body Lines 2..N
@@ -567,6 +451,37 @@ function livePreviewDecorations(view: EditorView) {
         }
       }
 
+      // HTML Colored span tags: <span style="color: #ef4444">text</span>
+      const spanColorRe = /<span\s+style=["']color:\s*([^"';]+)[^"']*["']>([\s\S]*?)<\/span>/gi;
+      let spanMatch: RegExpExecArray | null;
+      while ((spanMatch = spanColorRe.exec(text)) !== null) {
+        const matchFrom = line.from + spanMatch.index;
+        const matchTo = matchFrom + spanMatch[0].length;
+        const openTagLength = spanMatch[0].indexOf('>') + 1;
+        const openTagFrom = matchFrom;
+        const openTagTo = matchFrom + openTagLength;
+        const closeTagFrom = matchTo - 7;
+        const closeTagTo = matchTo;
+        const color = spanMatch[1].trim();
+
+        const cursorInOpenTag = cursorLine === l && selection.from >= openTagFrom && selection.from <= openTagTo;
+        const cursorInCloseTag = cursorLine === l && selection.from >= closeTagFrom && selection.from <= closeTagTo;
+
+        if (!cursorInOpenTag && !cursorInCloseTag) {
+          items.push({ from: openTagFrom, to: openTagTo, dec: hiddenMark });
+          if (closeTagFrom > openTagTo) {
+            items.push({
+              from: openTagTo,
+              to: closeTagFrom,
+              dec: Decoration.mark({
+                attributes: { style: `color: ${color}; font-weight: 500;` },
+              }),
+            });
+          }
+          items.push({ from: closeTagFrom, to: closeTagTo, dec: hiddenMark });
+        }
+      }
+
       l++;
     }
   }
@@ -601,89 +516,7 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
   {
     decorations: (v) => v.decorations,
     eventHandlers: {
-      mousedown(event, view) {
-        const target = event.target as Node;
-        const element = target.nodeType === Node.TEXT_NODE ? target.parentElement : (target as HTMLElement);
-
-        // Handle clicking on Callout Type Badge to cycle type
-        const calloutBadge = element?.closest(".cm-callout-badge");
-        if (calloutBadge) {
-          event.preventDefault();
-          event.stopPropagation();
-          const currentType = calloutBadge.getAttribute("data-callout-type");
-          const posStr = calloutBadge.getAttribute("data-callout-pos");
-          if (currentType && posStr) {
-            const pos = parseInt(posStr, 10);
-            const types = ["NOTE", "TIP", "WARNING", "IMPORTANT", "CAUTION"];
-            const nextIdx = (types.indexOf(currentType) + 1) % types.length;
-            const nextType = types[nextIdx];
-            
-            const line = view.state.doc.lineAt(pos);
-            const tagIndex = line.text.indexOf("[!");
-            if (tagIndex !== -1) {
-              const tagFrom = line.from + tagIndex;
-              const tagTo = line.from + line.text.indexOf("]", tagFrom) + 1;
-              view.dispatch({
-                changes: { from: tagFrom, to: tagTo, insert: `[!${nextType}]` },
-              });
-            }
-          }
-          return true;
-        }
-
-        const wikilink = element?.closest(".cm-wikilink");
-        if (wikilink) {
-          event.preventDefault();
-          event.stopPropagation();
-
-          const rawText = wikilink.textContent?.trim();
-          if (rawText) {
-            let cleanTitle = rawText.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
-            if (cleanTitle.includes('|')) {
-              cleanTitle = cleanTitle.split('|')[0].trim();
-            }
-
-            const { notes, selectNote, createNote } = useNoteStore.getState();
-            
-            const targetNote = notes.find((n) => 
-              n.id.toLowerCase() === cleanTitle.toLowerCase() ||
-              n.title.toLowerCase() === cleanTitle.toLowerCase() ||
-              n.id.toLowerCase().endsWith(`/${cleanTitle.toLowerCase()}`)
-            );
-
-            if (targetNote) {
-              selectNote(targetNote.id);
-            } else {
-              createNote(cleanTitle);
-            }
-            useUiStore.getState().setViewMode("notes");
-          }
-          return true;
-        }
-
-        // Handle clicking directly on standard checkboxes (- [ ] or - [x])
-        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-        if (pos !== null) {
-          const line = view.state.doc.lineAt(pos);
-          const boxMatch = line.text.match(/^(\s*[-*+]\s+)\[([ xX])\]/);
-          if (boxMatch) {
-            const boxStart = line.from + boxMatch[1].length;
-            const boxEnd = boxStart + 3;
-            if (pos >= line.from && pos <= line.to) {
-              if (pos >= boxStart - 2 && pos <= boxEnd + 2) {
-                event.preventDefault();
-                event.stopPropagation();
-                const isChecked = boxMatch[2] !== ' ';
-                const newText = isChecked ? '[ ]' : '[x]';
-                view.dispatch({
-                  changes: { from: boxStart, to: boxEnd, insert: newText },
-                });
-                return true;
-              }
-            }
-          }
-        }
-      },
+      mousedown: handleEditorMouseDown,
     },
   }
 );

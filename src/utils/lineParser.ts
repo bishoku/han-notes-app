@@ -112,3 +112,41 @@ export function parseDecisionLineText(lineText: string): ParsedDecision {
     tags: metadata.tags || [],
   };
 }
+
+/**
+ * Parses frontmatter tags from raw markdown content without needing full file parser.
+ */
+export function extractTagsFromFrontmatter(content: string): string[] {
+  const trimmed = content.trimStart();
+  if (!trimmed.startsWith("---")) return [];
+  const afterFirst = trimmed.slice(3);
+  const endIdx = afterFirst.indexOf("\n---");
+  if (endIdx === -1) return [];
+  const yamlStr = afterFirst.slice(0, endIdx);
+
+  const tags: string[] = [];
+  let inTags = false;
+
+  for (const line of yamlStr.split("\n")) {
+    const l = line.trim();
+    if (l.startsWith("tags:")) {
+      inTags = true;
+      const rest = l.slice(5).trim();
+      if (rest.startsWith("[") && rest.endsWith("]")) {
+        const inner = rest.slice(1, -1);
+        inner.split(",").forEach((t) => {
+          const clean = t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "");
+          if (clean) tags.push(clean);
+        });
+        inTags = false;
+      }
+    } else if (inTags && l.startsWith("-")) {
+      const clean = l.slice(1).trim().replace(/^["']|["']$/g, "").replace(/^#/, "");
+      if (clean) tags.push(clean);
+    } else if (l.includes(":")) {
+      inTags = false;
+    }
+  }
+
+  return tags;
+}

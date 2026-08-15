@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build:wasm": "wasm-pack build ./han-core --target web --out-dir ../src/wasm/han-core",
+    "build": "npm run build:wasm && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "tauri": "tauri"
@@ -17,6 +18,7 @@
     "@codemirror/language-data": "^6.5.2",
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.7",
+    "@excalidraw/excalidraw": "^0.18.1",
     "@fontsource-variable/geist": "^5.3.0",
     "@lezer/markdown": "^1.7.2",
     "@tailwindcss/vite": "^4.3.3",

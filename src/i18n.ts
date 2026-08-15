@@ -136,8 +136,11 @@ const resources = {
       "drafts": "Drafts",
       "editDecisionTitle": "Edit Decision",
 
-      // ─── Diagram Modal ─────────────────────────────────────────────
+      // ─── Diagram & Sketch Modal ────────────────────────────────────
       "diagramEditorTitle": "Diagram Editor (YADA)",
+      "excalidrawEditorTitle": "Excalidraw Whiteboard & Sketch",
+      "slashSketch": "Freehand Sketch",
+      "slashSketchDesc": "Hand-drawn sketch and whiteboard with Excalidraw",
       "loading": "Loading...",
     }
   },
@@ -275,8 +278,11 @@ const resources = {
       "drafts": "Taslaklar",
       "editDecisionTitle": "Kararı Düzenle",
 
-      // ─── Diagram Modal ─────────────────────────────────────────────
-      "diagramEditorTitle": "Diyagram Düzenleyici (Yada)",
+      // ─── Diagram & Sketch Modal ────────────────────────────────────
+      "diagramEditorTitle": "Diyagram Düzenleyici (YADA)",
+      "excalidrawEditorTitle": "Excalidraw Serbest Çizim",
+      "slashSketch": "Serbest Çizim",
+      "slashSketchDesc": "Excalidraw ile el çizimi eskiz ve beyaz tahta",
       "loading": "Yükleniyor...",
     }
   }

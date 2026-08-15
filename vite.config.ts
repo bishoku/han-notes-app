@@ -9,7 +9,7 @@ export default defineConfig(({ command }) => {
   const isBuild = command === 'build';
 
   return {
-    esbuild: isBuild ? ({ drop: ['console', 'debugger'] } as ESBuildOptions) : false,
+    esbuild: isBuild ? ({ drop: ['console', 'debugger'] } as ESBuildOptions) : undefined,
     // GitHub Pages uses /han-notes-app/ base path; Tauri uses /
     base: isBuild && !process.env.TAURI_ENV_PLATFORM
       ? '/han-notes-app/'
