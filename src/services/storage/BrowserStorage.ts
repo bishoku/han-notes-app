@@ -44,6 +44,14 @@ const DB_NAME = 'han-notes-browser';
 const DB_VERSION = 1;
 const HANDLE_STORE = 'handles';
 
+// In-memory cache for fast, synchronous-like image preview without disk churn
+const imageCache = new Map<string, string>();
+
+export function clearImageCache(path?: string) {
+  if (path) imageCache.delete(path);
+  else imageCache.clear();
+}
+
 function openHandleDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -257,6 +265,11 @@ export class BrowserStorage implements IStorageService {
 
   async getVaultPath(): Promise<string> {
     return this.dirHandle?.name ? `/${this.dirHandle.name}` : 'Local Vault';
+  }
+
+  async selectVaultFolder(): Promise<string | null> {
+    await this.pickDirectory();
+    return this.dirHandle?.name ? `/${this.dirHandle.name}` : null;
   }
 
   async getVaultTags(): Promise<TagCount[]> {
@@ -551,9 +564,15 @@ export class BrowserStorage implements IStorageService {
     await writable.write(content);
     await writable.close();
 
-    return parentDir
+    const relPath = parentDir
       ? `${parentDir}/.attachments/${fileName}`
       : `.attachments/${fileName}`;
+
+    // Invalidate / update memory cache immediately
+    imageCache.delete(relPath);
+    imageCache.delete(fileName);
+
+    return relPath;
   }
 
   async readTextAsset(relativePath: string): Promise<string> {
@@ -573,21 +592,71 @@ export class BrowserStorage implements IStorageService {
   }
 
   async getImageDataUrl(relativePath: string): Promise<string> {
+    if (imageCache.has(relativePath)) {
+      return imageCache.get(relativePath)!;
+    }
+
     const dir = this.getDir();
     const parts = relativePath.split('/').filter(Boolean);
     const fileName = parts.pop();
     if (!fileName) throw new Error('Invalid path');
 
-    let current = dir;
+    let current: FileSystemDirectoryHandle = dir;
+    let found = true;
     for (const part of parts) {
-      current = await current.getDirectoryHandle(part);
+      try {
+        current = await current.getDirectoryHandle(part);
+      } catch {
+        found = false;
+        break;
+      }
     }
 
-    const fileHandle = await current.getFileHandle(fileName);
-    const file = await fileHandle.getFile();
+    if (found) {
+      try {
+        const fileHandle = await current.getFileHandle(fileName);
+        const file = await fileHandle.getFile();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const res = reader.result as string;
+            imageCache.set(relativePath, res);
+            resolve(res);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      } catch {
+        // Fallback to recursive search
+      }
+    }
+
+    // Recursive search fallback in case path was just the filename or relative to subfolder
+    async function searchInDir(d: FileSystemDirectoryHandle, target: string): Promise<File | null> {
+      for await (const entry of (d as any).values()) {
+        if (entry.kind === 'file' && entry.name === target) {
+          return (entry as FileSystemFileHandle).getFile();
+        }
+        if (entry.kind === 'directory') {
+          const sub = await searchInDir(entry as FileSystemDirectoryHandle, target);
+          if (sub) return sub;
+        }
+      }
+      return null;
+    }
+
+    const file = await searchInDir(dir, fileName);
+    if (!file) {
+      throw new Error(`File not found in vault: ${relativePath}`);
+    }
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
+      reader.onloadend = () => {
+        const res = reader.result as string;
+        imageCache.set(relativePath, res);
+        resolve(res);
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });

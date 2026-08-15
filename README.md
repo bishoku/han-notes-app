@@ -41,7 +41,7 @@ Built with the philosophy that your notes should be **yours**, H.A.N. combines t
 ### 📐 Visual Diagramming & Sketching (Dual Engines)
 - **Architecture Diagrams (YADA)** — Create and edit interactive system architecture diagrams, flowcharts, and C4 models directly inside your notes using the embedded [YADA](https://github.com/bishoku/yada) editor modal (`/diagram`).
 - **Freehand Sketching & Whiteboard (Excalidraw)** — Draw hand-crafted sketches, wireframes, and mind-maps natively with the embedded [Excalidraw](https://github.com/excalidraw/excalidraw) canvas (`/sketch`).
-- **100% Local-First & Markdown Native** — Both engines generate transparent, high-resolution `.png` preview images alongside editable vector `.json` definitions in `.attachments/` (`<!-- diagram:uuid -->`).
+- **Self-Contained Portable PNGs** — Both engines embed complete editable vector definitions directly into the PNG metadata chunks (`tEXt`). Zero `.json` clutter in your vault; single portable image files that stay fully editable anywhere.
 - **Seamless Live Preview Re-editing** — Hover over any diagram or sketch in the live preview and click the floating edit button to instantly reopen its native editor modal and continue where you left off.
 - **Dynamic Code-Splitting** — Excalidraw and diagram engines are lazily loaded on demand to keep initial app startup instant.
 

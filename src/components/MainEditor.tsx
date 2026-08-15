@@ -24,6 +24,8 @@ import { DecisionEditModal } from '@/components/DecisionEditModal';
 import type { DecisionEditData } from '@/components/DecisionEditModal';
 import { DiagramEditorModal, type DiagramPayload } from '@/components/DiagramEditorModal';
 import { ExcalidrawEditorModal, type ExcalidrawSavePayload } from '@/components/ExcalidrawEditorModal';
+import { extractPngMetadata, injectPngMetadata, YADA_METADATA_KEYWORD, EXCALIDRAW_METADATA_KEYWORD } from '@/utils/pngMetadata';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useTranslation } from 'react-i18next';
 import { SlashCommandMenu } from '@/components/SlashCommandMenu';
 import { Eye, FileCode } from 'lucide-react';
@@ -69,16 +71,25 @@ export const MainEditor: React.FC = () => {
   // Task & Decision Edit Modal state
   const [taskModalData, setTaskModalData] = useState<TaskEditData | null>(null);
   const [decisionModalData, setDecisionModalData] = useState<DecisionEditData | null>(null);
+  // Diagram Modal state (YADA)
   const [diagramModalOpen, setDiagramModalOpen] = useState(false);
-  const [diagramInitialJson, setDiagramInitialJson] = useState<string | null>(null);
+  const [diagramInitialMetadata, setDiagramInitialMetadata] = useState<{ logicalData?: any; visualData?: any } | null>(null);
   const [, setEditingDiagramId] = useState<string | null>(null);
   const editingDiagramIdRef = useRef<string | null>(null);
 
   // Excalidraw Modal state
   const [excalidrawModalOpen, setExcalidrawModalOpen] = useState(false);
-  const [sketchInitialJson, setSketchInitialJson] = useState<string | null>(null);
+  const [sketchInitialData, setSketchInitialData] = useState<any | null>(null);
   const [, setEditingSketchId] = useState<string | null>(null);
   const editingSketchIdRef = useRef<string | null>(null);
+
+  // Delete Confirmation Modal state
+  const [confirmDeleteData, setConfirmDeleteData] = useState<{
+    from: number;
+    to: number;
+    isDiagram: boolean;
+    relPath: string;
+  } | null>(null);
 
   const editorRef = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -272,44 +283,70 @@ export const MainEditor: React.FC = () => {
     fileInputRef.current?.click();
   }, []);
 
-  const openDiagramEditor = useCallback(async (diagramId?: string) => {
+  const openDiagramEditor = useCallback(async (diagramId?: string, explicitRelPath?: string) => {
     if (diagramId && currentNoteId) {
       try {
         const cleanId = diagramId.replace(/^diagram-/, '');
-        const jsonContent = await storage.readTextAsset(`.attachments/diagram-${cleanId}.json`);
-        setDiagramInitialJson(jsonContent);
+        const fileNamePng = `diagram-${cleanId}.png`;
+        const parentDir = currentNoteId.includes('/')
+          ? currentNoteId.split('/').slice(0, -1).join('/')
+          : '';
+        const targetPath = explicitRelPath || (parentDir ? `${parentDir}/.attachments/${fileNamePng}` : `.attachments/${fileNamePng}`);
+
+        const dataUrl = await storage.getImageDataUrl(targetPath);
+        const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const meta = extractPngMetadata(bytes.buffer, YADA_METADATA_KEYWORD);
+        setDiagramInitialMetadata(meta);
         setEditingDiagramId(cleanId);
         editingDiagramIdRef.current = cleanId;
       } catch (err) {
-        console.error('Failed to load diagram', err);
-        setDiagramInitialJson(null);
+        console.error('Failed to extract diagram metadata from PNG', err);
+        setDiagramInitialMetadata(null);
         setEditingDiagramId(null);
         editingDiagramIdRef.current = null;
       }
     } else {
-      setDiagramInitialJson(null);
+      setDiagramInitialMetadata(null);
       setEditingDiagramId(null);
       editingDiagramIdRef.current = null;
     }
     setDiagramModalOpen(true);
   }, [currentNoteId]);
 
-  const openExcalidrawEditor = useCallback(async (sketchId?: string) => {
+  const openExcalidrawEditor = useCallback(async (sketchId?: string, explicitRelPath?: string) => {
     if (sketchId && currentNoteId) {
       try {
         const cleanId = sketchId.replace(/^sketch-/, '');
-        const jsonContent = await storage.readTextAsset(`.attachments/sketch-${cleanId}.json`);
-        setSketchInitialJson(jsonContent);
+        const fileNamePng = `sketch-${cleanId}.png`;
+        const parentDir = currentNoteId.includes('/')
+          ? currentNoteId.split('/').slice(0, -1).join('/')
+          : '';
+        const targetPath = explicitRelPath || (parentDir ? `${parentDir}/.attachments/${fileNamePng}` : `.attachments/${fileNamePng}`);
+
+        const dataUrl = await storage.getImageDataUrl(targetPath);
+        const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const meta = extractPngMetadata(bytes.buffer, EXCALIDRAW_METADATA_KEYWORD);
+        setSketchInitialData(meta);
         setEditingSketchId(cleanId);
         editingSketchIdRef.current = cleanId;
       } catch (err) {
-        console.error('Failed to load sketch', err);
-        setSketchInitialJson(null);
+        console.error('Failed to load sketch PNG metadata', err);
+        setSketchInitialData(null);
         setEditingSketchId(null);
         editingSketchIdRef.current = null;
       }
     } else {
-      setSketchInitialJson(null);
+      setSketchInitialData(null);
       setEditingSketchId(null);
       editingSketchIdRef.current = null;
     }
@@ -317,17 +354,36 @@ export const MainEditor: React.FC = () => {
   }, [currentNoteId]);
 
   useEffect(() => {
-    const handleEditDiagram = (e: CustomEvent<string>) => {
-      const id = e.detail;
+    const handleEditDiagram = (e: CustomEvent<string | { id: string; relPath?: string }>) => {
+      const detail = e.detail;
+      const id = typeof detail === 'string' ? detail : detail.id;
+      const relPath = typeof detail === 'object' ? detail.relPath : undefined;
       if (id.startsWith('sketch-')) {
-        openExcalidrawEditor(id);
+        openExcalidrawEditor(id, relPath);
       } else {
-        openDiagramEditor(id);
+        openDiagramEditor(id, relPath);
       }
     };
     window.addEventListener('edit-diagram', handleEditDiagram as EventListener);
     return () => window.removeEventListener('edit-diagram', handleEditDiagram as EventListener);
   }, [openDiagramEditor, openExcalidrawEditor]);
+
+  useEffect(() => {
+    const handleDeleteRequest = (e: CustomEvent<{ from: number; to: number; isDiagram: boolean; relPath: string }>) => {
+      setConfirmDeleteData(e.detail);
+    };
+    window.addEventListener('request-delete-image', handleDeleteRequest as EventListener);
+    return () => window.removeEventListener('request-delete-image', handleDeleteRequest as EventListener);
+  }, []);
+
+  const handleConfirmDeleteImage = () => {
+    if (!confirmDeleteData || !editorRef.current) return;
+    const { from, to } = confirmDeleteData;
+    editorRef.current.dispatch({
+      changes: { from, to, insert: '' },
+    });
+    setConfirmDeleteData(null);
+  };
 
   const handleSaveDiagram = async (payload: DiagramPayload) => {
     if (!currentNoteId) return;
@@ -342,31 +398,29 @@ export const MainEditor: React.FC = () => {
         setEditingDiagramId(diagramId);
       }
 
-      const fileNameJson = `diagram-${diagramId}.json`;
       const fileNamePng = `diagram-${diagramId}.png`;
-      const contentStr = JSON.stringify({
-        logicalData: payload.logicalJson ? JSON.parse(payload.logicalJson) : {},
-        visualData: payload.visualJson ? JSON.parse(payload.visualJson) : {},
-      });
 
-      // Save JSON
-      await storage.saveTextAsset(currentNoteId, fileNameJson, contentStr);
-      
-      let markdownImage = '';
       if (payload.previewDataUri) {
-        // Save PNG if exists
+        // Save self-contained PNG containing YADA_DIAGRAM chunk
         const base64Data = payload.previewDataUri.replace(/^data:image\/\w+;base64,/, '');
         const binaryStr = atob(base64Data);
-        const bytes = new Uint8Array(binaryStr.length);
+        const rawBytes = new Uint8Array(binaryStr.length);
         for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
+          rawBytes[i] = binaryStr.charCodeAt(i);
         }
-        const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, bytes);
-        markdownImage = `\n![${fileNamePng}](${relPathPng})\n`;
-      }
-      
-      if (!isEditing) {
-        insertText(`\n<!-- diagram:${diagramId} -->${markdownImage}`);
+
+        const projectPayload = {
+          logicalData: payload.logicalJson ? (typeof payload.logicalJson === 'string' ? JSON.parse(payload.logicalJson) : payload.logicalJson) : {},
+          visualData: payload.visualJson ? (typeof payload.visualJson === 'string' ? JSON.parse(payload.visualJson) : payload.visualJson) : {},
+        };
+
+        // Guarantee PNG metadata injection on the HAN side
+        const enrichedBytes = injectPngMetadata(rawBytes.buffer, YADA_METADATA_KEYWORD, projectPayload);
+        const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, enrichedBytes as any);
+        
+        if (!isEditing) {
+          insertText(`\n![${fileNamePng}](${relPathPng})\n`);
+        }
       }
       
       // Dispatch custom event to instantly update image widget in CodeMirror view
@@ -394,20 +448,15 @@ export const MainEditor: React.FC = () => {
         setEditingSketchId(sketchId);
       }
 
-      const fileNameJson = `sketch-${sketchId}.json`;
       const fileNamePng = `sketch-${sketchId}.png`;
 
-      // Save JSON
-      await storage.saveTextAsset(currentNoteId, fileNameJson, payload.sketchJson);
-
-      // Save PNG Blob
+      // Save self-contained PNG Blob (embedded Excalidraw scene)
       const arrayBuffer = await payload.pngBlob.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
       const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, bytes);
 
-      const markdownImage = `\n![${fileNamePng}](${relPathPng})\n`;
       if (!isEditing) {
-        insertText(`\n<!-- diagram:sketch-${sketchId} {"engine":"excalidraw"} -->${markdownImage}`);
+        insertText(`\n![${fileNamePng}](${relPathPng})\n`);
       }
 
       window.dispatchEvent(
@@ -716,7 +765,7 @@ export const MainEditor: React.FC = () => {
       {/* Diagram Editor Modal (YADA) */}
       <DiagramEditorModal
         isOpen={diagramModalOpen}
-        initialJson={diagramInitialJson}
+        initialMetadata={diagramInitialMetadata}
         onClose={() => setDiagramModalOpen(false)}
         onSave={handleSaveDiagram}
       />
@@ -724,9 +773,24 @@ export const MainEditor: React.FC = () => {
       {/* Excalidraw Editor Modal */}
       <ExcalidrawEditorModal
         isOpen={excalidrawModalOpen}
-        initialJson={sketchInitialJson}
+        initialData={sketchInitialData}
         onClose={() => setExcalidrawModalOpen(false)}
         onSave={handleSaveSketch}
+      />
+
+      {/* Delete Image / Diagram Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!confirmDeleteData}
+        title={t('confirmDeleteTitle')}
+        message={
+          confirmDeleteData?.isDiagram
+            ? t('confirmDeleteDiagramMessage')
+            : t('confirmDeleteImageMessage')
+        }
+        confirmLabel={t('delete')}
+        cancelLabel={t('cancel')}
+        onConfirm={handleConfirmDeleteImage}
+        onClose={() => setConfirmDeleteData(null)}
       />
 
       {/* Floating Slash Command Menu (fixed to viewport) */}

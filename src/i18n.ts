@@ -142,6 +142,15 @@ const resources = {
       "slashSketch": "Freehand Sketch",
       "slashSketchDesc": "Hand-drawn sketch and whiteboard with Excalidraw",
       "loading": "Loading...",
+      "confirmDeleteTitle": "Confirm Deletion",
+      "confirmDeleteDiagramMessage": "Are you sure you want to remove this diagram from your note?",
+      "confirmDeleteImageMessage": "Are you sure you want to remove this image from your note?",
+      "workspace": "Workspace / Vault",
+      "currentVault": "Active Vault Folder",
+      "noVaultSelected": "No folder selected",
+      "changeFolder": "Change Folder",
+      "vaultSwitchDescription": "Switch to a different folder to organize notes across separate workspaces.",
+      "switching": "Switching...",
     }
   },
   tr: {
@@ -284,6 +293,15 @@ const resources = {
       "slashSketch": "Serbest Çizim",
       "slashSketchDesc": "Excalidraw ile el çizimi eskiz ve beyaz tahta",
       "loading": "Yükleniyor...",
+      "confirmDeleteTitle": "Silmeyi Onayla",
+      "confirmDeleteDiagramMessage": "Bu çizimi / diyagramı nottan kaldırmak istediğinize emin misiniz?",
+      "confirmDeleteImageMessage": "Bu görseli nottan kaldırmak istediğinize emin misiniz?",
+      "workspace": "Çalışma Alanı / Kasa",
+      "currentVault": "Aktif Not Klasörü",
+      "noVaultSelected": "Klasör seçilmedi",
+      "changeFolder": "Klasör Değiştir",
+      "vaultSwitchDescription": "Farklı bir klasör seçerek notlarınızı farklı çalışma alanlarında organize edebilirsiniz.",
+      "switching": "Değiştiriliyor...",
     }
   }
 };

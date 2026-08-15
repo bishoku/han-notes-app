@@ -79,6 +79,10 @@ export const RightPanel: React.FC = () => {
     return list;
   }, [currentNoteContent]);
 
+  if (!rightPanelOpen) {
+    return null;
+  }
+
   return (
     <aside className="w-[25%] min-w-[250px] h-screen bg-mac-sidebarLight dark:bg-mac-sidebarDark border-l border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease">
       {/* Tabs */}

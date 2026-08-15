@@ -32,6 +32,8 @@ interface NoteState {
   loadBacklinks: (id?: string) => Promise<void>;
   /** Re-reads the currently selected note from disk and updates state. */
   refreshCurrentNote: () => Promise<void>;
+  /** Opens directory selector, switches active vault/workspace and reloads all notes. */
+  switchVault: () => Promise<boolean>;
 }
 
 export const useNoteStore = create<NoteState>((set, get) => ({
@@ -58,6 +60,30 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }
     } catch (e) {
       console.error("Failed to load vault:", e);
+    }
+  },
+
+  switchVault: async () => {
+    try {
+      const selected = await storage.selectVaultFolder();
+      if (selected) {
+        set({
+          currentNoteId: null,
+          currentNoteContent: '',
+          notes: [],
+          fileTree: [],
+          vaultTags: [],
+          backlinks: [],
+          activeFolderPath: null,
+          activeTagFilter: null,
+        });
+        await get().loadVault();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Failed to switch vault:", e);
+      return false;
     }
   },
 

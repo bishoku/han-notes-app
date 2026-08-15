@@ -328,34 +328,32 @@ function livePreviewDecorations(view: EditorView) {
         items.push({ from: line.from, to: line.from, dec: lineDecBlockquote });
       }
 
-      // Match media ![alt|width](path) for images and GIFs
+      // Match media ![alt|width](path) for images, GIFs, diagrams, and sketches ALWAYS
       const imgRe = /!\[(.*?)\]\((.*?)\)/g;
       let imgMatch: RegExpExecArray | null;
       while ((imgMatch = imgRe.exec(text)) !== null) {
         const imgFrom = line.from + imgMatch.index;
         const imgTo = imgFrom + imgMatch[0].length;
         
-        if (selection.from < imgFrom || selection.from > imgTo) {
-          const rawAlt = imgMatch[1].trim();
-          const relPath = imgMatch[2].trim();
-          
-          let altText = rawAlt;
-          let width: number | null = null;
-          
-          if (rawAlt.includes("|")) {
-            const parts = rawAlt.split("|");
-            altText = parts[0].trim();
-            const parsedWidth = parseInt(parts[1].trim(), 10);
-            if (!isNaN(parsedWidth)) {
-              width = parsedWidth;
-            }
+        const rawAlt = imgMatch[1].trim();
+        const relPath = imgMatch[2].trim();
+        
+        let altText = rawAlt;
+        let width: number | null = null;
+        
+        if (rawAlt.includes("|")) {
+          const parts = rawAlt.split("|");
+          altText = parts[0].trim();
+          const parsedWidth = parseInt(parts[1].trim(), 10);
+          if (!isNaN(parsedWidth)) {
+            width = parsedWidth;
           }
-
-          const widgetDec = Decoration.replace({
-            widget: new ResizableImageWidget(altText, width, relPath, imgFrom, imgTo)
-          });
-          items.push({ from: imgFrom, to: imgTo, dec: widgetDec });
         }
+
+        const widgetDec = Decoration.replace({
+          widget: new ResizableImageWidget(altText, width, relPath, imgFrom, imgTo)
+        });
+        items.push({ from: imgFrom, to: imgTo, dec: widgetDec });
       }
 
       // Hide <!-- task:... --> comment metadata ALWAYS

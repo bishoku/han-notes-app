@@ -24,3 +24,4 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 regex = "1.11"
 base64 = "0.22"
+rfd = "0.15"

@@ -9,8 +9,40 @@ use han_core::*;
 
 
 
-// Helper to get vault path
+const CONFIG_FILE_NAME: &str = "han_config.json";
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct HanConfig {
+    vault_path: Option<String>,
+}
+
+fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    if !data_dir.exists() {
+        fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+    }
+    Ok(data_dir.join(CONFIG_FILE_NAME))
+}
+
+// Helper to get vault path (reads custom path from config if present)
 fn get_vault_path(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Ok(config_path) = get_config_path(app) {
+        if config_path.exists() {
+            if let Ok(content) = fs::read_to_string(&config_path) {
+                if let Ok(cfg) = serde_json::from_str::<HanConfig>(&content) {
+                    if let Some(custom_path) = cfg.vault_path {
+                        let path = PathBuf::from(&custom_path);
+                        if path.exists() {
+                            return Ok(path);
+                        } else if fs::create_dir_all(&path).is_ok() {
+                            return Ok(path);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let data_dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     let vault_dir = data_dir.join("vault");
     if !vault_dir.exists() {
@@ -652,6 +684,42 @@ fn get_vault_path_str(app: AppHandle) -> Result<String, String> {
     Ok(vault_dir.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn select_vault_folder(app: AppHandle) -> Result<Option<String>, String> {
+    let current = get_vault_path(&app).ok();
+    let mut dialog = rfd::FileDialog::new().set_title("Kasa Klasörü Seçin / Select Vault Folder");
+    if let Some(ref cur) = current {
+        dialog = dialog.set_directory(cur);
+    }
+    if let Some(picked) = dialog.pick_folder() {
+        let picked_str = picked.to_string_lossy().to_string();
+        let config_path = get_config_path(&app)?;
+        let cfg = HanConfig {
+            vault_path: Some(picked_str.clone()),
+        };
+        let content = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+        fs::write(config_path, content).map_err(|e| e.to_string())?;
+        Ok(Some(picked_str))
+    } else {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+fn set_vault_path(app: AppHandle, path: String) -> Result<String, String> {
+    let target_path = PathBuf::from(&path);
+    if !target_path.exists() {
+        fs::create_dir_all(&target_path).map_err(|e| e.to_string())?;
+    }
+    let config_path = get_config_path(&app)?;
+    let cfg = HanConfig {
+        vault_path: Some(path.clone()),
+    };
+    let content = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    fs::write(config_path, content).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -669,6 +737,8 @@ pub fn run() {
             get_vault_tree,
             get_vault_files,
             get_vault_path_str,
+            select_vault_folder,
+            set_vault_path,
             read_note,
             write_note,
             create_folder,

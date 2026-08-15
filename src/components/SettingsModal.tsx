@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
+import { useNoteStore } from '@/store/noteStore';
 import type { AppTheme } from '@/utils/theme';
-import { X, Globe, Palette, Check } from 'lucide-react';
+import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ThemeOption {
@@ -62,6 +63,8 @@ const THEME_OPTIONS: ThemeOption[] = [
 export const SettingsModal: React.FC = () => {
   const { t } = useTranslation();
   const { isSettingsModalOpen, setSettingsModalOpen, theme, setTheme, language, setLanguage } = useUiStore();
+  const { vaultPath, switchVault } = useNoteStore();
+  const [isSwitching, setIsSwitching] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -72,6 +75,15 @@ export const SettingsModal: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSettingsModalOpen, setSettingsModalOpen]);
+
+  const handleSwitchVault = async () => {
+    setIsSwitching(true);
+    try {
+      await switchVault();
+    } finally {
+      setIsSwitching(false);
+    }
+  };
 
   if (!isSettingsModalOpen) return null;
 
@@ -94,7 +106,7 @@ export const SettingsModal: React.FC = () => {
           </div>
           <button
             onClick={() => setSettingsModalOpen(false)}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -102,6 +114,50 @@ export const SettingsModal: React.FC = () => {
 
         {/* Content Body */}
         <div className="p-5 flex flex-col gap-6 overflow-y-auto max-h-[80vh]">
+          {/* Workspace / Vault Folder Selection */}
+          <div className="flex flex-col gap-2.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+              <Folder size={14} className="text-amber-500" />
+              {t('workspace')}
+            </label>
+            <div className="p-3.5 rounded-xl border border-gray-200 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-800/30 flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-medium text-gray-400 dark:text-gray-500">
+                    {t('currentVault')}
+                  </div>
+                  <div 
+                    className="text-xs font-mono font-semibold text-gray-900 dark:text-gray-100 truncate mt-0.5" 
+                    title={vaultPath || ''}
+                  >
+                    {vaultPath || t('noVaultSelected')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSwitchVault}
+                  disabled={isSwitching}
+                  className="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-600 active:scale-95 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {isSwitching ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin text-mac-accent" />
+                      <span>{t('switching')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <FolderOpen size={13} />
+                      <span>{t('changeFolder')}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-normal">
+                {t('vaultSwitchDescription')}
+              </p>
+            </div>
+          </div>
+
           {/* Language Selection */}
           <div className="flex flex-col gap-2.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">

@@ -36,6 +36,10 @@ export class TauriStorage implements IStorageService {
     return invoke<string>('get_vault_path_str');
   }
 
+  async selectVaultFolder(): Promise<string | null> {
+    return invoke<string | null>('select_vault_folder');
+  }
+
   // ── Note CRUD ──
 
   async readNote(id: string): Promise<string> {
@@ -176,7 +180,14 @@ export class TauriStorage implements IStorageService {
     return invoke<string>('read_text_asset', { relativePath });
   }
 
+  private static imageCache = new Map<string, string>();
+
   async getImageDataUrl(relativePath: string): Promise<string> {
-    return invoke<string>('get_image_data_url', { relativePath });
+    if (TauriStorage.imageCache.has(relativePath)) {
+      return TauriStorage.imageCache.get(relativePath)!;
+    }
+    const dataUrl = await invoke<string>('get_image_data_url', { relativePath });
+    TauriStorage.imageCache.set(relativePath, dataUrl);
+    return dataUrl;
   }
 }

@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, Loader2, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
+import { injectPngMetadata, EXCALIDRAW_METADATA_KEYWORD } from '@/utils/pngMetadata';
 import '@excalidraw/excalidraw/index.css';
 
 // Lazy load Excalidraw component for code splitting and instant startup
@@ -12,20 +13,19 @@ const Excalidraw = React.lazy(async () => {
 });
 
 export interface ExcalidrawSavePayload {
-  sketchJson: string;
   pngBlob: Blob;
 }
 
 interface ExcalidrawEditorModalProps {
   isOpen: boolean;
-  initialJson?: string | null;
+  initialData?: any | null;
   onClose: () => void;
   onSave: (payload: ExcalidrawSavePayload) => Promise<void> | void;
 }
 
 export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
   isOpen,
-  initialJson,
+  initialData,
   onClose,
   onSave,
 }) => {
@@ -33,37 +33,32 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
   const { theme, language } = useUiStore();
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const isUpdatingRef = useRef(false);
 
-  const initialDataRef = useRef<any>(null);
-
+  // Sync initial scene data with Excalidraw API when API is initialized or initialData changes
   useEffect(() => {
-    if (isOpen) {
-      if (initialJson) {
-        try {
-          const parsed = JSON.parse(initialJson);
-          initialDataRef.current = {
-            elements: parsed.elements || [],
-            appState: {
-              ...(parsed.appState || {}),
-              theme: theme === 'dark' ? 'dark' : 'light',
-            },
-            files: parsed.files || {},
-          };
-        } catch (e) {
-          console.error('Failed to parse initial Excalidraw JSON', e);
-          initialDataRef.current = {
-            appState: { theme: theme === 'dark' ? 'dark' : 'light' },
-          };
+    if (!isOpen || !excalidrawAPI) return;
+
+    if (initialData && initialData.elements) {
+      isUpdatingRef.current = true;
+      try {
+        excalidrawAPI.updateScene({
+          elements: initialData.elements || [],
+          appState: {
+            ...(initialData.appState || {}),
+            theme: theme === 'dark' ? 'dark' : 'light',
+          },
+        });
+        if (initialData.files && Object.keys(initialData.files).length > 0) {
+          excalidrawAPI.addFiles(Object.values(initialData.files));
         }
-      } else {
-        initialDataRef.current = {
-          appState: { theme: theme === 'dark' ? 'dark' : 'light' },
-        };
+      } catch (err) {
+        console.error('Failed to update Excalidraw scene:', err);
+      } finally {
+        isUpdatingRef.current = false;
       }
-    } else {
-      initialDataRef.current = null;
     }
-  }, [isOpen, initialJson, theme]);
+  }, [isOpen, excalidrawAPI, initialData, theme]);
 
   if (!isOpen) return null;
 
@@ -79,7 +74,7 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
       const appState = excalidrawAPI.getAppState();
       const files = excalidrawAPI.getFiles();
 
-      const sketchData = {
+      const sketchPayload = {
         engine: 'excalidraw',
         elements,
         appState: {
@@ -89,11 +84,9 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
         files,
       };
 
-      const sketchJson = JSON.stringify(sketchData);
-
-      // Export transparent high-res PNG dynamically without static bundler dependency
+      // 1. Export base transparent high-res PNG
       const { exportToBlob } = await import('@excalidraw/excalidraw');
-      const pngBlob = await exportToBlob({
+      const rawBlob = await exportToBlob({
         elements,
         appState: {
           ...appState,
@@ -105,7 +98,12 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
         quality: 1,
       });
 
-      await onSave({ sketchJson, pngBlob });
+      // 2. Embed sketch scene data directly into PNG tEXt chunk
+      const rawBuffer = await rawBlob.arrayBuffer();
+      const enrichedBytes = injectPngMetadata(rawBuffer, EXCALIDRAW_METADATA_KEYWORD, sketchPayload);
+      const pngBlob = new Blob([enrichedBytes as any], { type: 'image/png' });
+
+      await onSave({ pngBlob });
       onClose();
     } catch (err) {
       console.error('Failed to save Excalidraw sketch:', err);
@@ -163,7 +161,14 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
             <div style={{ height: '100%', width: '100%', position: 'relative' }}>
               <Excalidraw
                 excalidrawAPI={(api) => setExcalidrawAPI(api)}
-                initialData={initialDataRef.current}
+                initialData={initialData ? {
+                  elements: initialData.elements || [],
+                  appState: {
+                    ...(initialData.appState || {}),
+                    theme: theme === 'dark' ? 'dark' : 'light',
+                  },
+                  files: initialData.files || {},
+                } : undefined}
                 theme={theme === 'dark' ? 'dark' : 'light'}
                 langCode={language === 'tr' ? 'tr-TR' : 'en-US'}
                 UIOptions={{

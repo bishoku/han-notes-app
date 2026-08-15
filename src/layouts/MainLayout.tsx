@@ -21,7 +21,7 @@ function isTauri(): boolean {
 }
 
 export const MainLayout: React.FC = () => {
-  const { theme, viewMode, initPreferences } = useUiStore();
+  const { theme, viewMode, rightPanelOpen, initPreferences } = useUiStore();
   const { loadVault } = useNoteStore();
   const [storageReady, setStorageReady] = useState(false);
   const [needsDirectoryPick, setNeedsDirectoryPick] = useState(false);
@@ -134,7 +134,7 @@ export const MainLayout: React.FC = () => {
       {viewMode === 'notes' && <MainEditor />}
       {viewMode === 'tasks' && <TasksView />}
       {viewMode === 'decisions' && <DecisionsView />}
-      {viewMode === 'notes' && <RightPanel />}
+      {viewMode === 'notes' && rightPanelOpen && <RightPanel />}
       {!isTauri() && <PwaUpdateBanner />}
       <SettingsModal />
     </div>

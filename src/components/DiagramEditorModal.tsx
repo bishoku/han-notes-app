@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -13,16 +13,16 @@ export interface DiagramPayload {
 
 interface DiagramEditorModalProps {
   isOpen: boolean;
-  initialJson?: string | null;
+  initialMetadata?: { logicalData?: any; visualData?: any } | null;
   onClose: () => void;
   onSave: (payload: DiagramPayload) => void;
 }
 
 export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
   isOpen,
-  initialJson,
+  initialMetadata,
   onClose,
-  onSave
+  onSave,
 }) => {
   const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -32,6 +32,36 @@ export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
   const YADA_URL = import.meta.env.VITE_YADA_URL || 'https://bishoku.github.io/yada/';
   const iframeSrc = `${YADA_URL}?mode=modal&theme=${theme}&lang=${language}`;
 
+  const sendLoadDiagram = useCallback(() => {
+    if (iframeRef.current?.contentWindow) {
+      let logicalJson = '{"schemaVersion":2,"nodes":[],"edges":[],"sequences":[]}';
+      let visualJson = '{"canvas":{"zoom":1,"pan":{"x":0,"y":0}},"layoutNodes":{},"layoutEdges":{},"timelines":{},"annotations":{}}';
+      if (initialMetadata) {
+        logicalJson = initialMetadata.logicalData
+          ? typeof initialMetadata.logicalData === 'string'
+            ? initialMetadata.logicalData
+            : JSON.stringify(initialMetadata.logicalData)
+          : '{}';
+        visualJson = initialMetadata.visualData
+          ? typeof initialMetadata.visualData === 'string'
+            ? initialMetadata.visualData
+            : JSON.stringify(initialMetadata.visualData)
+          : '{}';
+      }
+
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: 'LOAD_DIAGRAM',
+          payload: {
+            logicalJson,
+            visualJson,
+          },
+        },
+        '*'
+      );
+    }
+  }, [initialMetadata]);
+
   useEffect(() => {
     if (!isOpen) {
       setIframeReady(false);
@@ -39,30 +69,9 @@ export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
     }
 
     const handleMessage = (event: MessageEvent) => {
-      // In a more secure setup, we would verify event.origin
       if (event.data?.type === 'READY') {
         setIframeReady(true);
-        if (iframeRef.current?.contentWindow) {
-          let logicalJson = '{"schemaVersion":2,"nodes":[],"edges":[],"sequences":[]}';
-          let visualJson = '{"canvas":{"zoom":1,"pan":{"x":0,"y":0}},"layoutNodes":{},"layoutEdges":{},"timelines":{},"annotations":{}}';
-          if (initialJson) {
-            try {
-              const parsed = JSON.parse(initialJson);
-              logicalJson = parsed.logicalData ? JSON.stringify(parsed.logicalData) : '{}';
-              visualJson = parsed.visualData ? JSON.stringify(parsed.visualData) : '{}';
-            } catch (e) {
-              console.error('Failed to parse initial diagram JSON', e);
-            }
-          }
-          
-          iframeRef.current.contentWindow.postMessage({
-            type: 'LOAD_DIAGRAM',
-            payload: {
-              logicalJson,
-              visualJson
-            }
-          }, '*');
-        }
+        sendLoadDiagram();
       } else if (event.data?.type === 'SAVE_DIAGRAM') {
         onSave(event.data.payload);
       } else if (event.data?.type === 'CLOSE_DIAGRAM') {
@@ -72,12 +81,18 @@ export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOpen, initialJson, onSave, onClose]);
+  }, [isOpen, sendLoadDiagram, onSave, onClose]);
+
+  // Resend if initialMetadata updates after iframe was already ready
+  useEffect(() => {
+    if (isOpen && iframeReady) {
+      sendLoadDiagram();
+    }
+  }, [isOpen, iframeReady, sendLoadDiagram]);
 
   const handleRequestClose = () => {
     if (iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: 'REQUEST_SAVE_AND_CLOSE' }, '*');
-      // Fallback in case iframe doesn't respond
       setTimeout(() => {
         onClose();
       }, 500);
