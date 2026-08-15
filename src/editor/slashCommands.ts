@@ -144,7 +144,7 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     category: 'Format',
     colorClass: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
     icon: React.createElement(Table, { size: 14 }),
-    snippet: '| Col 1 | Col 2 |\n| --- | --- |\n| Data 1 | Data 2 |\n',
+    snippet: '| Col 1 | Col 2 |\n| --- | --- |\n| Data 1 | Data 2 |',
   },
   {
     id: 'image',

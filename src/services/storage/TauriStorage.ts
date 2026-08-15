@@ -161,11 +161,15 @@ export class TauriStorage implements IStorageService {
   // ── Assets / Images ──
 
   async saveImageBytes(relativeNoteId: string, fileName: string, bytes: Uint8Array): Promise<string> {
-    return invoke<string>('save_image_bytes', {
+    const relPath = await invoke<string>('save_image_bytes', {
       relativeNoteId,
       fileName,
       bytes: Array.from(bytes),
     });
+    TauriStorage.imageCache.delete(relPath);
+    TauriStorage.imageCache.delete(fileName);
+    TauriStorage.imageCache.delete(`/${relPath}`);
+    return relPath;
   }
 
   async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {

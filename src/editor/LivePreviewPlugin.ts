@@ -33,6 +33,7 @@ const lineDecH2 = Decoration.line({ attributes: { class: "cm-h2" } });
 const lineDecH3 = Decoration.line({ attributes: { class: "cm-h3" } });
 const lineDecH4 = Decoration.line({ attributes: { class: "cm-h4" } });
 const lineDecHidden = Decoration.line({ attributes: { class: "cm-hidden-frontmatter" } });
+const lineDecHiddenTable = Decoration.line({ attributes: { class: "cm-hidden-table-line" } });
 const lineDecCodeBlock = Decoration.line({ attributes: { class: "cm-codeblock-line" } });
 const lineDecCodeHeader = Decoration.line({ attributes: { class: "cm-codeblock-line cm-codeblock-header" } });
 const lineDecCodeFooter = Decoration.line({ attributes: { class: "cm-codeblock-line cm-codeblock-footer" } });
@@ -216,31 +217,22 @@ function livePreviewDecorations(view: EditorView) {
           const firstLine = view.state.doc.line(l);
           const lastLine = view.state.doc.line(tableEndLine);
 
-          if (firstLine.from < firstLine.to) {
-            items.push({
-              from: firstLine.from,
-              to: firstLine.to,
-              dec: Decoration.replace({
-                widget: new TableWidget(tableText, firstLine.from, lastLine.to),
-              }),
-            });
-          } else {
-            items.push({
-              from: firstLine.from,
-              to: firstLine.from,
-              dec: Decoration.widget({
-                widget: new TableWidget(tableText, firstLine.from, lastLine.to),
-                side: 1,
-              }),
-            });
-          }
+          // 1. Replace the first line with the interactive TableWidget
+          items.push({
+            from: firstLine.from,
+            to: firstLine.to,
+            dec: Decoration.replace({
+              widget: new TableWidget(tableText, firstLine.from, lastLine.to),
+            }),
+          });
 
+          // 2. Hide lines 2..N cleanly within their own line boundaries
           for (let hideL = l + 1; hideL <= tableEndLine; hideL++) {
             const hLine = view.state.doc.line(hideL);
             items.push({
               from: hLine.from,
               to: hLine.from,
-              dec: lineDecHidden,
+              dec: lineDecHiddenTable,
             });
             if (hLine.from < hLine.to) {
               items.push({

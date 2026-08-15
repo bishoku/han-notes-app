@@ -30,7 +30,7 @@ export const DiagramEditorModal: React.FC<DiagramEditorModalProps> = ({
 
   const { theme, language } = useUiStore();
   const YADA_URL = import.meta.env.VITE_YADA_URL || 'https://bishoku.github.io/yada/';
-  const iframeSrc = `${YADA_URL}?mode=modal&theme=${theme}&lang=${language}`;
+  const iframeSrc = `${YADA_URL}?mode=modal&embed=true&theme=${theme}&lang=${language}`;
 
   const sendLoadDiagram = useCallback(() => {
     if (iframeRef.current?.contentWindow) {

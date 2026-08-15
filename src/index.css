@@ -241,12 +241,16 @@
 }
 
 .cm-theme-han .cm-line.cm-hidden-frontmatter,
-.cm-hidden-frontmatter {
+.cm-hidden-frontmatter,
+.cm-theme-han .cm-line.cm-hidden-table-line,
+.cm-hidden-table-line {
   display: none !important;
   height: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
+  border: 0 !important;
   line-height: 0 !important;
+  font-size: 0 !important;
   overflow: hidden !important;
   visibility: hidden !important;
 }

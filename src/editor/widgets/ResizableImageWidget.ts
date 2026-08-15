@@ -1,10 +1,16 @@
 /**
  * ResizableImageWidget.ts — Ultra-performant CodeMirror WidgetType for rendering
- * images, diagrams, and sketches with 60/120 FPS hardware-accelerated drag-to-resize,
- * DOM reuse (updateDOM), and floating action toolbar (Edit / Delete).
+ * images, diagrams, and sketches with:
+ * - 60/120 FPS hardware-accelerated drag-to-resize
+ * - DOM reuse (updateDOM)
+ * - Live Interactive YADA Simulation toggle (Embed Mode with auto-play)
+ * - Floating action toolbar (Play / Edit / Delete)
  */
 import { WidgetType, EditorView } from '@codemirror/view';
+import LZString from 'lz-string';
 import { storage } from '@/services/storage';
+import { extractPngMetadata, YADA_METADATA_KEYWORD } from '@/utils/pngMetadata';
+import { useUiStore } from '@/store/uiStore';
 
 export class ResizableImageWidget extends WidgetType {
   alt: string;
@@ -29,7 +35,6 @@ export class ResizableImageWidget extends WidgetType {
 
     const img = document.createElement('img');
     img.alt = this.alt;
-    // Note: Never add transition-all/transition-width to img, as it fights drag events and causes heavy stutter
     img.className = 'rounded-xl shadow-md border border-gray-200 dark:border-zinc-800 object-cover block bg-gray-100 dark:bg-zinc-800 min-h-[50px] will-change-transform';
     img.style.width = this.width ? `${this.width}px` : '400px';
 
@@ -47,6 +52,108 @@ export class ResizableImageWidget extends WidgetType {
 
     const diagramMatch = this.relPath.match(/(diagram|sketch)-([a-z0-9\-]+)\.png$/);
     const isDiagramOrSketch = !!diagramMatch;
+    const isYadaDiagram = diagramMatch ? diagramMatch[1] === 'diagram' : false;
+
+    let isSimulation = false;
+    let iframe: HTMLIFrameElement | null = null;
+
+    // Helper to generate the YADA Embed URL from embedded PNG metadata
+    const getYadaEmbedUrl = async (): Promise<string> => {
+      const YADA_URL = (import.meta as any).env?.VITE_YADA_URL || 'https://bishoku.github.io/yada/';
+      const { theme, language } = useUiStore.getState();
+      try {
+        const dataUrl = await storage.getImageDataUrl(this.relPath);
+        if (dataUrl && dataUrl.includes('base64,')) {
+          const base64 = dataUrl.split('base64,')[1];
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const projectData = extractPngMetadata(bytes.buffer, YADA_METADATA_KEYWORD);
+          if (projectData) {
+            const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(projectData));
+            return `${YADA_URL}?embed=true&theme=${theme}&lang=${language}#share=${compressed}`;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to extract embedded YADA diagram for simulation:', err);
+      }
+      return `${YADA_URL}?embed=true&theme=${theme}&lang=${language}`;
+    };
+
+    // Live Simulation Mode Toggle (for YADA diagrams)
+    if (isYadaDiagram) {
+      const simBtn = document.createElement('button');
+      simBtn.type = 'button';
+      simBtn.title = "Canlı Simülasyonu Başlat (Interactive Mode)";
+      simBtn.className = 'w-7 h-7 flex items-center justify-center rounded-full text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer';
+      simBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+          <polygon points="6 3 20 12 6 21 6 3"/>
+        </svg>
+      `;
+
+      simBtn.onmousedown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
+      simBtn.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        isSimulation = !isSimulation;
+        (wrap as any)._isSimulation = isSimulation;
+
+        if (isSimulation) {
+          // Switch to Live Simulation Mode
+          img.style.display = 'none';
+
+          if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.className = 'rounded-xl shadow-md border border-gray-200 dark:border-zinc-800 block bg-slate-50 dark:bg-slate-950 min-h-[300px] transition-all';
+            const currentW = Math.round(img.getBoundingClientRect().width) || this.width || 400;
+            iframe.style.width = `${currentW}px`;
+            iframe.style.height = `${Math.min(650, Math.max(320, Math.round(currentW * 0.65)))}px`;
+            iframe.setAttribute('allow', 'fullscreen');
+            wrap.appendChild(iframe);
+          }
+          iframe.style.display = 'block';
+
+          const embedUrl = await getYadaEmbedUrl();
+          if (iframe.src !== embedUrl) {
+            iframe.src = embedUrl;
+          }
+
+          simBtn.title = "Statik Görsel Moduna Dön";
+          simBtn.className = 'w-7 h-7 flex items-center justify-center rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors cursor-pointer ring-1 ring-emerald-500/30';
+          simBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+              <circle cx="9" cy="9" r="2"/>
+              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+            </svg>
+          `;
+        } else {
+          // Switch back to Static Image Mode
+          if (iframe) {
+            iframe.style.display = 'none';
+          }
+          img.style.display = 'block';
+
+          simBtn.title = "Canlı Simülasyonu Başlat (Interactive Mode)";
+          simBtn.className = 'w-7 h-7 flex items-center justify-center rounded-full text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer';
+          simBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <polygon points="6 3 20 12 6 21 6 3"/>
+            </svg>
+          `;
+        }
+      };
+
+      toolbar.appendChild(simBtn);
+    }
 
     // Edit Button (for diagrams & sketches)
     if (diagramMatch) {
@@ -84,7 +191,7 @@ export class ResizableImageWidget extends WidgetType {
 
       toolbar.appendChild(editBtn);
 
-      const onRefresh = (e: Event) => {
+      const onRefresh = async (e: Event) => {
         const customEvt = e as CustomEvent<{ diagramId: string; dataUrl?: string }>;
         if (customEvt.detail && (customEvt.detail.diagramId === diagramId || customEvt.detail.diagramId === diagramMatch[2])) {
           if (customEvt.detail.dataUrl) {
@@ -94,6 +201,12 @@ export class ResizableImageWidget extends WidgetType {
               .then((dataUrl) => { img.src = dataUrl; })
               .catch((err) => { console.error('Failed to reload diagram image:', err); });
           }
+
+          // If iframe is currently visible in simulation mode, refresh its content
+          if (iframe && isSimulation) {
+            const embedUrl = await getYadaEmbedUrl();
+            iframe.src = embedUrl;
+          }
         }
       };
 
@@ -102,6 +215,49 @@ export class ResizableImageWidget extends WidgetType {
         window.removeEventListener('refresh-diagram-image', onRefresh);
       };
     }
+
+    // Fullscreen View Button (for all images, diagrams, and sketches)
+    const fullBtn = document.createElement('button');
+    fullBtn.type = 'button';
+    fullBtn.title = "Tam Ekran Görünümü";
+    fullBtn.className = 'w-7 h-7 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer';
+    fullBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 3 21 3 21 9"/>
+        <polyline points="9 21 3 21 3 15"/>
+        <line x1="21" x2="14" y1="3" y2="10"/>
+        <line x1="3" x2="10" y1="21" y2="14"/>
+      </svg>
+    `;
+
+    fullBtn.onmousedown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    fullBtn.onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      let embedUrl: string | undefined;
+      if (isSimulation) {
+        embedUrl = await getYadaEmbedUrl();
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('open-image-fullscreen', {
+          detail: {
+            src: img.src,
+            alt: this.alt,
+            isSimulation,
+            embedUrl,
+            relPath: this.relPath,
+          },
+        })
+      );
+    };
+
+    toolbar.appendChild(fullBtn);
 
     // Delete Button (for all images, diagrams, and sketches)
     const deleteBtn = document.createElement('button');
@@ -190,12 +346,16 @@ export class ResizableImageWidget extends WidgetType {
 
     const onMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - startX;
-      targetWidth = Math.max(80, Math.min(1600, startWidth + deltaX));
+      targetWidth = Math.max(120, Math.min(1600, startWidth + deltaX));
       
       // Use requestAnimationFrame to eliminate lag and synchronize with screen refresh
       if (!rafId) {
         rafId = requestAnimationFrame(() => {
           img.style.width = `${targetWidth}px`;
+          if (iframe) {
+            iframe.style.width = `${targetWidth}px`;
+            iframe.style.height = `${Math.min(650, Math.max(320, Math.round(targetWidth * 0.65)))}px`;
+          }
           rafId = null;
         });
       }
@@ -211,7 +371,12 @@ export class ResizableImageWidget extends WidgetType {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
 
-      const finalWidth = Math.round(targetWidth || img.getBoundingClientRect().width);
+      if (iframe) {
+        iframe.style.pointerEvents = '';
+      }
+
+      const activeEl = isSimulation && iframe ? iframe : img;
+      const finalWidth = Math.round(targetWidth || activeEl.getBoundingClientRect().width);
       const cleanAlt = this.alt.split('|')[0];
       const newMarkdown = `![${cleanAlt}|${finalWidth}](${this.relPath})`;
 
@@ -250,10 +415,15 @@ export class ResizableImageWidget extends WidgetType {
       e.preventDefault();
       e.stopPropagation();
       startX = e.clientX;
-      startWidth = img.getBoundingClientRect().width;
+      const activeEl = isSimulation && iframe ? iframe : img;
+      startWidth = activeEl.getBoundingClientRect().width;
       targetWidth = startWidth;
       document.body.style.cursor = 'nwse-resize';
       document.body.style.userSelect = 'none';
+
+      if (iframe) {
+        iframe.style.pointerEvents = 'none';
+      }
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
@@ -272,13 +442,19 @@ export class ResizableImageWidget extends WidgetType {
     if (dom.dataset.relPath !== this.relPath) {
       return false;
     }
+    const widthStr = this.width ? `${this.width}px` : '400px';
     const img = dom.querySelector('img');
+    const iframe = dom.querySelector('iframe');
+
     if (img) {
-      img.style.width = this.width ? `${this.width}px` : '400px';
+      img.style.width = widthStr;
       img.alt = this.alt;
-      return true;
     }
-    return false;
+    if (iframe) {
+      iframe.style.width = widthStr;
+      iframe.style.height = `${Math.min(650, Math.max(320, Math.round((this.width || 400) * 0.65)))}px`;
+    }
+    return true;
   }
 
   destroy(dom: HTMLElement) {

@@ -541,7 +541,12 @@ export class BrowserStorage implements IStorageService {
     await writable.write(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     await writable.close();
 
-    return parentDir ? `${parentDir}/.attachments/${fileName}` : `.attachments/${fileName}`;
+    const relPath = parentDir ? `${parentDir}/.attachments/${fileName}` : `.attachments/${fileName}`;
+    imageCache.delete(relPath);
+    imageCache.delete(fileName);
+    imageCache.delete(`/${relPath}`);
+
+    return relPath;
   }
 
   async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {

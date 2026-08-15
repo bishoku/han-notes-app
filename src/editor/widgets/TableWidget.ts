@@ -72,13 +72,21 @@ export class TableWidget extends WidgetType {
     this.to = to;
   }
 
+  get estimatedHeight(): number {
+    return 120;
+  }
+
+  ignoreEvent(_event: Event): boolean {
+    return true;
+  }
+
   eq(other: TableWidget): boolean {
     return this.tableText === other.tableText && this.from === other.from && this.to === other.to;
   }
 
   toDOM(view: EditorView): HTMLElement {
     const container = document.createElement("div");
-    container.className = "my-4 select-none group/table relative";
+    container.className = "my-1 select-none group/table relative max-w-full inline-block w-full";
 
     const parsed = parseMarkdownTable(this.tableText);
     if (!parsed) {
@@ -249,7 +257,7 @@ export class TableWidget extends WidgetType {
 
     // Footer Controls Bar (+ Satır Ekle, + Sütun Ekle) — Only visible on table hover or focus
     const controls = document.createElement("div");
-    controls.className = "mt-1.5 flex items-center justify-between text-xs text-gray-500 opacity-0 group-hover/table:opacity-100 group-focus-within/table:opacity-100 transition-opacity duration-200";
+    controls.className = "mt-1 flex items-center justify-between text-xs text-gray-500 hidden group-hover/table:flex group-focus-within/table:flex";
 
     const leftControls = document.createElement("div");
     leftControls.className = "flex items-center gap-2";

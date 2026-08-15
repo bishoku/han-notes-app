@@ -8,6 +8,7 @@ const SAVED_LANG_KEY = 'han_app_language';
 const SAVED_FONTSIZE_KEY = 'han_editor_fontsize';
 
 export type FontSize = 'sm' | 'md' | 'lg';
+export type EditorMode = 'preview' | 'raw';
 
 const getInitialTheme = (): AppTheme => {
   const saved = localStorage.getItem(SAVED_THEME_KEY) as AppTheme;
@@ -60,7 +61,7 @@ const initialFontSize = getInitialFontSize();
 
 export const useUiStore = create<UiState>((set, get) => ({
   sidebarOpen: true,
-  rightPanelOpen: true,
+  rightPanelOpen: false,
   isSettingsModalOpen: false,
   theme: initialTheme,
   language: initialLang,

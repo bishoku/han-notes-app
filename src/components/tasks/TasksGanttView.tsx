@@ -160,19 +160,25 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
     endCopy.setMinutes(endCopy.getMinutes() - endCopy.getTimezoneOffset());
     const newEnd = endCopy.toISOString().split('T')[0];
 
-    if (newStart !== task.start_date || newEnd !== task.end_date) {
+    const currentProgress = task.progress ?? (task.completed ? 100 : 0);
+    const newProgress = Math.round(ganttTask.progress);
+    const progressChanged = newProgress !== currentProgress;
+    const datesChanged = newStart !== task.start_date || newEnd !== task.end_date;
+
+    if (datesChanged || progressChanged) {
+      const isCompleted = newProgress === 100 ? true : (newProgress === 0 ? false : task.completed);
       await onUpdateTask(
         task.note_id,
         task.line_number,
         task.content,
-        task.completed,
+        isCompleted,
         {
           description: task.description,
           startDate: newStart,
           endDate: newEnd,
           priority: task.priority,
           assignees: task.assignees,
-          progress: task.progress,
+          progress: newProgress,
           tags: task.tags,
         }
       );
