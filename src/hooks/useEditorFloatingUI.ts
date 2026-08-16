@@ -183,7 +183,13 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
       // Empty line → show block menu (+)
       const top = getRelativeTop(update, line.from);
       if (top !== null) {
-        setMenuPos({ top, show: true, lineFrom: line.from });
+        setMenuPos(prev => {
+          if (prev.lineFrom !== line.from) {
+            setShowOptions(false);
+            setShowNotePicker(false);
+          }
+          return { top, show: true, lineFrom: line.from };
+        });
         setTaskEditBtn(prev => prev.show ? { ...prev, show: false } : prev);
         setDecisionEditBtn(prev => prev.show ? { ...prev, show: false } : prev);
         return;

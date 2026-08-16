@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import type { AppTheme } from '@/utils/theme';
-import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2 } from 'lucide-react';
+import { IntegrationsSettingsTab } from '@/components/settings/IntegrationsSettingsTab';
+import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ThemeOption {
@@ -65,6 +66,7 @@ export const SettingsModal: React.FC = () => {
   const { isSettingsModalOpen, setSettingsModalOpen, theme, setTheme, language, setLanguage } = useUiStore();
   const { vaultPath, switchVault } = useNoteStore();
   const [isSwitching, setIsSwitching] = useState(false);
+  const [activeTab, setActiveTab] = useState<'general' | 'integrations'>('general');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -91,19 +93,40 @@ export const SettingsModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       {/* Modal Container */}
       <div 
-        className="w-full max-w-md bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all"
+        className="w-full max-w-xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-zinc-800/80 bg-gray-50/50 dark:bg-zinc-900/50">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-mac-accent/10 text-mac-accent">
-              <Palette size={18} />
-            </div>
-            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-              {t('settings')}
-            </h2>
+        {/* Header with Tabs */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-zinc-800/80 bg-gray-50/50 dark:bg-zinc-900/50">
+          <div className="flex items-center gap-1.5 p-1 bg-gray-200/60 dark:bg-zinc-800 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setActiveTab('general')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
+                activeTab === 'general'
+                  ? "bg-white dark:bg-zinc-700 text-mac-accent shadow-xs"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              )}
+            >
+              <Sliders size={13} />
+              <span>{t('settings')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('integrations')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
+                activeTab === 'integrations'
+                  ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-xs"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              )}
+            >
+              <Bot size={13} />
+              <span>Entegrasyonlar & AI</span>
+            </button>
           </div>
+
           <button
             onClick={() => setSettingsModalOpen(false)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
@@ -113,8 +136,12 @@ export const SettingsModal: React.FC = () => {
         </div>
 
         {/* Content Body */}
-        <div className="p-5 flex flex-col gap-6 overflow-y-auto max-h-[80vh]">
-          {/* Workspace / Vault Folder Selection */}
+        <div className="p-6 flex flex-col gap-6 overflow-y-auto max-h-[75vh]">
+          {activeTab === 'integrations' ? (
+            <IntegrationsSettingsTab />
+          ) : (
+            <>
+              {/* Workspace / Vault Folder Selection */}
           <div className="flex flex-col gap-2.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
               <Folder size={14} className="text-amber-500" />
@@ -244,7 +271,9 @@ export const SettingsModal: React.FC = () => {
               })}
             </div>
           </div>
-        </div>
+        </>
+      )}
+    </div>
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-900/50 flex justify-end">

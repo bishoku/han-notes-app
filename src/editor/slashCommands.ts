@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Lightbulb,
   Minus,
+  Smile,
 } from 'lucide-react';
 import type { SlashCommand } from '@/components/SlashCommandMenu';
 import type { TFunction } from 'i18next';
@@ -48,12 +49,23 @@ interface SlashCommandDef {
   /** Where to place the cursor relative to the insert start. Defaults to end of snippet. */
   cursorOffset?: number;
   /** Special action type for non-insert commands */
-  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor' | 'openExcalidrawEditor';
+  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker';
 }
 
 // ─── Static Definitions ──────────────────────────────────────────────────────
 
 const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
+  {
+    id: 'emoji',
+    labelKey: 'slashEmoji',
+    command: '/emoji',
+    descriptionKey: 'slashEmojiDesc',
+    category: 'Format',
+    colorClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    icon: React.createElement(Smile, { size: 14 }),
+    snippet: '',
+    action: 'openEmojiPicker',
+  },
   {
     id: 'tag',
     labelKey: 'slashTag',
@@ -102,7 +114,7 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     command: '/h1',
     descriptionKey: 'slashHeading1Desc',
     category: 'Format',
-    colorClass: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    colorClass: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
     icon: React.createElement(Heading1, { size: 14 }),
     snippet: '# ',
   },
@@ -112,7 +124,7 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     command: '/h2',
     descriptionKey: 'slashHeading2Desc',
     category: 'Format',
-    colorClass: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    colorClass: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
     icon: React.createElement(Heading2, { size: 14 }),
     snippet: '## ',
   },
@@ -122,7 +134,7 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     command: '/h3',
     descriptionKey: 'slashHeading3Desc',
     category: 'Format',
-    colorClass: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    colorClass: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
     icon: React.createElement(Heading3, { size: 14 }),
     snippet: '### ',
   },
@@ -132,7 +144,7 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     command: '/quote',
     descriptionKey: 'slashQuoteDesc',
     category: 'Format',
-    colorClass: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+    colorClass: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
     icon: React.createElement(Quote, { size: 14 }),
     snippet: '> ',
   },
@@ -144,14 +156,14 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     category: 'Format',
     colorClass: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
     icon: React.createElement(Table, { size: 14 }),
-    snippet: '| Col 1 | Col 2 |\n| --- | --- |\n| Data 1 | Data 2 |',
+    snippet: '| Başlık 1 | Başlık 2 | Başlık 3 |\n| :--- | :--- | :--- |\n| Veri 1 | Veri 2 | Veri 3 |\n| Veri 4 | Veri 5 | Veri 6 |\n',
   },
   {
     id: 'image',
     labelKey: 'slashImage',
     command: '/image',
     descriptionKey: 'slashImageDesc',
-    category: 'Format',
+    category: 'Medya',
     colorClass: 'bg-pink-500/15 text-pink-600 dark:text-pink-400',
     icon: React.createElement(ImageIcon, { size: 14 }),
     snippet: '',
@@ -162,8 +174,8 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     labelKey: 'slashDiagram',
     command: '/diagram',
     descriptionKey: 'slashDiagramDesc',
-    category: 'Format',
-    colorClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    category: 'Görselleştirme',
+    colorClass: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
     icon: React.createElement(Workflow, { size: 14 }),
     snippet: '',
     action: 'openDiagramEditor',
@@ -173,24 +185,24 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     labelKey: 'slashSketch',
     command: '/sketch',
     descriptionKey: 'slashSketchDesc',
-    category: 'Format',
-    colorClass: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    category: 'Görselleştirme',
+    colorClass: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
     icon: React.createElement(Sparkles, { size: 14 }),
     snippet: '',
     action: 'openExcalidrawEditor',
   },
   {
-    id: 'note',
+    id: 'callout-note',
     labelKey: 'slashNoteCallout',
     command: '/note',
     descriptionKey: 'slashNoteCalloutDesc',
     category: 'Format',
     colorClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
     icon: React.createElement(Info, { size: 14 }),
-    snippet: '> [!NOTE] Bilgi Notu\n> Açıklama metninizi buraya yazabilirsiniz.\n',
+    snippet: '> [!NOTE] Bilgi Notu\n> Açıklamanızı buraya yazabilirsiniz.\n',
   },
   {
-    id: 'warning',
+    id: 'callout-warning',
     labelKey: 'slashWarningCallout',
     command: '/warning',
     descriptionKey: 'slashWarningCalloutDesc',
@@ -234,6 +246,7 @@ export function buildSlashCommands(
   openImagePicker: () => void,
   openDiagramEditor: () => void,
   openExcalidrawEditor: () => void,
+  openEmojiPicker: () => void,
   t: TFunction,
 ): SlashCommand[] {
   return SLASH_COMMAND_DEFS.map((def) => ({
@@ -245,7 +258,10 @@ export function buildSlashCommands(
     colorClass: def.colorClass,
     icon: def.icon,
     execute: () => {
-      if (def.action === 'openTagModal') {
+      if (def.action === 'openEmojiPicker') {
+        executeSlashCommand('');
+        openEmojiPicker();
+      } else if (def.action === 'openTagModal') {
         executeSlashCommand('', { openTagModal: true });
       } else if (def.action === 'openImagePicker') {
         executeSlashCommand('');

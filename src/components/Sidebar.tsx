@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
+import { useAiStore } from '@/store/aiStore';
 import { FileTreeNode } from '@/components/FileTreeNode';
-import { Search, Settings, CheckCircle, FolderPlus, FilePlus, Folder, FileCheck, Tag, ChevronDown, ChevronUp, X, Network } from 'lucide-react';
+import { Search, Settings, CheckCircle, FolderPlus, FilePlus, Folder, FileCheck, Tag, ChevronDown, ChevronUp, X, Network, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
   const { sidebarOpen, setSettingsModalOpen, setViewMode, viewMode } = useUiStore();
   const { fileTree, notes, activeFolderPath, createNote, createFolder, moveNode, vaultTags, activeTagFilter, setActiveTagFilter, vaultPath } = useNoteStore();
+  const { settings: aiSettings, isChatDrawerOpen, setChatDrawerOpen } = useAiStore();
   
   const [isRootDragOver, setIsRootDragOver] = useState(false);
   const [rootContextMenu, setRootContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -351,6 +353,31 @@ export const Sidebar: React.FC = () => {
         >
           <Network size={16} />
           Zihin Haritası (Mindmap)
+        </button>
+        <button 
+          onClick={() => {
+            if (aiSettings.enabled) {
+              setChatDrawerOpen(!isChatDrawerOpen);
+            } else {
+              setSettingsModalOpen(true);
+            }
+          }}
+          className={cn(
+            "flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer",
+            isChatDrawerOpen
+              ? "bg-gradient-to-r from-purple-600 to-mac-accent text-white font-semibold shadow-xs"
+              : aiSettings.enabled
+              ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold hover:bg-purple-500/20"
+              : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className={aiSettings.enabled ? "text-purple-500 animate-pulse" : ""} />
+            <span>AI Asistan</span>
+          </div>
+          {aiSettings.enabled && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          )}
         </button>
         <button 
           onClick={() => setSettingsModalOpen(true)}

@@ -5,8 +5,10 @@ import { RightPanel } from '@/components/RightPanel';
 import { TasksView } from '@/components/TasksView';
 import { DecisionsView } from '@/components/DecisionsView';
 import { MindmapView } from '@/components/MindmapView';
+import { ChatDrawer } from '@/components/ai/ChatDrawer';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
+import { useAiStore } from '@/store/aiStore';
 import { initBrowserStorage, pickBrowserDirectory } from '@/services/storage';
 import { PwaUpdateBanner } from '@/components/PwaUpdateBanner';
 import { FolderOpen } from 'lucide-react';
@@ -24,6 +26,7 @@ function isTauri(): boolean {
 export const MainLayout: React.FC = () => {
   const { theme, viewMode, rightPanelOpen, initPreferences } = useUiStore();
   const { loadVault } = useNoteStore();
+  const { initAiStore } = useAiStore();
   const [storageReady, setStorageReady] = useState(false);
   const [needsDirectoryPick, setNeedsDirectoryPick] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
@@ -31,7 +34,8 @@ export const MainLayout: React.FC = () => {
   // ── Theme & Preferences Init ──
   useEffect(() => {
     initPreferences();
-  }, [initPreferences]);
+    initAiStore();
+  }, [initPreferences, initAiStore]);
 
   useEffect(() => {
     applyAppTheme(theme);
@@ -137,6 +141,7 @@ export const MainLayout: React.FC = () => {
       {viewMode === 'decisions' && <DecisionsView />}
       {viewMode === 'mindmap' && <MindmapView />}
       {viewMode === 'notes' && rightPanelOpen && <RightPanel />}
+      <ChatDrawer />
       {!isTauri() && <PwaUpdateBanner />}
       <SettingsModal />
     </div>

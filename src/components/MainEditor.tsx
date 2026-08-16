@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils';
 
 // Editor Plugins & Formatter Utilities
 import { livePreviewPlugin } from '@/editor/LivePreviewPlugin';
-import { wikilinkAutocomplete } from '@/editor/WikilinkCompletion';
+import { editorAutocomplete } from '@/editor/WikilinkCompletion';
+import { smartPastePlugin } from '@/editor/pastePlugin';
 import { buildSlashCommands } from '@/editor/slashCommands';
 import { applyTextFormat } from '@/editor/formatters';
 
@@ -27,6 +28,8 @@ import { EditorFooter } from '@/components/EditorFooter';
 import { FloatingBlockMenu } from '@/components/FloatingBlockMenu';
 import { SelectionBubbleMenu, type FormatType } from '@/components/SelectionBubbleMenu';
 import { SlashCommandMenu } from '@/components/SlashCommandMenu';
+import { EmojiPickerPopover } from '@/components/ui/EmojiPickerPopover';
+import { InlineAiComposer } from '@/components/ai/InlineAiComposer';
 
 // Modals
 import { TaskEditModal } from '@/components/TaskEditModal';
@@ -187,8 +190,55 @@ export const MainEditor: React.FC = () => {
     }
   }, [slashStateRef, setSlashMenuState, setShowTagPopover]);
 
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [inlineAiState, setInlineAiState] = useState<{ isOpen: boolean; top: number; lineFrom: number }>({
+    isOpen: false,
+    top: 0,
+    lineFrom: 0,
+  });
+
+  const inlineAiContext = useMemo(() => {
+    if (!editorRef.current || !currentNoteId || !inlineAiState.isOpen) return undefined;
+    const view = editorRef.current;
+    const doc = view.state.doc;
+    const lineFrom = inlineAiState.lineFrom;
+    const beforeText = doc.sliceString(Math.max(0, lineFrom - 1500), lineFrom);
+    const afterText = doc.sliceString(lineFrom, Math.min(doc.length, lineFrom + 1500));
+    const foundNote = otherNotes.find((n) => n.id === currentNoteId);
+    const noteTitle = foundNote?.title || currentNoteId.split('/').pop() || currentNoteId;
+
+    return {
+      noteId: currentNoteId,
+      noteTitle,
+      beforeText,
+      afterText,
+    };
+  }, [currentNoteId, inlineAiState.isOpen, inlineAiState.lineFrom, otherNotes]);
+
+  const handleInsertInlineAiMarkdown = useCallback((text: string) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const targetPos = inlineAiState.lineFrom;
+    const formattedText = text.trim() + '\n\n';
+    view.dispatch({
+      changes: { from: targetPos, insert: formattedText },
+      selection: { anchor: targetPos + formattedText.length },
+      scrollIntoView: true,
+    });
+    view.focus();
+    setInlineAiState((prev) => ({ ...prev, isOpen: false }));
+  }, [inlineAiState.lineFrom]);
+
   const slashCommands = useMemo(
-    () => buildSlashCommands(executeSlashCommand, () => fileInputRef.current?.click(), openDiagramEditor, openExcalidrawEditor, t),
+    () =>
+      buildSlashCommands(
+        executeSlashCommand,
+        () => fileInputRef.current?.click(),
+        openDiagramEditor,
+        openExcalidrawEditor,
+        () => setEmojiPickerOpen(true),
+        t
+      ),
     [executeSlashCommand, openDiagramEditor, openExcalidrawEditor, t]
   );
 
@@ -204,7 +254,8 @@ export const MainEditor: React.FC = () => {
       EditorView.lineWrapping,
       markdown({ base: markdownLanguage, codeLanguages: languages }),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      wikilinkAutocomplete,
+      editorAutocomplete,
+      smartPastePlugin,
     ];
     if (editorMode === 'preview') {
       exts.push(livePreviewPlugin);
@@ -263,6 +314,7 @@ export const MainEditor: React.FC = () => {
             onOpenImagePicker={() => fileInputRef.current?.click()}
             onOpenDiagramEditor={openDiagramEditor}
             onOpenExcalidrawEditor={openExcalidrawEditor}
+            onOpenInlineAi={() => setInlineAiState({ isOpen: true, top: menuPos.top, lineFrom: menuPos.lineFrom })}
           />
 
           <SelectionBubbleMenu
@@ -356,6 +408,21 @@ export const MainEditor: React.FC = () => {
           onClose={() => setSlashMenuState((prev) => ({ ...prev, show: false }))}
         />
       )}
+
+      {/* Visual Emoji Picker Popover */}
+      <EmojiPickerPopover
+        isOpen={emojiPickerOpen}
+        onClose={() => setEmojiPickerOpen(false)}
+        onSelectEmoji={(emoji) => insertText(emoji + ' ')}
+      />
+
+      {/* Inline AI Paragraph & Content Generator Modal */}
+      <InlineAiComposer
+        isOpen={inlineAiState.isOpen}
+        onClose={() => setInlineAiState((prev) => ({ ...prev, isOpen: false }))}
+        onInsertMarkdown={handleInsertInlineAiMarkdown}
+        surroundingContext={inlineAiContext}
+      />
     </main>
   );
 };

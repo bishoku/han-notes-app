@@ -1,6 +1,7 @@
 import { autocompletion } from "@codemirror/autocomplete";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { useNoteStore } from "@/store/noteStore";
+import { emojiCompletionSource } from "./EmojiCompletion";
 
 export function wikilinkCompletionSource(context: CompletionContext): CompletionResult | null {
   const word = context.matchBefore(/\[\[([^\]]*)$/);
@@ -31,7 +32,10 @@ export function wikilinkCompletionSource(context: CompletionContext): Completion
   };
 }
 
-export const wikilinkAutocomplete = autocompletion({
-  override: [wikilinkCompletionSource],
+export const editorAutocomplete = autocompletion({
+  override: [wikilinkCompletionSource, emojiCompletionSource],
   defaultKeymap: true,
 });
+
+// Alias for backwards compatibility
+export const wikilinkAutocomplete = editorAutocomplete;

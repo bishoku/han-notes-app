@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { storage } from '@/services/storage';
 import { useGraphStore } from '@/store/graphStore';
+import { useAiStore } from '@/store/aiStore';
+import { indexingCoordinator } from '@/services/ai/indexingCoordinator';
 import type { FileNode, NoteInfo, TagCount, BacklinkInfo } from '@/services/storage';
 
 // Re-export types for backward compatibility with existing component imports
@@ -106,12 +108,24 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   selectNote: async (id: string) => {
     try {
+      // If AI is enabled and had an active note, flush any pending edits for previous note
+      const prevId = get().currentNoteId;
+      const prevContent = get().currentNoteContent;
+      if (useAiStore.getState().settings.enabled && prevId && prevContent) {
+        const prevNote = get().notes.find((n) => n.id === prevId);
+        const prevTitle = prevNote?.title || prevId.split('/').pop() || prevId;
+        indexingCoordinator.flushImmediate(prevId, prevTitle, prevContent);
+      }
+
       const content = await storage.readNote(id);
       const parts = id.split('/');
       const parentDir = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
       
       set({ currentNoteId: id, currentNoteContent: content, activeFolderPath: parentDir });
       get().loadBacklinks(id);
+
+      // Synchronize note-scoped AI chat session
+      useAiStore.getState().syncActiveNoteSession(id);
     } catch (e) {
       console.error("Failed to read note:", e);
     }
@@ -167,6 +181,13 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       get().loadBacklinks(currentNoteId);
       // Non-blocking graph index update
       useGraphStore.getState().updateNoteContent(currentNoteId, content);
+
+      // Non-blocking AI vector indexing queue (25s idle debounced)
+      if (useAiStore.getState().settings.enabled) {
+        const note = get().notes.find((n) => n.id === currentNoteId);
+        const title = note?.title || currentNoteId.split('/').pop() || currentNoteId;
+        indexingCoordinator.queueNoteUpdate(currentNoteId, title, content);
+      }
     } catch (e) {
       console.error("Failed to write note:", e);
     }

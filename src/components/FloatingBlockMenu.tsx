@@ -1,8 +1,9 @@
 /**
  * FloatingBlockMenu.tsx — The floating UI elements that appear alongside
- * the editor: the (+) block menu, task edit button, and decision edit button.
+ * the editor: the (+) block menu, task edit button, decision edit button,
+ * and inline AI assistant trigger.
  */
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NoteInfo } from '@/store/noteStore';
 import type { BlockMenuState, FloatingButtonState } from '@/hooks/useEditorFloatingUI';
@@ -22,6 +23,7 @@ import {
   Workflow,
   Sparkles,
   Search,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +42,7 @@ interface FloatingBlockMenuProps {
   onOpenImagePicker: () => void;
   onOpenDiagramEditor?: () => void;
   onOpenExcalidrawEditor?: () => void;
+  onOpenInlineAi?: () => void;
 }
 
 export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
@@ -57,9 +60,26 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
   onOpenImagePicker,
   onOpenDiagramEditor,
   onOpenExcalidrawEditor,
+  onOpenInlineAi,
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
+  const menuContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close options dropdown if user clicks outside
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (showOptions && menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
+        onToggleOptions();
+      }
+    };
+    if (showOptions) {
+      document.addEventListener('mousedown', handleMouseDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [showOptions, onToggleOptions]);
 
   const filteredNotes = notes.filter((n) => {
     if (!searchQuery.trim()) return true;
@@ -104,6 +124,7 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
       {/* Floating Block Menu (+ button on empty line) */}
       {menuPos.show && (
         <div 
+          ref={menuContainerRef}
           className="absolute left-1 z-10 flex items-center justify-center h-7 gap-2 transition-all duration-200"
           style={{ top: menuPos.top - 2 }}
         >
@@ -117,6 +138,23 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
           
           {showOptions && (
             <div className="relative flex items-center gap-1 bg-white dark:bg-zinc-800 p-1 rounded-md shadow-mac border border-gray-100 dark:border-zinc-700 animate-in fade-in slide-in-from-left-2">
+              {/* Inline AI Generator Option */}
+              {onOpenInlineAi && (
+                <>
+                  <button 
+                    onClick={() => {
+                      onOpenInlineAi();
+                      onToggleOptions();
+                    }}
+                    className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-md transition-all cursor-pointer group flex items-center"
+                    title={t('aiInlineWrite', 'AI Asistan ile Yaz')}
+                  >
+                    <Bot size={16} className="text-purple-500 group-hover:scale-110 transition-transform" />
+                  </button>
+                  <div className="w-px h-4 bg-gray-200 dark:bg-zinc-700 mx-0.5" />
+                </>
+              )}
+
               <button 
                 onClick={() => onInsertText('# ')}
                 className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
@@ -219,39 +257,31 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-[10px]"
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                       >
                         ✕
                       </button>
                     )}
                   </div>
 
-                  {/* Scrollable List */}
-                  <div className="max-h-60 overflow-y-auto flex flex-col gap-0.5 mt-0.5">
+                  {/* Scrollable List of Notes */}
+                  <div className="max-h-48 overflow-y-auto flex flex-col gap-0.5 mt-1 scrollbar-thin">
                     {filteredNotes.length === 0 ? (
-                      <div className="px-2 py-3 text-xs text-gray-400 italic text-center">
-                        {searchQuery ? 'Eşleşen not bulunamadı' : 'Bağlanabilecek başka not bulunamadı'}
+                      <div className="px-2 py-3 text-center text-xs text-gray-400">
+                        Not bulunamadı
                       </div>
                     ) : (
-                      filteredNotes.map((note: NoteInfo) => (
+                      filteredNotes.map((note) => (
                         <button
                           key={note.id}
                           onClick={() => {
                             onInsertText(`[[${note.id}]]`);
                             onToggleNotePicker();
-                            setSearchQuery('');
                           }}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-mac-accent/10 hover:text-mac-accent text-xs text-gray-700 dark:text-gray-300 transition-colors text-left truncate justify-between cursor-pointer"
+                          className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-mac-accent/10 hover:text-mac-accent rounded-lg text-left transition-colors cursor-pointer group"
                         >
-                          <div className="flex items-center gap-1.5 truncate">
-                            <FileText size={13} className="shrink-0 text-mac-accent" />
-                            <span className="truncate font-medium">{note.title || note.id}</span>
-                          </div>
-                          {note.id.includes('/') && (
-                            <span className="text-[9px] text-gray-400 font-mono shrink-0 ml-1">
-                              {note.id.split('/')[0]}
-                            </span>
-                          )}
+                          <FileText size={13} className="text-gray-400 group-hover:text-mac-accent shrink-0" />
+                          <span className="truncate font-medium">{note.title}</span>
                         </button>
                       ))
                     )}
@@ -265,4 +295,3 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
     </>
   );
 };
-
