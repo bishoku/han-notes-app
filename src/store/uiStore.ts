@@ -41,7 +41,7 @@ interface UiState {
   theme: AppTheme;
   language: AppLanguage;
   fontSize: FontSize;
-  viewMode: 'notes' | 'tasks' | 'decisions';
+  viewMode: 'notes' | 'tasks' | 'decisions' | 'mindmap';
   editorMode: 'preview' | 'raw';
   
   toggleSidebar: () => void;
@@ -50,7 +50,7 @@ interface UiState {
   setTheme: (theme: AppTheme) => void;
   setLanguage: (lang: AppLanguage) => void;
   setFontSize: (size: FontSize) => void;
-  setViewMode: (mode: 'notes' | 'tasks' | 'decisions') => void;
+  setViewMode: (mode: 'notes' | 'tasks' | 'decisions' | 'mindmap') => void;
   setEditorMode: (mode: 'preview' | 'raw') => void;
   initPreferences: () => void;
 }

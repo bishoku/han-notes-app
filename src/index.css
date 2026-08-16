@@ -148,6 +148,7 @@
 .cm-theme-han .cm-scroller {
   font-family: var(--font-sans) !important;
   outline: none !important;
+  overflow-anchor: auto !important;
 }
 
 .cm-theme-han .cm-content {

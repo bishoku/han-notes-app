@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { FileTreeNode } from '@/components/FileTreeNode';
-import { Search, Settings, CheckCircle, FolderPlus, FilePlus, Folder, FileCheck, Tag, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Search, Settings, CheckCircle, FolderPlus, FilePlus, Folder, FileCheck, Tag, ChevronDown, ChevronUp, X, Network } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const Sidebar: React.FC = () => {
@@ -39,7 +39,7 @@ export const Sidebar: React.FC = () => {
     e.preventDefault();
     setIsRootDragOver(false);
     const srcRelPath = e.dataTransfer.getData('text/plain');
-    if (srcRelPath) {
+    if (srcRelPath && srcRelPath.includes('/')) {
       await moveNode(srcRelPath, "");
     }
   };
@@ -341,6 +341,16 @@ export const Sidebar: React.FC = () => {
         >
           <FileCheck size={16} />
           Karar Kayıtları (Decisions)
+        </button>
+        <button 
+          onClick={() => setViewMode('mindmap')}
+          className={cn(
+            "flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors",
+            viewMode === 'mindmap' ? "bg-emerald-600 text-white font-medium" : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+          )}
+        >
+          <Network size={16} />
+          Zihin Haritası (Mindmap)
         </button>
         <button 
           onClick={() => setSettingsModalOpen(true)}

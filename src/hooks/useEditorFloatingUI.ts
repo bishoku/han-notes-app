@@ -6,6 +6,7 @@
 import { useState, useRef, useCallback } from 'react';
 import type { ViewUpdate } from '@codemirror/view';
 import type { SelectionBubbleState } from '@/components/SelectionBubbleMenu';
+import { getActiveFormats } from '@/editor/formatters';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
           if (coordsFrom && coordsTo && wrapperDOM) {
             const top = Math.min(coordsFrom.top, coordsTo.top) - wrapperDOM.top;
             const left = (coordsFrom.left + coordsTo.right) / 2 - wrapperDOM.left;
+            const activeFormats = getActiveFormats(update.view, from, to);
             setSelectionBubble({
               show: true,
               top,
@@ -133,6 +135,7 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
               from,
               to,
               selectedText,
+              activeFormats,
             });
           }
         }, 60);

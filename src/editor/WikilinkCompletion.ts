@@ -7,19 +7,26 @@ export function wikilinkCompletionSource(context: CompletionContext): Completion
   if (!word) return null;
 
   const query = word.text.slice(2).toLowerCase();
-  const notes = useNoteStore.getState().notes;
+  const { notes, currentNoteId } = useNoteStore.getState();
+  const cleanId = currentNoteId ? currentNoteId.replace(/\.md$/, '') : '';
 
   const matchingNotes = notes
-    .filter((note) => note.title.toLowerCase().includes(query))
-    .slice(0, 10);
+    .filter((note) => {
+      // Exclude current note
+      if (note.id === currentNoteId || note.id === cleanId || (currentNoteId && note.path.endsWith(currentNoteId))) {
+        return false;
+      }
+      return note.title.toLowerCase().includes(query) || note.id.toLowerCase().includes(query);
+    })
+    .slice(0, 20);
 
   return {
     from: word.from + 2,
     options: matchingNotes.map((note) => ({
       label: note.title,
       type: "text",
-      apply: `${note.title}]]`,
-      detail: "Note link",
+      apply: `${note.id}]]`,
+      detail: note.id.includes('/') ? note.id.split('/')[0] : "Note link",
     })),
   };
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { storage } from '@/services/storage';
+import { useGraphStore } from '@/store/graphStore';
 import type { FileNode, NoteInfo, TagCount, BacklinkInfo } from '@/services/storage';
 
 // Re-export types for backward compatibility with existing component imports
@@ -55,6 +56,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       await get().loadVaultTree();
       await get().loadVaultTags();
       
+      // Sync with graph store non-blockingly
+      useGraphStore.getState().buildFullGraph(notes);
+
       if (notes.length > 0 && !get().currentNoteId) {
         await get().selectNote(notes[0].id);
       }
@@ -161,6 +165,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       set({ currentNoteContent: content });
       // Non-blocking backlink refresh — don't await
       get().loadBacklinks(currentNoteId);
+      // Non-blocking graph index update
+      useGraphStore.getState().updateNoteContent(currentNoteId, content);
     } catch (e) {
       console.error("Failed to write note:", e);
     }
@@ -188,8 +194,21 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   moveNode: async (srcRelPath: string, destDirRelPath: string) => {
+    const fileName = srcRelPath.split('/').pop() ?? srcRelPath;
+    const destPath = destDirRelPath ? `${destDirRelPath}/${fileName}` : fileName;
+    if (srcRelPath === destPath) return;
+
     try {
       await storage.moveNode(srcRelPath, destDirRelPath);
+      
+      const { currentNoteId } = get();
+      const cleanSrc = srcRelPath.replace(/\.md$/, '');
+      const cleanDest = destPath.replace(/\.md$/, '');
+
+      if (currentNoteId === srcRelPath || currentNoteId === cleanSrc) {
+        set({ currentNoteId: cleanDest });
+      }
+
       await get().loadVault();
     } catch (e) {
       console.error("Failed to move item:", e);
@@ -199,6 +218,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   deleteNode: async (relPath: string) => {
     try {
       await storage.deleteNode(relPath);
+      useGraphStore.getState().removeNoteFromGraph(relPath);
       if (get().currentNoteId === relPath) {
         set({ currentNoteId: null, currentNoteContent: '' });
       }

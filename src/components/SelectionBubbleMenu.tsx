@@ -21,6 +21,9 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { ActiveFormats } from '@/editor/formatters';
+
+export type { ActiveFormats };
 
 export interface SelectionBubbleState {
   show: boolean;
@@ -29,6 +32,7 @@ export interface SelectionBubbleState {
   from: number;
   to: number;
   selectedText: string;
+  activeFormats?: ActiveFormats;
 }
 
 export type FormatType =
@@ -72,6 +76,8 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
 
   const menuRef = useRef<HTMLDivElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
+
+  const active = bubbleState.activeFormats;
 
   // Close submenus when selection changes or hides
   useEffect(() => {
@@ -147,14 +153,14 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             />
             <button
               type="submit"
-              className="px-2 py-1 bg-mac-accent text-white font-semibold rounded-md text-xs hover:opacity-90"
+              className="px-2 py-1 bg-mac-accent text-white font-semibold rounded-md text-xs hover:opacity-90 cursor-pointer"
             >
               Ekle
             </button>
             <button
               type="button"
               onClick={() => setShowLinkInput(false)}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs"
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs cursor-pointer"
             >
               ✕
             </button>
@@ -164,8 +170,13 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             {/* Bold */}
             <button
               onClick={() => onFormat('bold')}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-              title="Kalın (Cmd+B)"
+              className={cn(
+                "p-1.5 rounded-lg transition-colors cursor-pointer",
+                active?.isBold
+                  ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
+                  : "hover:bg-gray-100 dark:hover:bg-zinc-800"
+              )}
+              title={active?.isBold ? "Kalınlığı Kaldır" : "Kalın Yap (Cmd+B)"}
             >
               <Bold size={14} />
             </button>
@@ -173,8 +184,13 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             {/* Italic */}
             <button
               onClick={() => onFormat('italic')}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-              title="İtalik (Cmd+I)"
+              className={cn(
+                "p-1.5 rounded-lg transition-colors cursor-pointer",
+                active?.isItalic
+                  ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
+                  : "hover:bg-gray-100 dark:hover:bg-zinc-800"
+              )}
+              title={active?.isItalic ? "İtaliği Kaldır" : "İtalik Yap (Cmd+I)"}
             >
               <Italic size={14} />
             </button>
@@ -182,8 +198,13 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             {/* Strikethrough */}
             <button
               onClick={() => onFormat('strikethrough')}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-              title="Üstü Çizili (~~text~~)"
+              className={cn(
+                "p-1.5 rounded-lg transition-colors cursor-pointer",
+                active?.isStrikethrough
+                  ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
+                  : "hover:bg-gray-100 dark:hover:bg-zinc-800"
+              )}
+              title={active?.isStrikethrough ? "Üstü Çizgiyi Kaldır" : "Üstü Çizili (~~text~~)"}
             >
               <Strikethrough size={14} />
             </button>
@@ -191,8 +212,13 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             {/* Highlight */}
             <button
               onClick={() => onFormat('highlight')}
-              className="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-              title="Vurgula (==text==)"
+              className={cn(
+                "p-1.5 rounded-lg transition-colors cursor-pointer",
+                active?.isHighlight
+                  ? "bg-amber-500 text-white shadow-xs font-bold ring-1 ring-amber-600/50"
+                  : "hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-gray-100 dark:hover:bg-zinc-800"
+              )}
+              title={active?.isHighlight ? "Vurguyu Kaldır" : "Vurgula (==text==)"}
             >
               <Highlighter size={14} />
             </button>
@@ -200,8 +226,13 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             {/* Inline Code */}
             <button
               onClick={() => onFormat('code')}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors font-mono"
-              title="Satır İçi Kod (`code`)"
+              className={cn(
+                "p-1.5 rounded-lg transition-colors font-mono cursor-pointer",
+                active?.isCode
+                  ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
+                  : "hover:bg-gray-100 dark:hover:bg-zinc-800"
+              )}
+              title={active?.isCode ? "Kod Formatını Kaldır" : "Satır İçi Kod (`code`)"}
             >
               <Code size={14} />
             </button>
@@ -217,12 +248,12 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                   setShowCalloutMenu(false);
                 }}
                 className={cn(
-                  "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors",
-                  showColorPicker && "bg-gray-100 dark:bg-zinc-800 text-mac-accent"
+                  "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer",
+                  (showColorPicker || active?.color) && "bg-gray-100 dark:bg-zinc-800 text-mac-accent"
                 )}
                 title="Yazı Rengi"
               >
-                <Palette size={14} />
+                <Palette size={14} style={active?.color ? { color: active.color } : undefined} />
                 <ChevronDown size={10} className="opacity-60" />
               </button>
 
@@ -238,7 +269,10 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                         onFormat('color', c.value);
                         setShowColorPicker(false);
                       }}
-                      className="group relative flex items-center justify-center w-6 h-6 rounded-lg hover:scale-110 transition-transform"
+                      className={cn(
+                        "group relative flex items-center justify-center w-6 h-6 rounded-lg hover:scale-110 transition-transform cursor-pointer",
+                        active?.color === c.value && "ring-2 ring-mac-accent ring-offset-1 dark:ring-offset-zinc-900"
+                      )}
                       title={c.name}
                     >
                       <span className={cn("w-4 h-4 rounded-full shadow-2xs", c.bg)} />
@@ -249,7 +283,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('color', '');
                       setShowColorPicker(false);
                     }}
-                    className="w-full mt-1 py-0.5 text-[10px] text-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                    className="w-full mt-1 py-0.5 text-[10px] text-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded transition-colors cursor-pointer"
                   >
                     Rengi Temizle
                   </button>
@@ -266,12 +300,15 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                   setShowCalloutMenu(false);
                 }}
                 className={cn(
-                  "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors",
-                  showHeadingMenu && "bg-gray-100 dark:bg-zinc-800 text-mac-accent"
+                  "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer",
+                  (showHeadingMenu || (active?.headingLevel && active.headingLevel > 0)) && "bg-gray-100 dark:bg-zinc-800 text-mac-accent font-bold"
                 )}
                 title="Başlık Seviyesi"
               >
                 <Heading size={14} />
+                {active?.headingLevel && active.headingLevel > 0 ? (
+                  <span className="text-[10px] font-bold">H{active.headingLevel}</span>
+                ) : null}
                 <ChevronDown size={10} className="opacity-60" />
               </button>
 
@@ -282,7 +319,10 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('heading', '1');
                       setShowHeadingMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left cursor-pointer",
+                      active?.headingLevel === 1 && "bg-mac-accent/10 text-mac-accent font-bold"
+                    )}
                   >
                     <Heading1 size={13} className="text-mac-accent" />
                     <span className="font-bold">Başlık 1</span>
@@ -292,7 +332,10 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('heading', '2');
                       setShowHeadingMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left cursor-pointer",
+                      active?.headingLevel === 2 && "bg-mac-accent/10 text-mac-accent font-bold"
+                    )}
                   >
                     <Heading2 size={13} className="text-mac-accent" />
                     <span className="font-semibold">Başlık 2</span>
@@ -302,7 +345,10 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('heading', '3');
                       setShowHeadingMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left cursor-pointer",
+                      active?.headingLevel === 3 && "bg-mac-accent/10 text-mac-accent font-bold"
+                    )}
                   >
                     <Heading3 size={13} className="text-mac-accent" />
                     <span className="font-medium">Başlık 3</span>
@@ -312,7 +358,10 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('heading', '0');
                       setShowHeadingMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left text-gray-500"
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left text-gray-500 cursor-pointer",
+                      (!active?.headingLevel || active.headingLevel === 0) && "bg-gray-100 dark:bg-zinc-800 font-medium"
+                    )}
                   >
                     <span>Paragraf</span>
                   </button>
@@ -329,7 +378,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                   setShowHeadingMenu(false);
                 }}
                 className={cn(
-                  "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors",
+                  "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer",
                   showCalloutMenu && "bg-gray-100 dark:bg-zinc-800 text-mac-accent"
                 )}
                 title="Alıntı / Callout Kutusu"
@@ -345,7 +394,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('quote');
                       setShowCalloutMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left cursor-pointer"
                   >
                     <Quote size={13} />
                     <span>Alıntı Metni</span>
@@ -356,7 +405,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('callout', 'NOTE');
                       setShowCalloutMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 transition-colors text-left"
+                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 transition-colors text-left cursor-pointer"
                   >
                     <Info size={12} />
                     <span>Bilgi (NOTE)</span>
@@ -366,7 +415,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('callout', 'TIP');
                       setShowCalloutMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 transition-colors text-left"
+                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 transition-colors text-left cursor-pointer"
                   >
                     <Lightbulb size={12} />
                     <span>İpucu (TIP)</span>
@@ -376,7 +425,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('callout', 'IMPORTANT');
                       setShowCalloutMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/30 text-purple-600 dark:text-purple-400 transition-colors text-left"
+                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/30 text-purple-600 dark:text-purple-400 transition-colors text-left cursor-pointer"
                   >
                     <Flame size={12} />
                     <span>Önemli</span>
@@ -386,7 +435,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('callout', 'WARNING');
                       setShowCalloutMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-600 dark:text-amber-400 transition-colors text-left"
+                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-600 dark:text-amber-400 transition-colors text-left cursor-pointer"
                   >
                     <AlertTriangle size={12} />
                     <span>Uyarı</span>
@@ -396,7 +445,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
                       onFormat('callout', 'CAUTION');
                       setShowCalloutMenu(false);
                     }}
-                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 transition-colors text-left"
+                    className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 transition-colors text-left cursor-pointer"
                   >
                     <ShieldAlert size={12} />
                     <span>Dikkat</span>
@@ -410,7 +459,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             {/* Standard Link */}
             <button
               onClick={() => setShowLinkInput(true)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
               title="Web Bağlantısı Ekle"
             >
               <Link size={14} />
@@ -419,7 +468,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
             {/* Wikilink */}
             <button
               onClick={() => onFormat('wikilink')}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-mac-accent"
+              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-mac-accent cursor-pointer"
               title="Not Bağlantısı [[WikiLink]]"
             >
               <Link2 size={14} />
@@ -438,3 +487,4 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
     </div>
   );
 };
+

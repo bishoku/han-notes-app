@@ -23,7 +23,7 @@ export function useNoteContent() {
     (currentNoteId && n.path.endsWith(currentNoteId))
   );
 
-  const noteStoreTags = currentNote?.tags || [];
+  const noteStoreTags = currentNote?.tags;
 
   // Debounced frontmatter tag extraction — parse only after typing pauses
   const [debouncedFrontmatterTags, setDebouncedFrontmatterTags] = useState<string[]>([]);
@@ -40,8 +40,24 @@ export function useNoteContent() {
   }, [localContent]);
 
   const currentTags = useMemo(() => {
-    return Array.from(new Set([...noteStoreTags, ...debouncedFrontmatterTags]));
+    return Array.from(new Set([...(noteStoreTags || []), ...debouncedFrontmatterTags]));
   }, [noteStoreTags, debouncedFrontmatterTags]);
+
+  // All other notes in vault (excluding currently active note)
+  const otherNotes = useMemo(() => {
+    return notes.filter((n: NoteInfo) =>
+      n.id !== currentNoteId &&
+      n.id !== cleanId &&
+      !n.id.endsWith(`/${cleanId}`) &&
+      (!currentNoteId || !n.path.endsWith(currentNoteId))
+    );
+  }, [notes, currentNoteId, cleanId]);
+
+  // Track current local content in a ref to reliably flush on unmount
+  const localContentRef = useRef(localContent);
+  useEffect(() => {
+    localContentRef.current = localContent;
+  }, [localContent]);
 
   // Sync state when active note changes or content reloads
   useEffect(() => {
@@ -51,34 +67,37 @@ export function useNoteContent() {
   // Handle content updates with immediate local state and debounced disk persist
   const handleUpdate = useCallback((val: string) => {
     setLocalContent(val);
+    localContentRef.current = val;
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       updateNote(val);
+      saveTimerRef.current = null;
     }, 500);
   }, [updateNote]);
 
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      if (tagParseTimerRef.current) clearTimeout(tagParseTimerRef.current);
-    };
-  }, []);
-
-  // Flush pending save immediately when switching notes
+  // Cleanup timers & flush pending save on unmount or active note change
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
+        if (currentNoteId && localContentRef.current !== undefined) {
+          updateNote(localContentRef.current);
+        }
+      }
+      if (tagParseTimerRef.current) {
+        clearTimeout(tagParseTimerRef.current);
+        tagParseTimerRef.current = null;
       }
     };
-  }, [currentNoteId]);
+  }, [currentNoteId, updateNote]);
 
   return {
     currentNoteId,
     currentNote,
+    notes,
+    otherNotes,
     localContent,
     setLocalContent,
     handleUpdate,

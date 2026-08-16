@@ -64,7 +64,10 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
 
       const srcRelPath = e.dataTransfer.getData('text/plain');
       if (srcRelPath && srcRelPath !== node.relative_path) {
-        await moveNode(srcRelPath, node.relative_path);
+        const srcParent = srcRelPath.includes('/') ? srcRelPath.split('/').slice(0, -1).join('/') : '';
+        if (srcParent !== node.relative_path) {
+          await moveNode(srcRelPath, node.relative_path);
+        }
       }
     }
   };

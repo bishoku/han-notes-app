@@ -47,7 +47,7 @@ export const MainEditor: React.FC = () => {
   // 1. Note Content & Persistence Hook
   const {
     currentNoteId,
-    currentNote,
+    otherNotes,
     localContent,
     handleUpdate,
     currentTags,
@@ -246,7 +246,7 @@ export const MainEditor: React.FC = () => {
       />
 
       {/* CodeMirror Workspace Area */}
-      <div className="flex-1 overflow-y-auto bg-mac-mainLight dark:bg-mac-mainDark relative">
+      <div className="flex-1 overflow-y-auto bg-mac-mainLight dark:bg-mac-mainDark relative scroll-smooth overscroll-contain">
         <div ref={wrapperRef} className="py-12 relative pl-14 pr-8 md:pr-12">
           <FloatingBlockMenu
             menuPos={menuPos}
@@ -254,7 +254,7 @@ export const MainEditor: React.FC = () => {
             showNotePicker={showNotePicker}
             taskEditBtn={taskEditBtn}
             decisionEditBtn={decisionEditBtn}
-            notes={currentNote ? [currentNote] : []}
+            notes={otherNotes}
             onToggleOptions={() => { setShowOptions(!showOptions); setShowNotePicker(false); }}
             onToggleNotePicker={() => setShowNotePicker(!showNotePicker)}
             onInsertText={insertText}

@@ -28,6 +28,11 @@ export class ResizableImageWidget extends WidgetType {
     this.to = to;
   }
 
+  get estimatedHeight(): number {
+    const w = this.width || 400;
+    return Math.min(650, Math.max(180, Math.round(w * 0.62)));
+  }
+
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
     wrap.className = 'my-4 inline-block relative group max-w-full select-none';
@@ -35,8 +40,14 @@ export class ResizableImageWidget extends WidgetType {
 
     const img = document.createElement('img');
     img.alt = this.alt;
-    img.className = 'rounded-xl shadow-md border border-gray-200 dark:border-zinc-800 object-cover block bg-gray-100 dark:bg-zinc-800 min-h-[50px] will-change-transform';
+    img.className = 'rounded-xl shadow-md border border-gray-200 dark:border-zinc-800 block bg-gray-100 dark:bg-zinc-800 will-change-transform max-w-full h-auto';
     img.style.width = this.width ? `${this.width}px` : '400px';
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+
+    img.onload = () => {
+      view.requestMeasure();
+    };
 
     if (this.relPath.startsWith('http') || this.relPath.startsWith('data:')) {
       img.src = this.relPath;
@@ -50,14 +61,14 @@ export class ResizableImageWidget extends WidgetType {
     const toolbar = document.createElement('div');
     toolbar.className = 'absolute -top-3.5 right-2 flex items-center gap-1 p-0.5 bg-white/95 dark:bg-zinc-800/95 backdrop-blur-md border border-gray-200 dark:border-zinc-700 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 select-none';
 
-    const diagramMatch = this.relPath.match(/(diagram|sketch)-([a-z0-9\-]+)\.png$/);
+    const diagramMatch = this.relPath.match(/(diagram|sketch)-([a-z0-9-]+)\.png$/);
     const isDiagramOrSketch = !!diagramMatch;
     const isYadaDiagram = diagramMatch ? diagramMatch[1] === 'diagram' : false;
 
     let isSimulation = false;
     let iframe: HTMLIFrameElement | null = null;
 
-    // Helper to generate the YADA Embed URL from embedded PNG metadata
+    // Helper to generate the YADA Embed URL from embedded PNG metadatata
     const getYadaEmbedUrl = async (): Promise<string> => {
       const YADA_URL = (import.meta as any).env?.VITE_YADA_URL || 'https://bishoku.github.io/yada/';
       const { theme, language } = useUiStore.getState();
@@ -107,19 +118,24 @@ export class ResizableImageWidget extends WidgetType {
         (wrap as any)._isSimulation = isSimulation;
 
         if (isSimulation) {
-          // Switch to Live Simulation Mode
-          img.style.display = 'none';
+          // Measure current exact rendered dimensions of img before hiding it
+          const imgRect = img.getBoundingClientRect();
+          const exactW = Math.round(imgRect.width) || img.offsetWidth || this.width || 400;
+          const exactH = Math.round(imgRect.height) || img.offsetHeight || (img.naturalWidth ? Math.round(exactW * (img.naturalHeight / img.naturalWidth)) : Math.round(exactW * 0.6));
 
+          // Switch to Live Simulation Mode
           if (!iframe) {
             iframe = document.createElement('iframe');
-            iframe.className = 'rounded-xl shadow-md border border-gray-200 dark:border-zinc-800 block bg-slate-50 dark:bg-slate-950 min-h-[300px] transition-all';
-            const currentW = Math.round(img.getBoundingClientRect().width) || this.width || 400;
-            iframe.style.width = `${currentW}px`;
-            iframe.style.height = `${Math.min(650, Math.max(320, Math.round(currentW * 0.65)))}px`;
+            iframe.className = 'rounded-xl shadow-md border border-gray-200 dark:border-zinc-800 block bg-slate-50 dark:bg-slate-950 transition-all';
             iframe.setAttribute('allow', 'fullscreen');
             wrap.appendChild(iframe);
           }
+          iframe.style.width = `${exactW}px`;
+          iframe.style.height = `${exactH}px`;
+          iframe.style.maxWidth = '100%';
           iframe.style.display = 'block';
+
+          img.style.display = 'none';
 
           const embedUrl = await getYadaEmbedUrl();
           if (iframe.src !== embedUrl) {
@@ -354,7 +370,8 @@ export class ResizableImageWidget extends WidgetType {
           img.style.width = `${targetWidth}px`;
           if (iframe) {
             iframe.style.width = `${targetWidth}px`;
-            iframe.style.height = `${Math.min(650, Math.max(320, Math.round(targetWidth * 0.65)))}px`;
+            const ratio = (img.naturalWidth && img.naturalHeight) ? (img.naturalHeight / img.naturalWidth) : 0.6;
+            iframe.style.height = `${Math.round(targetWidth * ratio)}px`;
           }
           rafId = null;
         });
@@ -448,11 +465,14 @@ export class ResizableImageWidget extends WidgetType {
 
     if (img) {
       img.style.width = widthStr;
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
       img.alt = this.alt;
     }
     if (iframe) {
       iframe.style.width = widthStr;
-      iframe.style.height = `${Math.min(650, Math.max(320, Math.round((this.width || 400) * 0.65)))}px`;
+      const ratio = (img && img.naturalWidth && img.naturalHeight) ? (img.naturalHeight / img.naturalWidth) : 0.6;
+      iframe.style.height = `${Math.round((this.width || 400) * ratio)}px`;
     }
     return true;
   }

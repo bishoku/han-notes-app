@@ -2,7 +2,7 @@
  * FloatingBlockMenu.tsx — The floating UI elements that appear alongside
  * the editor: the (+) block menu, task edit button, and decision edit button.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NoteInfo } from '@/store/noteStore';
 import type { BlockMenuState, FloatingButtonState } from '@/hooks/useEditorFloatingUI';
@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Workflow,
   Sparkles,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -58,6 +59,13 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
   onOpenExcalidrawEditor,
 }) => {
   const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredNotes = notes.filter((n) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return n.title.toLowerCase().includes(q) || n.id.toLowerCase().includes(q);
+  });
 
   return (
     <>
@@ -101,7 +109,7 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
         >
           <button 
             onClick={onToggleOptions}
-            className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             title="Add Block"
           >
             <Plus size={18} className={cn("transition-transform duration-200", showOptions && "rotate-45")} />
@@ -111,28 +119,28 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
             <div className="relative flex items-center gap-1 bg-white dark:bg-zinc-800 p-1 rounded-md shadow-mac border border-gray-100 dark:border-zinc-700 animate-in fade-in slide-in-from-left-2">
               <button 
                 onClick={() => onInsertText('# ')}
-                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
                 title="Heading 1"
               >
                 <Heading1 size={16} />
               </button>
               <button 
                 onClick={() => onInsertText('## ')}
-                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
                 title="Heading 2"
               >
                 <Heading2 size={16} />
               </button>
               <button 
                 onClick={() => onInsertText('### ')}
-                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
                 title="Heading 3"
               >
                 <Heading3 size={16} />
               </button>
               <button 
                 onClick={() => onInsertText('#### ')}
-                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
                 title="Heading 4"
               >
                 <Heading4 size={16} />
@@ -140,28 +148,33 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
               <div className="w-px h-4 bg-gray-200 dark:bg-zinc-700 mx-0.5" />
               <button 
                 onClick={() => onInsertText('- [ ] ')}
-                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
                 title={t('task')}
               >
                 <CheckSquare size={16} />
               </button>
               <button 
                 onClick={() => onInsertText('- [D] ')}
-                className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-md transition-colors"
+                className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-md transition-colors cursor-pointer"
                 title={t('decisionRecord')}
               >
                 <FileCheck size={16} />
               </button>
               <button 
                 onClick={onToggleNotePicker}
-                className="p-1.5 text-gray-500 hover:text-mac-accent hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className={cn(
+                  "p-1.5 rounded-md transition-colors cursor-pointer",
+                  showNotePicker
+                    ? "bg-mac-accent/15 text-mac-accent"
+                    : "text-gray-500 hover:text-mac-accent hover:bg-gray-100 dark:hover:bg-zinc-700"
+                )}
                 title="Link Note"
               >
                 <Link2 size={16} />
               </button>
               <button 
                 onClick={onOpenImagePicker}
-                className="p-1.5 text-gray-500 hover:text-mac-accent hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className="p-1.5 text-gray-500 hover:text-mac-accent hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
                 title="Insert Image/GIF"
               >
                 <ImageIcon size={16} />
@@ -169,7 +182,7 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
               {onOpenDiagramEditor && (
                 <button 
                   onClick={onOpenDiagramEditor}
-                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-md transition-colors"
+                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-md transition-colors cursor-pointer"
                   title="YADA Diyagramı Ekle"
                 >
                   <Workflow size={16} />
@@ -178,38 +191,71 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
               {onOpenExcalidrawEditor && (
                 <button 
                   onClick={onOpenExcalidrawEditor}
-                  className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 rounded-md transition-colors"
+                  className="p-1.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 rounded-md transition-colors cursor-pointer"
                   title="Excalidraw Serbest Çizim Ekle"
                 >
                   <Sparkles size={16} />
                 </button>
               )}
 
-              {/* Dropdown list of existing notes (max 10) */}
+              {/* Dropdown list of existing other notes */}
               {showNotePicker && (
-                <div className="absolute top-10 left-0 w-52 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-lg shadow-lg p-1.5 flex flex-col gap-0.5 z-20 animate-in fade-in zoom-in-95">
-                  <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Select Note to Link</div>
-                  {notes.length === 0 ? (
-                    <div className="px-2 py-1.5 text-xs text-gray-400 italic">No notes found</div>
-                  ) : (
-                    notes.slice(0, 10).map((note: NoteInfo) => (
+                <div className="absolute top-10 left-0 w-64 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    Select Note to Link
+                  </div>
+
+                  {/* Search Input for fast filtering */}
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+                    <Search size={12} className="text-gray-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Not ara..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="bg-transparent outline-none w-full text-xs text-gray-800 dark:text-gray-200 placeholder-gray-400"
+                      autoFocus
+                    />
+                    {searchQuery && (
                       <button
-                        key={note.id}
-                        onClick={() => onInsertText(`[[${note.id}]]`)}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-mac-accent/10 hover:text-mac-accent text-xs text-gray-700 dark:text-gray-300 transition-colors text-left truncate justify-between"
+                        onClick={() => setSearchQuery('')}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-[10px]"
                       >
-                        <div className="flex items-center gap-1.5 truncate">
-                          <FileText size={12} className="shrink-0 text-mac-accent" />
-                          <span className="truncate font-medium">{note.title}</span>
-                        </div>
-                        {note.id.includes('/') && (
-                          <span className="text-[9px] text-gray-400 font-mono shrink-0 ml-1">
-                            {note.id.split('/')[0]}
-                          </span>
-                        )}
+                        ✕
                       </button>
-                    ))
-                  )}
+                    )}
+                  </div>
+
+                  {/* Scrollable List */}
+                  <div className="max-h-60 overflow-y-auto flex flex-col gap-0.5 mt-0.5">
+                    {filteredNotes.length === 0 ? (
+                      <div className="px-2 py-3 text-xs text-gray-400 italic text-center">
+                        {searchQuery ? 'Eşleşen not bulunamadı' : 'Bağlanabilecek başka not bulunamadı'}
+                      </div>
+                    ) : (
+                      filteredNotes.map((note: NoteInfo) => (
+                        <button
+                          key={note.id}
+                          onClick={() => {
+                            onInsertText(`[[${note.id}]]`);
+                            onToggleNotePicker();
+                            setSearchQuery('');
+                          }}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-mac-accent/10 hover:text-mac-accent text-xs text-gray-700 dark:text-gray-300 transition-colors text-left truncate justify-between cursor-pointer"
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            <FileText size={13} className="shrink-0 text-mac-accent" />
+                            <span className="truncate font-medium">{note.title || note.id}</span>
+                          </div>
+                          {note.id.includes('/') && (
+                            <span className="text-[9px] text-gray-400 font-mono shrink-0 ml-1">
+                              {note.id.split('/')[0]}
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -219,3 +265,4 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
     </>
   );
 };
+

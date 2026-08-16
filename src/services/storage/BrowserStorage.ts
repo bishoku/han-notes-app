@@ -319,11 +319,62 @@ export class BrowserStorage implements IStorageService {
 
   async moveNode(srcRelPath: string, destDirRelPath: string): Promise<void> {
     const dir = this.getDir();
-    const content = await readFileText(dir, srcRelPath);
     const fileName = srcRelPath.split('/').pop() ?? srcRelPath;
     const destPath = destDirRelPath ? `${destDirRelPath}/${fileName}` : fileName;
-    await writeFileText(dir, destPath, content);
-    await this.deleteFileByPath(dir, srcRelPath);
+
+    // CRITICAL: Prevent moving a file/folder to the exact same path (which would overwrite and delete itself)
+    if (srcRelPath === destPath) {
+      return;
+    }
+
+    // Prevent moving a folder into its own subfolder
+    if (destDirRelPath === srcRelPath || destDirRelPath.startsWith(`${srcRelPath}/`)) {
+      console.warn(`Cannot move folder "${srcRelPath}" into its own subfolder "${destDirRelPath}"`);
+      return;
+    }
+
+    // Check if source is a file or a folder
+    const srcFile = await getOrCreateFile(dir, srcRelPath, false);
+    if (srcFile) {
+      // Source is a file
+      const content = await readFileText(dir, srcRelPath);
+      await writeFileText(dir, destPath, content);
+      await this.deleteFileByPath(dir, srcRelPath);
+    } else {
+      // Source is a directory — copy recursively
+      const srcParts = srcRelPath.split('/').filter(Boolean);
+      let currentSrc = dir;
+      for (const part of srcParts) {
+        currentSrc = await currentSrc.getDirectoryHandle(part);
+      }
+
+      const destParts = destPath.split('/').filter(Boolean);
+      let currentDest = dir;
+      for (const part of destParts) {
+        currentDest = await currentDest.getDirectoryHandle(part, { create: true });
+      }
+
+      await this.copyDirRecursive(currentSrc, currentDest);
+      await this.deleteFileByPath(dir, srcRelPath);
+    }
+  }
+
+  private async copyDirRecursive(
+    srcDir: FileSystemDirectoryHandle,
+    destDir: FileSystemDirectoryHandle,
+  ): Promise<void> {
+    for await (const entry of (srcDir as any).values()) {
+      if (entry.kind === 'file') {
+        const srcFile = await (entry as FileSystemFileHandle).getFile();
+        const destFileHandle = await destDir.getFileHandle(entry.name, { create: true });
+        const writable = await destFileHandle.createWritable();
+        await writable.write(await srcFile.arrayBuffer());
+        await writable.close();
+      } else if (entry.kind === 'directory') {
+        const subDestDir = await destDir.getDirectoryHandle(entry.name, { create: true });
+        await this.copyDirRecursive(entry as FileSystemDirectoryHandle, subDestDir);
+      }
+    }
   }
 
   async deleteNode(relativePath: string): Promise<void> {

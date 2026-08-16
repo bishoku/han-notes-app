@@ -4,6 +4,7 @@ import { MainEditor } from '@/components/MainEditor';
 import { RightPanel } from '@/components/RightPanel';
 import { TasksView } from '@/components/TasksView';
 import { DecisionsView } from '@/components/DecisionsView';
+import { MindmapView } from '@/components/MindmapView';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { initBrowserStorage, pickBrowserDirectory } from '@/services/storage';
@@ -134,6 +135,7 @@ export const MainLayout: React.FC = () => {
       {viewMode === 'notes' && <MainEditor />}
       {viewMode === 'tasks' && <TasksView />}
       {viewMode === 'decisions' && <DecisionsView />}
+      {viewMode === 'mindmap' && <MindmapView />}
       {viewMode === 'notes' && rightPanelOpen && <RightPanel />}
       {!isTauri() && <PwaUpdateBanner />}
       <SettingsModal />
