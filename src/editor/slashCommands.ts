@@ -27,6 +27,7 @@ import {
   Lightbulb,
   Minus,
   Smile,
+  GitFork,
 } from 'lucide-react';
 import type { SlashCommand } from '@/components/SlashCommandMenu';
 import type { TFunction } from 'i18next';
@@ -49,7 +50,7 @@ interface SlashCommandDef {
   /** Where to place the cursor relative to the insert start. Defaults to end of snippet. */
   cursorOffset?: number;
   /** Special action type for non-insert commands */
-  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker';
+  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker' | 'openMermaidEditor' | 'openCodeEditor';
   /** Sub-commands for nested menus (e.g., language selection for code blocks) */
   subCommands?: { id: string; lang: string; label: string; abbr: string }[];
 }
@@ -107,20 +108,8 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     category: 'Format',
     colorClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
     icon: React.createElement(Code, { size: 14 }),
-    snippet: '```\n\n```',
-    cursorOffset: 4,
-    subCommands: [
-      { id: 'code-ts', lang: 'typescript', label: 'TypeScript', abbr: 'TS' },
-      { id: 'code-js', lang: 'javascript', label: 'JavaScript', abbr: 'JS' },
-      { id: 'code-py', lang: 'python', label: 'Python', abbr: 'PY' },
-      { id: 'code-html', lang: 'html', label: 'HTML', abbr: '<>' },
-      { id: 'code-css', lang: 'css', label: 'CSS', abbr: '#' },
-      { id: 'code-json', lang: 'json', label: 'JSON', abbr: '{}' },
-      { id: 'code-bash', lang: 'bash', label: 'Bash', abbr: '$' },
-      { id: 'code-sql', lang: 'sql', label: 'SQL', abbr: 'SQL' },
-      { id: 'code-md', lang: 'markdown', label: 'Markdown', abbr: 'MD' },
-      { id: 'code-plain', lang: '', label: 'Plain Text', abbr: 'TXT' },
-    ],
+    snippet: '',
+    action: 'openCodeEditor',
   },
   {
     id: 'h1',
@@ -206,6 +195,17 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     action: 'openExcalidrawEditor',
   },
   {
+    id: 'mermaid',
+    labelKey: 'slashMermaid',
+    command: '/mermaid',
+    descriptionKey: 'slashMermaidDesc',
+    category: 'Görselleştirme',
+    colorClass: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
+    icon: React.createElement(GitFork, { size: 14 }),
+    snippet: '',
+    action: 'openMermaidEditor',
+  },
+  {
     id: 'callout-note',
     labelKey: 'slashNoteCallout',
     command: '/note',
@@ -261,23 +261,25 @@ export function buildSlashCommands(
   openDiagramEditor: () => void,
   openExcalidrawEditor: () => void,
   openEmojiPicker: () => void,
+  openMermaidEditor: () => void,
+  openCodeEditor: (lang?: string) => void,
   t: TFunction,
 ): SlashCommand[] {
   return SLASH_COMMAND_DEFS.map((def) => {
     // Build sub-commands for language selection
     const subCommands = def.subCommands?.map((sub) => {
-      const fence = '`'.repeat(3);
-      const langSnippet = sub.lang ? fence + sub.lang + '\n\n' + fence : fence + '\n\n' + fence;
-      const langOffset = sub.lang ? sub.lang.length + 4 : 4; // ``` + lang + \n
       return {
         id: sub.id,
         label: sub.label,
         command: `/${sub.lang || 'plain'}`,
-        description: `${sub.label} kod bloğu ekle`,
+        description: `${sub.label} kod editörünü aç`,
         category: def.category,
         colorClass: def.colorClass,
         icon: React.createElement(Code, { size: 14 }),
-        execute: () => executeSlashCommand(langSnippet, { cursorOffset: langOffset }),
+        execute: () => {
+          executeSlashCommand('');
+          openCodeEditor(sub.lang);
+        },
       };
     });
 
@@ -305,6 +307,12 @@ export function buildSlashCommands(
         } else if (def.action === 'openExcalidrawEditor') {
           executeSlashCommand('');
           openExcalidrawEditor();
+        } else if (def.action === 'openMermaidEditor') {
+          executeSlashCommand('');
+          openMermaidEditor();
+        } else if (def.action === 'openCodeEditor') {
+          executeSlashCommand('');
+          openCodeEditor();
         } else {
           executeSlashCommand(def.snippet, def.cursorOffset ? { cursorOffset: def.cursorOffset } : undefined);
         }

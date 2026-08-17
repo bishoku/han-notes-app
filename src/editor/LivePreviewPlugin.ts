@@ -11,12 +11,13 @@ import { ResizableImageWidget } from "./widgets/ResizableImageWidget";
 import { DecisionBadgeWidget } from "./widgets/DecisionBadgeWidget";
 import { TaskBadgeWidget } from "./widgets/TaskBadgeWidget";
 import { TableWidget, parseMarkdownTable } from "./widgets/TableWidget";
+import { MermaidWidget } from "./widgets/MermaidWidget";
+import { CodeBlockWidget } from "./widgets/CodeBlockWidget";
+import { clearMermaidCache } from "./mermaid/mermaidService";
 import { WikilinkWidget, WebLinkWidget } from "./widgets/WikilinkWidget";
 import { TaskCheckboxWidget } from "./widgets/TaskCheckboxWidget";
 import { DecisionPrefixWidget } from "./widgets/DecisionPrefixWidget";
 import { CALLOUT_ICONS, calloutLineDecs, IconWidget } from "./preview/calloutDeco";
-import { CodeCopyButtonWidget } from "./preview/codeBlockDeco";
-import { CodeLangBadgeWidget } from "./widgets/CodeLangBadgeWidget";
 import { handleEditorMouseDown } from "./preview/eventHandlers";
 
 const hiddenMark = Decoration.replace({});
@@ -37,7 +38,6 @@ const lineDecH4 = Decoration.line({ attributes: { class: "cm-h4" } });
 const lineDecHidden = Decoration.line({ attributes: { class: "cm-hidden-frontmatter" } });
 const lineDecHiddenTable = Decoration.line({ attributes: { class: "cm-hidden-table-line" } });
 const lineDecCodeBlock = Decoration.line({ attributes: { class: "cm-codeblock-line" } });
-const lineDecCodeHeader = Decoration.line({ attributes: { class: "cm-codeblock-line cm-codeblock-header" } });
 const lineDecCodeFooter = Decoration.line({ attributes: { class: "cm-codeblock-line cm-codeblock-footer" } });
 const lineDecBlockquote = Decoration.line({ attributes: { class: "cm-blockquote-line" } });
 const lineDecHR = Decoration.line({ attributes: { class: "cm-hr-line" } });
@@ -102,6 +102,7 @@ function getCachedWidget<T extends WidgetType>(
 export function clearLivePreviewCaches(): void {
   _widgetCache.clear();
   _metaCache.clear();
+  clearMermaidCache();
 }
 
 export function livePreviewDecorations(view: EditorView): DecorationSet {
@@ -362,45 +363,95 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
         const isOpeningFence = targetRange ? Math.abs(line.from - targetRange.from) < 5 : true;
 
         if (isOpeningFence && targetRange) {
-          items.push({ from: line.from, to: line.from, dec: lineDecCodeHeader });
-
-          // Extract code lines inside block for Copy button
-          const codeLines: string[] = [];
-          const openingLineNum = doc.lineAt(targetRange.from).number;
-          const closingLineNum = doc.lineAt(targetRange.to).number;
-
-          for (let cL = openingLineNum + 1; cL < closingLineNum; cL++) {
-            codeLines.push(doc.line(cL).text);
-          }
-          const codeText = codeLines.join('\n');
-
-          items.push({
-            from: line.from,
-            to: line.from,
-            dec: Decoration.widget({
-              widget: getCachedWidget(
-                `copy:${targetRange.from}:${codeText.length}`,
-                () => new CodeCopyButtonWidget(codeText)
-              ),
-              side: 1,
-            }),
-          });
-
-          // Replace entire fence line (```lang) with language badge widget
           const langText = text.replace(/^```/, '').trim();
-          if (line.from < line.to) {
-            // Hide the entire line content (backticks + language)
+          const mermaidMatch = langText.match(/^mermaid(?:\|(\d+))?$/i);
+
+          // ─── Special Render for Mermaid Diagrams ───
+          if (mermaidMatch) {
+            const customWidth = mermaidMatch[1] ? parseInt(mermaidMatch[1], 10) : null;
+            const openingLineNum = doc.lineAt(targetRange.from).number;
+            const closingLineNum = doc.lineAt(targetRange.to).number;
+
+            const codeLines: string[] = [];
+            for (let cL = openingLineNum + 1; cL < closingLineNum; cL++) {
+              codeLines.push(doc.line(cL).text);
+            }
+            const mermaidCode = codeLines.join('\n');
+
+            // Replace opening fence line with MermaidWidget
             items.push({
               from: line.from,
               to: line.to,
               dec: Decoration.replace({
                 widget: getCachedWidget(
-                  `lang:${line.from}:${langText}`,
-                  () => new CodeLangBadgeWidget(langText)
+                  `mermaid:${targetRange.from}:${targetRange.to}:${customWidth}:${mermaidCode}`,
+                  () => new MermaidWidget(mermaidCode, customWidth, targetRange.from, targetRange.to)
                 ),
               }),
             });
+
+            // Hide subsequent lines (code body + closing fence ```)
+            for (let hideL = openingLineNum + 1; hideL <= closingLineNum; hideL++) {
+              const hLine = doc.line(hideL);
+              items.push({
+                from: hLine.from,
+                to: hLine.from,
+                dec: lineDecHiddenTable,
+              });
+              if (hLine.from < hLine.to) {
+                items.push({
+                  from: hLine.from,
+                  to: hLine.to,
+                  dec: hiddenMark,
+                });
+              }
+            }
+
+            l = closingLineNum + 1;
+            continue;
           }
+
+          // ─── Render CodeBlockWidget for Standard Fenced Code Blocks ───
+          const openingLineNum = doc.lineAt(targetRange.from).number;
+          const closingLineNum = doc.lineAt(targetRange.to).number;
+
+          const codeLines: string[] = [];
+          for (let cL = openingLineNum + 1; cL < closingLineNum; cL++) {
+            codeLines.push(doc.line(cL).text);
+          }
+          const codeText = codeLines.join('\n');
+
+          // Replace opening fence line with CodeBlockWidget
+          items.push({
+            from: line.from,
+            to: line.to,
+            dec: Decoration.replace({
+              widget: getCachedWidget(
+                `codeblock:${targetRange.from}:${targetRange.to}:${langText}:${codeText}`,
+                () => new CodeBlockWidget(codeText, langText, targetRange.from, targetRange.to)
+              ),
+            }),
+          });
+
+          // Hide subsequent lines (code body + closing fence ```)
+          for (let hideL = openingLineNum + 1; hideL <= closingLineNum; hideL++) {
+            const hLine = doc.line(hideL);
+            items.push({
+              from: hLine.from,
+              to: hLine.from,
+              dec: lineDecHiddenTable,
+            });
+            if (hLine.from < hLine.to) {
+              items.push({
+                from: hLine.from,
+                to: hLine.to,
+                dec: hiddenMark,
+              });
+            }
+          }
+
+          l = closingLineNum + 1;
+          continue;
         } else {
           items.push({ from: line.from, to: line.from, dec: lineDecCodeFooter });
 

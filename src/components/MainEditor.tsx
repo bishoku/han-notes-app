@@ -38,6 +38,8 @@ import { TaskEditModal } from '@/components/TaskEditModal';
 import { DecisionEditModal } from '@/components/DecisionEditModal';
 import { DiagramEditorModal } from '@/components/DiagramEditorModal';
 import { ExcalidrawEditorModal } from '@/components/ExcalidrawEditorModal';
+import { MermaidEditorModal, type MermaidSavePayload } from '@/components/MermaidEditorModal';
+import { CodeEditorModal, type CodeSavePayload } from '@/components/CodeEditorModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { MediaFullscreenModal, type FullscreenMediaData } from '@/components/ui/MediaFullscreenModal';
 
@@ -149,13 +151,39 @@ export const MainEditor: React.FC = () => {
     handleSaveDecisionModal,
   } = useTaskDecisionModals(currentNoteId);
 
-  // 5. Fullscreen Media & Delete Modals State
+  // 5. Fullscreen Media, Delete Modals & Mermaid State
   const [fullscreenMedia, setFullscreenMedia] = useState<FullscreenMediaData | null>(null);
   const [confirmDeleteData, setConfirmDeleteData] = useState<{
     from: number;
     to: number;
     isDiagram: boolean;
     relPath: string;
+  } | null>(null);
+
+  const [mermaidModalData, setMermaidModalData] = useState<{
+    isOpen: boolean;
+    initialCode?: string;
+    width?: number | null;
+    from?: number;
+    to?: number;
+  }>({ isOpen: false });
+
+  const [confirmDeleteMermaidData, setConfirmDeleteMermaidData] = useState<{
+    from: number;
+    to: number;
+  } | null>(null);
+
+  const [codeModalData, setCodeModalData] = useState<{
+    isOpen: boolean;
+    initialCode?: string;
+    initialLang?: string;
+    from?: number;
+    to?: number;
+  }>({ isOpen: false });
+
+  const [confirmDeleteCodeBlockData, setConfirmDeleteCodeBlockData] = useState<{
+    from: number;
+    to: number;
   } | null>(null);
 
   useEffect(() => {
@@ -165,13 +193,45 @@ export const MainEditor: React.FC = () => {
     const handleDeleteRequest = (e: CustomEvent<{ from: number; to: number; isDiagram: boolean; relPath: string }>) => {
       setConfirmDeleteData(e.detail);
     };
+    const handleEditMermaid = (e: CustomEvent<{ code: string; width?: number | null; from: number; to: number }>) => {
+      setMermaidModalData({
+        isOpen: true,
+        initialCode: e.detail.code,
+        width: e.detail.width,
+        from: e.detail.from,
+        to: e.detail.to,
+      });
+    };
+    const handleDeleteMermaidRequest = (e: CustomEvent<{ from: number; to: number }>) => {
+      setConfirmDeleteMermaidData(e.detail);
+    };
+    const handleEditCodeBlock = (e: CustomEvent<{ code: string; lang: string; from: number; to: number }>) => {
+      setCodeModalData({
+        isOpen: true,
+        initialCode: e.detail.code,
+        initialLang: e.detail.lang,
+        from: e.detail.from,
+        to: e.detail.to,
+      });
+    };
+    const handleDeleteCodeBlockRequest = (e: CustomEvent<{ from: number; to: number }>) => {
+      setConfirmDeleteCodeBlockData(e.detail);
+    };
 
     window.addEventListener('open-image-fullscreen', handleFullscreenRequest as EventListener);
     window.addEventListener('request-delete-image', handleDeleteRequest as EventListener);
+    window.addEventListener('edit-mermaid', handleEditMermaid as EventListener);
+    window.addEventListener('request-delete-mermaid', handleDeleteMermaidRequest as EventListener);
+    window.addEventListener('edit-code-block', handleEditCodeBlock as EventListener);
+    window.addEventListener('request-delete-code-block', handleDeleteCodeBlockRequest as EventListener);
 
     return () => {
       window.removeEventListener('open-image-fullscreen', handleFullscreenRequest as EventListener);
       window.removeEventListener('request-delete-image', handleDeleteRequest as EventListener);
+      window.removeEventListener('edit-mermaid', handleEditMermaid as EventListener);
+      window.removeEventListener('request-delete-mermaid', handleDeleteMermaidRequest as EventListener);
+      window.removeEventListener('edit-code-block', handleEditCodeBlock as EventListener);
+      window.removeEventListener('request-delete-code-block', handleDeleteCodeBlockRequest as EventListener);
     };
   }, []);
 
@@ -183,6 +243,76 @@ export const MainEditor: React.FC = () => {
     });
     setConfirmDeleteData(null);
   }, [confirmDeleteData]);
+
+  const handleConfirmDeleteMermaid = useCallback(() => {
+    if (!confirmDeleteMermaidData || !editorRef.current) return;
+    const { from, to } = confirmDeleteMermaidData;
+    const doc = editorRef.current.state.doc;
+    let delFrom = from;
+    let delTo = to;
+    if (delTo < doc.length) {
+      delTo += 1;
+    } else if (delFrom > 0) {
+      delFrom -= 1;
+    }
+    clearLivePreviewCaches();
+    editorRef.current.dispatch({
+      changes: { from: delFrom, to: delTo, insert: '' },
+    });
+    setConfirmDeleteMermaidData(null);
+  }, [confirmDeleteMermaidData]);
+
+  const handleConfirmDeleteCodeBlock = useCallback(() => {
+    if (!confirmDeleteCodeBlockData || !editorRef.current) return;
+    const { from, to } = confirmDeleteCodeBlockData;
+    const doc = editorRef.current.state.doc;
+    let delFrom = from;
+    let delTo = to;
+    if (delTo < doc.length) {
+      delTo += 1;
+    } else if (delFrom > 0) {
+      delFrom -= 1;
+    }
+    clearLivePreviewCaches();
+    editorRef.current.dispatch({
+      changes: { from: delFrom, to: delTo, insert: '' },
+    });
+    setConfirmDeleteCodeBlockData(null);
+  }, [confirmDeleteCodeBlockData]);
+
+  const handleSaveMermaid = useCallback((payload: MermaidSavePayload) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const widthParam = payload.width ? `|${payload.width}` : '';
+    const formatted = `\`\`\`mermaid${widthParam}\n${payload.code.trim()}\n\`\`\``;
+    clearLivePreviewCaches();
+    if (payload.from !== undefined && payload.to !== undefined) {
+      view.dispatch({
+        changes: { from: payload.from, to: payload.to, insert: formatted },
+        selection: { anchor: payload.from + formatted.length },
+      });
+    } else {
+      insertText(`\n${formatted}\n`);
+    }
+    view.focus();
+  }, [insertText]);
+
+  const handleSaveCodeBlock = useCallback((payload: CodeSavePayload) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const lang = payload.lang ? payload.lang.trim() : '';
+    const formatted = `\`\`\`${lang}\n${payload.code}\n\`\`\``;
+    clearLivePreviewCaches();
+    if (payload.from !== undefined && payload.to !== undefined) {
+      view.dispatch({
+        changes: { from: payload.from, to: payload.to, insert: formatted },
+        selection: { anchor: payload.from + formatted.length },
+      });
+    } else {
+      insertText(`\n${formatted}\n`);
+    }
+    view.focus();
+  }, [insertText]);
 
   // 6. Image Upload Handler
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,6 +413,8 @@ export const MainEditor: React.FC = () => {
         openDiagramEditor,
         openExcalidrawEditor,
         () => setEmojiPickerOpen(true),
+        () => setMermaidModalData({ isOpen: true }),
+        (lang) => setCodeModalData({ isOpen: true, initialLang: lang || 'typescript', initialCode: '' }),
         t
       ),
     [executeSlashCommand, openDiagramEditor, openExcalidrawEditor, t]
@@ -445,6 +577,28 @@ export const MainEditor: React.FC = () => {
         onSave={handleSaveSketch}
       />
 
+      {/* Mermaid Editor Modal */}
+      <MermaidEditorModal
+        isOpen={mermaidModalData.isOpen}
+        initialCode={mermaidModalData.initialCode}
+        width={mermaidModalData.width}
+        from={mermaidModalData.from}
+        to={mermaidModalData.to}
+        onClose={() => setMermaidModalData({ isOpen: false })}
+        onSave={handleSaveMermaid}
+      />
+
+      {/* Code Block Editor Modal */}
+      <CodeEditorModal
+        isOpen={codeModalData.isOpen}
+        initialCode={codeModalData.initialCode}
+        initialLang={codeModalData.initialLang}
+        from={codeModalData.from}
+        to={codeModalData.to}
+        onClose={() => setCodeModalData({ isOpen: false })}
+        onSave={handleSaveCodeBlock}
+      />
+
       {/* Confirm Delete & Fullscreen Media Modals */}
       <ConfirmModal
         isOpen={!!confirmDeleteData}
@@ -454,6 +608,24 @@ export const MainEditor: React.FC = () => {
         cancelLabel={t('cancel')}
         onConfirm={handleConfirmDeleteImage}
         onClose={() => setConfirmDeleteData(null)}
+      />
+      <ConfirmModal
+        isOpen={!!confirmDeleteMermaidData}
+        title={t('confirmDeleteMermaidTitle', 'Diyagramı Sil')}
+        message={t('confirmDeleteMermaidMessage', 'Bu Mermaid diyagramını nottan kaldırmak istediğinize emin misiniz?')}
+        confirmLabel={t('delete', 'Sil')}
+        cancelLabel={t('cancel', 'İptal')}
+        onConfirm={handleConfirmDeleteMermaid}
+        onClose={() => setConfirmDeleteMermaidData(null)}
+      />
+      <ConfirmModal
+        isOpen={!!confirmDeleteCodeBlockData}
+        title={t('confirmDeleteCodeTitle', 'Kod Bloğunu Sil')}
+        message={t('confirmDeleteCodeMessage', 'Bu kod bloğunu nottan kaldırmak istediğinize emin misiniz?')}
+        confirmLabel={t('delete', 'Sil')}
+        cancelLabel={t('cancel', 'İptal')}
+        onConfirm={handleConfirmDeleteCodeBlock}
+        onClose={() => setConfirmDeleteCodeBlockData(null)}
       />
       <MediaFullscreenModal
         data={fullscreenMedia}

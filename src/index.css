@@ -262,6 +262,40 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Code Block Widget — Syntax Highlighting Tokens
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cm-tok-keyword { color: #8b5cf6; font-weight: 600; }
+.cm-tok-string { color: #059669; }
+.cm-tok-number { color: #0284c7; }
+.cm-tok-bool { color: #d97706; font-weight: 600; }
+.cm-tok-comment { color: #94a3b8; font-style: italic; }
+.cm-tok-variable { color: #1e40af; }
+.cm-tok-function { color: #2563eb; font-weight: 500; }
+.cm-tok-type { color: #0891b2; font-weight: 500; }
+.cm-tok-property { color: #0369a1; }
+.cm-tok-operator { color: #be185d; }
+.cm-tok-punctuation,
+.cm-tok-bracket { color: #64748b; }
+.cm-tok-tag { color: #dc2626; font-weight: 600; }
+.cm-tok-attr { color: #d97706; }
+
+.dark .cm-tok-keyword { color: #c084fc; font-weight: 600; }
+.dark .cm-tok-string { color: #34d399; }
+.dark .cm-tok-number { color: #38bdf8; }
+.dark .cm-tok-bool { color: #fbbf24; font-weight: 600; }
+.dark .cm-tok-comment { color: #64748b; font-style: italic; }
+.dark .cm-tok-variable { color: #93c5fd; }
+.dark .cm-tok-function { color: #60a5fa; font-weight: 500; }
+.dark .cm-tok-type { color: #22d3ee; font-weight: 500; }
+.dark .cm-tok-property { color: #38bdf8; }
+.dark .cm-tok-operator { color: #f472b6; }
+.dark .cm-tok-punctuation,
+.dark .cm-tok-bracket { color: #94a3b8; }
+.dark .cm-tok-tag { color: #f87171; font-weight: 600; }
+.dark .cm-tok-attr { color: #fbbf24; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Fenced Code Block — Premium Full-Box Container
    ═══════════════════════════════════════════════════════════════════════════ */
 

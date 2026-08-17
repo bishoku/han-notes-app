@@ -9,6 +9,8 @@ export interface FullscreenMediaData {
   isSimulation?: boolean;
   embedUrl?: string;
   relPath?: string;
+  svgContent?: string;
+  mermaidCode?: string;
 }
 
 interface MediaFullscreenModalProps {
@@ -138,6 +140,13 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
               className="w-full h-full border-0"
               allow="fullscreen"
               title={cleanTitle || "Simulation View"}
+            />
+          </div>
+        ) : data.svgContent ? (
+          <div className="relative max-w-[96vw] max-h-[88vh] flex items-center justify-center animate-in zoom-in-95 duration-150 overflow-auto p-4">
+            <div
+              className={`p-6 sm:p-10 rounded-2xl shadow-2xl border border-white/15 flex items-center justify-center max-w-[94vw] max-h-[86vh] overflow-auto transition-colors duration-200 ${getCanvasBgClass()}`}
+              dangerouslySetInnerHTML={{ __html: data.svgContent }}
             />
           </div>
         ) : (
