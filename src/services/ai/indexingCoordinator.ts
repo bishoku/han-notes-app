@@ -152,6 +152,31 @@ class IndexingCoordinator {
     }
   }
 
+  public async deleteNote(noteId: string): Promise<void> {
+    this.pendingNoteUpdates.delete(noteId);
+    await vectorStore.deleteNoteChunks(noteId);
+  }
+
+  public async deleteFolder(folderPath: string): Promise<void> {
+    for (const key of Array.from(this.pendingNoteUpdates.keys())) {
+      if (key === folderPath || key.startsWith(folderPath + '/')) {
+        this.pendingNoteUpdates.delete(key);
+      }
+    }
+    await vectorStore.deleteNoteChunksByPrefix(folderPath);
+  }
+
+  public async renameNote(
+    oldPath: string,
+    newPath: string,
+    newTitle: string,
+    newContent: string
+  ): Promise<void> {
+    this.pendingNoteUpdates.delete(oldPath);
+    await vectorStore.deleteNoteChunks(oldPath);
+    await this.indexSingleNote(newPath, newTitle, newContent);
+  }
+
   public async purgeAll(): Promise<void> {
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);

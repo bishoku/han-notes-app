@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAiStore } from '@/store/aiStore';
 import { ragService } from '@/services/ai/ragService';
-import { stripReasoning } from '@/services/ai/reasoningParser';
+import { sanitizeAndFixMarkdown } from '@/utils/markdownSanitizer';
 import { MarkdownMessage } from './MarkdownMessage';
 import {
   Bot,
@@ -180,10 +180,10 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
 
   const handleApply = () => {
     if (!generatedText.trim()) return;
-    // Guaranteed pure content — strip any lingering reasoning tokens
-    const cleanContent = stripReasoning(generatedText);
-    if (cleanContent.trim()) {
-      onInsertMarkdown(cleanContent);
+    // Guaranteed pure & syntactically balanced markdown — auto-fixes unclosed fences, math, inline tokens
+    const { sanitized } = sanitizeAndFixMarkdown(generatedText);
+    if (sanitized) {
+      onInsertMarkdown(sanitized);
       onClose();
     }
   };

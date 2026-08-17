@@ -82,6 +82,27 @@ export class VectorStore {
     });
   }
 
+  public async deleteNoteChunksByPrefix(prefix: string): Promise<void> {
+    const all = await this.getAllChunks();
+    const toDelete = all.filter(
+      (c) => c.noteId === prefix || c.noteId.startsWith(prefix + '/')
+    );
+    if (toDelete.length === 0) return;
+
+    const db = await openVectorDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+
+      for (const chunk of toDelete) {
+        store.delete(chunk.id);
+      }
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   public async getAllChunks(): Promise<VectorChunk[]> {
     const db = await openVectorDb();
     return new Promise((resolve, reject) => {

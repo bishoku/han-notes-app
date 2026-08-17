@@ -262,12 +262,14 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       await storage.deleteNode(relPath);
       useGraphStore.getState().removeNoteFromGraph(relPath);
-      if (get().currentNoteId === relPath) {
+      if (get().currentNoteId === relPath || get().currentNoteId?.startsWith(relPath + '/')) {
         set({ currentNoteId: null, currentNoteContent: '' });
       }
       if (get().activeFolderPath === relPath) {
         set({ activeFolderPath: null });
       }
+      // Clean up vector database chunks for the note or folder
+      await indexingCoordinator.deleteFolder(relPath);
       await get().loadVault();
     } catch (e) {
       console.error("Failed to delete item:", e);
@@ -276,8 +278,50 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   renameNode: async (relPath: string, newName: string) => {
     try {
+      const isFile = !relPath.includes('.') || relPath.endsWith('.md');
+      const parts = relPath.split('/');
+      parts.pop();
+      const finalName = isFile
+        ? (newName.endsWith('.md') ? newName : `${newName}.md`)
+        : newName;
+      const newPath = parts.length > 0 ? `${parts.join('/')}/${finalName}` : finalName;
+
       await storage.renameNode(relPath, newName);
+
+      // Update current active note ID if it was affected
+      const currentId = get().currentNoteId;
+      if (currentId === relPath) {
+        set({ currentNoteId: newPath });
+      } else if (currentId && currentId.startsWith(relPath + '/')) {
+        const updatedCurrentId = newPath + currentId.slice(relPath.length);
+        set({ currentNoteId: updatedCurrentId });
+      }
+
+      useGraphStore.getState().removeNoteFromGraph(relPath);
       await get().loadVault();
+
+      // Refresh vector index immediately for the renamed note/folder
+      if (isFile) {
+        try {
+          const content = await storage.readNote(newPath);
+          const newTitle = finalName.replace(/\.md$/, '');
+          await indexingCoordinator.renameNote(relPath, newPath, newTitle, content);
+        } catch (err) {
+          console.warn('Failed to re-index renamed note:', err);
+        }
+      } else {
+        // Folder rename
+        await indexingCoordinator.deleteFolder(relPath);
+        const updatedNotes = get().notes.filter((n) => n.id.startsWith(newPath + '/'));
+        for (const n of updatedNotes) {
+          try {
+            const content = await storage.readNote(n.id);
+            await indexingCoordinator.indexSingleNote(n.id, n.title, content);
+          } catch (err) {
+            console.warn(`Failed to re-index note ${n.id} in renamed folder:`, err);
+          }
+        }
+      }
     } catch (e) {
       console.error("Failed to rename item:", e);
     }

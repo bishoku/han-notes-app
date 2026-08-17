@@ -12,6 +12,8 @@ import { useAiStore } from '@/store/aiStore';
 import { initBrowserStorage, pickBrowserDirectory } from '@/services/storage';
 import { PwaUpdateBanner } from '@/components/PwaUpdateBanner';
 import { ModelDownloadIndicator } from '@/components/ai/ModelDownloadIndicator';
+import { QuickSearchModal } from '@/components/search/QuickSearchModal';
+import { SearchView } from '@/components/search/SearchView';
 import { FolderOpen } from 'lucide-react';
 
 import { SettingsModal } from '@/components/SettingsModal';
@@ -30,11 +32,24 @@ export const MainLayout: React.FC = () => {
   const viewMode = useUiStore(s => s.viewMode);
   const rightPanelOpen = useUiStore(s => s.rightPanelOpen);
   const initPreferences = useUiStore(s => s.initPreferences);
+  const setSearchModalOpen = useUiStore(s => s.setSearchModalOpen);
   const loadVault = useNoteStore(s => s.loadVault);
   const { initAiStore } = useAiStore();
   const [storageReady, setStorageReady] = useState(false);
   const [needsDirectoryPick, setNeedsDirectoryPick] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
+
+  // ── Global Keyboard Shortcuts (Cmd+K / Ctrl+K) ──
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchModalOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [setSearchModalOpen]);
 
   // ── Theme & Preferences Init ──
   useEffect(() => {
@@ -145,9 +160,11 @@ export const MainLayout: React.FC = () => {
       {viewMode === 'tasks' && <TasksView />}
       {viewMode === 'decisions' && <DecisionsView />}
       {viewMode === 'mindmap' && <MindmapView />}
+      {viewMode === 'search' && <SearchView />}
       {viewMode === 'notes' && rightPanelOpen && <RightPanel />}
       <ChatDrawer />
       <ModelDownloadIndicator />
+      <QuickSearchModal />
       {!isTauri() && <PwaUpdateBanner />}
       <SettingsModal />
     </div>

@@ -38,19 +38,24 @@ interface UiState {
   sidebarOpen: boolean;
   rightPanelOpen: boolean;
   isSettingsModalOpen: boolean;
+  isSearchModalOpen: boolean;
+  searchQuery: string;
   theme: AppTheme;
   language: AppLanguage;
   fontSize: FontSize;
-  viewMode: 'notes' | 'tasks' | 'decisions' | 'mindmap';
+  viewMode: 'notes' | 'tasks' | 'decisions' | 'mindmap' | 'search';
   editorMode: 'preview' | 'raw';
   
   toggleSidebar: () => void;
   toggleRightPanel: () => void;
   setSettingsModalOpen: (open: boolean) => void;
+  setSearchModalOpen: (open: boolean) => void;
+  setSearchQuery: (query: string) => void;
+  openSearch: (query?: string) => void;
   setTheme: (theme: AppTheme) => void;
   setLanguage: (lang: AppLanguage) => void;
   setFontSize: (size: FontSize) => void;
-  setViewMode: (mode: 'notes' | 'tasks' | 'decisions' | 'mindmap') => void;
+  setViewMode: (mode: 'notes' | 'tasks' | 'decisions' | 'mindmap' | 'search') => void;
   setEditorMode: (mode: 'preview' | 'raw') => void;
   initPreferences: () => void;
 }
@@ -63,6 +68,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   sidebarOpen: true,
   rightPanelOpen: false,
   isSettingsModalOpen: false,
+  isSearchModalOpen: false,
+  searchQuery: '',
   theme: initialTheme,
   language: initialLang,
   fontSize: initialFontSize,
@@ -72,6 +79,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
   setSettingsModalOpen: (open) => set({ isSettingsModalOpen: open }),
+  setSearchModalOpen: (open) => set({ isSearchModalOpen: open }),
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
+  openSearch: (query = '') => set({ isSearchModalOpen: true, searchQuery: query }),
 
   setFontSize: (size) => {
     localStorage.setItem(SAVED_FONTSIZE_KEY, size);

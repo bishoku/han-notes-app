@@ -12,6 +12,8 @@ export const Sidebar: React.FC = () => {
   // Individual Zustand selectors — prevent re-renders from unrelated store changes
   const sidebarOpen = useUiStore(s => s.sidebarOpen);
   const setSettingsModalOpen = useUiStore(s => s.setSettingsModalOpen);
+  const isSearchModalOpen = useUiStore(s => s.isSearchModalOpen);
+  const setSearchModalOpen = useUiStore(s => s.setSearchModalOpen);
   const setViewMode = useUiStore(s => s.setViewMode);
   const viewMode = useUiStore(s => s.viewMode);
   const fileTree = useNoteStore(s => s.fileTree);
@@ -106,9 +108,23 @@ export const Sidebar: React.FC = () => {
           </div>
         </div>
 
-        <button className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-500 bg-black/5 dark:bg-white/5 rounded-md hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-          <Search size={14} />
-          <span>{t('search')}</span>
+        <button
+          onClick={() => setSearchModalOpen(true)}
+          className={cn(
+            "flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-all cursor-pointer border group",
+            isSearchModalOpen || viewMode === 'search'
+              ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-2xs"
+              : "bg-black/5 dark:bg-white/5 border-transparent hover:bg-black/10 dark:hover:bg-white/10 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+          )}
+          title="Hızlı Arama & Komut Paleti (Cmd+K)"
+        >
+          <div className="flex items-center gap-2">
+            <Search size={14} className="group-hover:text-purple-500 transition-colors" />
+            <span className="font-medium">{t('search')}</span>
+          </div>
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300">
+            ⌘K
+          </kbd>
         </button>
       </div>
 

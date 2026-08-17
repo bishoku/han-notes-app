@@ -656,11 +656,20 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
   // Single-pass overlap filtering + builder construction
   const builder = new RangeSetBuilder<Decoration>();
   let lastReplaceEnd = -1;
+  let lastAddedFrom = -1;
 
   for (const item of items) {
+    if (item.from < 0 || item.to > doc.length || item.from > item.to) continue;
+
     if (item.from === item.to) {
-      // Line decoration — always valid
-      builder.add(item.from, item.to, item.dec);
+      // Line decoration
+      if (item.from < lastAddedFrom) continue;
+      lastAddedFrom = item.from;
+      try {
+        builder.add(item.from, item.to, item.dec);
+      } catch {
+        // Skip on duplicate/invalid
+      }
     } else {
       const isReplace = (item.dec as any).spec?.widget !== undefined || (item.dec as any).spec?.inclusive !== undefined;
       if (isReplace) {
@@ -669,11 +678,23 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       } else {
         if (item.from < lastReplaceEnd && item.to > lastReplaceEnd) continue;
       }
-      builder.add(item.from, item.to, item.dec);
+
+      if (item.from < lastAddedFrom) continue;
+      lastAddedFrom = item.from;
+      try {
+        builder.add(item.from, item.to, item.dec);
+      } catch {
+        // Skip on duplicate/invalid
+      }
     }
   }
 
-  return builder.finish();
+  try {
+    return builder.finish();
+  } catch (err) {
+    console.warn('RangeSetBuilder finish failed, falling back to Decoration.none:', err);
+    return Decoration.none;
+  }
 }
 
 export const livePreviewPlugin = ViewPlugin.fromClass(

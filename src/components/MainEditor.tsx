@@ -11,11 +11,12 @@ import { useUiStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
 
 // Editor Plugins & Formatter Utilities
-import { livePreviewPlugin } from '@/editor/LivePreviewPlugin';
+import { livePreviewPlugin, clearLivePreviewCaches } from '@/editor/LivePreviewPlugin';
 import { previewAutocomplete, rawAutocomplete } from '@/editor/WikilinkCompletion';
 import { smartPastePlugin } from '@/editor/pastePlugin';
 import { buildSlashCommands } from '@/editor/slashCommands';
 import { applyTextFormat } from '@/editor/formatters';
+import { prepareSafeDocumentInsertion } from '@/utils/markdownSanitizer';
 
 // Custom Hooks
 import { useNoteContent } from '@/hooks/useNoteContent';
@@ -253,14 +254,24 @@ export const MainEditor: React.FC = () => {
   const handleInsertInlineAiMarkdown = useCallback((text: string) => {
     if (!editorRef.current) return;
     const view = editorRef.current;
+    const doc = view.state.doc;
     const targetPos = inlineAiState.lineFrom;
-    const formattedText = text.trim() + '\n\n';
-    view.dispatch({
-      changes: { from: targetPos, insert: formattedText },
-      selection: { anchor: targetPos + formattedText.length },
-      scrollIntoView: true,
-    });
-    view.focus();
+
+    const { safeFrom, safeInsertText } = prepareSafeDocumentInsertion(
+      doc.toString(),
+      targetPos,
+      text
+    );
+
+    if (safeInsertText) {
+      clearLivePreviewCaches();
+      view.dispatch({
+        changes: { from: safeFrom, insert: safeInsertText },
+        selection: { anchor: safeFrom + safeInsertText.length },
+        scrollIntoView: true,
+      });
+      view.focus();
+    }
     setInlineAiState((prev) => ({ ...prev, isOpen: false }));
   }, [inlineAiState.lineFrom]);
 
