@@ -4,6 +4,7 @@ import { EditorView } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import { hanHighlightStyle, hanHighlightStyleDark } from '@/editor/hanHighlightStyle';
 import { useTranslation } from 'react-i18next';
 import { storage } from '@/services/storage';
 import { useUiStore } from '@/store/uiStore';
@@ -11,7 +12,7 @@ import { cn } from '@/lib/utils';
 
 // Editor Plugins & Formatter Utilities
 import { livePreviewPlugin } from '@/editor/LivePreviewPlugin';
-import { editorAutocomplete } from '@/editor/WikilinkCompletion';
+import { previewAutocomplete, rawAutocomplete } from '@/editor/WikilinkCompletion';
 import { smartPastePlugin } from '@/editor/pastePlugin';
 import { buildSlashCommands } from '@/editor/slashCommands';
 import { applyTextFormat } from '@/editor/formatters';
@@ -41,7 +42,13 @@ import { MediaFullscreenModal, type FullscreenMediaData } from '@/components/ui/
 
 export const MainEditor: React.FC = () => {
   const { t } = useTranslation();
-  const { theme, fontSize, editorMode, setEditorMode, rightPanelOpen, toggleRightPanel } = useUiStore();
+  // Individual Zustand selectors — only re-render when the specific field changes
+  const theme = useUiStore(s => s.theme);
+  const fontSize = useUiStore(s => s.fontSize);
+  const editorMode = useUiStore(s => s.editorMode);
+  const setEditorMode = useUiStore(s => s.setEditorMode);
+  const rightPanelOpen = useUiStore(s => s.rightPanelOpen);
+  const toggleRightPanel = useUiStore(s => s.toggleRightPanel);
 
   const editorRef = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -74,13 +81,17 @@ export const MainEditor: React.FC = () => {
     setSlashMenuState,
     slashStateRef,
     handleEditorUpdate,
-  } = useEditorFloatingUI(wrapperRef);
+  } = useEditorFloatingUI(wrapperRef, editorMode);
+
+  // Stable ref for menuPos — avoids recreating insertText on every cursor movement
+  const menuPosRef = useRef(menuPos);
+  menuPosRef.current = menuPos;
 
   // Helper to insert text at current menu or cursor position
   const insertText = useCallback((text: string) => {
     if (editorRef.current) {
       const view = editorRef.current;
-      const targetPos = menuPos.lineFrom !== undefined ? menuPos.lineFrom : view.state.selection.main.head;
+      const targetPos = menuPosRef.current.lineFrom !== undefined ? menuPosRef.current.lineFrom : view.state.selection.main.head;
       view.dispatch({
         changes: { from: targetPos, insert: text },
         selection: { anchor: targetPos + text.length },
@@ -89,7 +100,27 @@ export const MainEditor: React.FC = () => {
       setShowOptions(false);
       setShowNotePicker(false);
     }
-  }, [menuPos.lineFrom, setShowOptions, setShowNotePicker]);
+  }, [setShowOptions, setShowNotePicker]);
+
+  // Scroll-to-heading: listen for clicks on outline items in RightPanel
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ line: number }>) => {
+      const view = editorRef.current;
+      if (!view) return;
+      const lineNum = e.detail.line + 1; // outline uses 0-indexed, CodeMirror doc uses 1-indexed
+      const doc = view.state.doc;
+      if (lineNum < 1 || lineNum > doc.lines) return;
+      const line = doc.line(lineNum);
+      // Move cursor to the heading line and scroll it into view
+      view.dispatch({
+        selection: { anchor: line.from },
+        effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 80 }),
+      });
+      view.focus();
+    };
+    window.addEventListener('scroll-to-heading', handler as EventListener);
+    return () => window.removeEventListener('scroll-to-heading', handler as EventListener);
+  }, []);
 
   // 3. Diagrams & Sketches Hook (YADA & Excalidraw)
   const {
@@ -197,6 +228,10 @@ export const MainEditor: React.FC = () => {
     lineFrom: 0,
   });
 
+  // Stable ref for otherNotes — prevents inlineAiContext from recomputing when note list changes while AI composer is closed
+  const otherNotesRef = useRef(otherNotes);
+  otherNotesRef.current = otherNotes;
+
   const inlineAiContext = useMemo(() => {
     if (!editorRef.current || !currentNoteId || !inlineAiState.isOpen) return undefined;
     const view = editorRef.current;
@@ -204,7 +239,7 @@ export const MainEditor: React.FC = () => {
     const lineFrom = inlineAiState.lineFrom;
     const beforeText = doc.sliceString(Math.max(0, lineFrom - 1500), lineFrom);
     const afterText = doc.sliceString(lineFrom, Math.min(doc.length, lineFrom + 1500));
-    const foundNote = otherNotes.find((n) => n.id === currentNoteId);
+    const foundNote = otherNotesRef.current.find((n) => n.id === currentNoteId);
     const noteTitle = foundNote?.title || currentNoteId.split('/').pop() || currentNoteId;
 
     return {
@@ -213,7 +248,7 @@ export const MainEditor: React.FC = () => {
       beforeText,
       afterText,
     };
-  }, [currentNoteId, inlineAiState.isOpen, inlineAiState.lineFrom, otherNotes]);
+  }, [currentNoteId, inlineAiState.isOpen, inlineAiState.lineFrom]);
 
   const handleInsertInlineAiMarkdown = useCallback((text: string) => {
     if (!editorRef.current) return;
@@ -253,12 +288,16 @@ export const MainEditor: React.FC = () => {
     const exts = [
       EditorView.lineWrapping,
       markdown({ base: markdownLanguage, codeLanguages: languages }),
+      syntaxHighlighting(hanHighlightStyle),
+      syntaxHighlighting(hanHighlightStyleDark),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      editorAutocomplete,
       smartPastePlugin,
     ];
     if (editorMode === 'preview') {
+      exts.push(previewAutocomplete);
       exts.push(livePreviewPlugin);
+    } else {
+      exts.push(rawAutocomplete);
     }
     return exts;
   }, [editorMode]);
@@ -297,30 +336,40 @@ export const MainEditor: React.FC = () => {
       />
 
       {/* CodeMirror Workspace Area */}
-      <div className="flex-1 overflow-y-auto bg-mac-mainLight dark:bg-mac-mainDark relative scroll-smooth overscroll-contain">
-        <div ref={wrapperRef} className="py-12 relative pl-14 pr-8 md:pr-12">
-          <FloatingBlockMenu
-            menuPos={menuPos}
-            showOptions={showOptions}
-            showNotePicker={showNotePicker}
-            taskEditBtn={taskEditBtn}
-            decisionEditBtn={decisionEditBtn}
-            notes={otherNotes}
-            onToggleOptions={() => { setShowOptions(!showOptions); setShowNotePicker(false); }}
-            onToggleNotePicker={() => setShowNotePicker(!showNotePicker)}
-            onInsertText={insertText}
-            onOpenTaskModal={() => handleOpenTaskModal(taskEditBtn)}
-            onOpenDecisionModal={() => handleOpenDecisionModal(decisionEditBtn)}
-            onOpenImagePicker={() => fileInputRef.current?.click()}
-            onOpenDiagramEditor={openDiagramEditor}
-            onOpenExcalidrawEditor={openExcalidrawEditor}
-            onOpenInlineAi={() => setInlineAiState({ isOpen: true, top: menuPos.top, lineFrom: menuPos.lineFrom })}
-          />
+      <div className="flex-1 overflow-y-auto bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain">
+        <div
+          ref={wrapperRef}
+          className={cn(
+            "py-12 relative pr-8 md:pr-12",
+            editorMode === 'preview' ? "pl-14" : "pl-8 md:pl-12"
+          )}
+        >
+          {editorMode === 'preview' && (
+            <>
+              <FloatingBlockMenu
+                menuPos={menuPos}
+                showOptions={showOptions}
+                showNotePicker={showNotePicker}
+                taskEditBtn={taskEditBtn}
+                decisionEditBtn={decisionEditBtn}
+                notes={otherNotes}
+                onToggleOptions={() => { setShowOptions(!showOptions); setShowNotePicker(false); }}
+                onToggleNotePicker={() => setShowNotePicker(!showNotePicker)}
+                onInsertText={insertText}
+                onOpenTaskModal={() => handleOpenTaskModal(taskEditBtn)}
+                onOpenDecisionModal={() => handleOpenDecisionModal(decisionEditBtn)}
+                onOpenImagePicker={() => fileInputRef.current?.click()}
+                onOpenDiagramEditor={openDiagramEditor}
+                onOpenExcalidrawEditor={openExcalidrawEditor}
+                onOpenInlineAi={() => setInlineAiState({ isOpen: true, top: menuPos.top, lineFrom: menuPos.lineFrom })}
+              />
 
-          <SelectionBubbleMenu
-            bubbleState={selectionBubble}
-            onFormat={handleFormat}
-          />
+              <SelectionBubbleMenu
+                bubbleState={selectionBubble}
+                onFormat={handleFormat}
+              />
+            </>
+          )}
 
           <CodeMirror
             value={localContent}
@@ -399,8 +448,8 @@ export const MainEditor: React.FC = () => {
         onClose={() => setFullscreenMedia(null)}
       />
 
-      {/* Floating Slash Command Menu */}
-      {slashMenuState.show && (
+      {/* Floating Slash Command Menu (Preview mode only) */}
+      {editorMode === 'preview' && slashMenuState.show && (
         <SlashCommandMenu
           query={slashMenuState.query}
           anchorRect={slashMenuState.anchorRect}
@@ -409,12 +458,14 @@ export const MainEditor: React.FC = () => {
         />
       )}
 
-      {/* Visual Emoji Picker Popover */}
-      <EmojiPickerPopover
-        isOpen={emojiPickerOpen}
-        onClose={() => setEmojiPickerOpen(false)}
-        onSelectEmoji={(emoji) => insertText(emoji + ' ')}
-      />
+      {/* Visual Emoji Picker Popover (Preview mode only) */}
+      {editorMode === 'preview' && (
+        <EmojiPickerPopover
+          isOpen={emojiPickerOpen}
+          onClose={() => setEmojiPickerOpen(false)}
+          onSelectEmoji={(emoji) => insertText(emoji + ' ')}
+        />
+      )}
 
       {/* Inline AI Paragraph & Content Generator Modal */}
       <InlineAiComposer

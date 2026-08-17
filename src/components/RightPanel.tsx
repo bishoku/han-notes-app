@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -42,8 +42,12 @@ const isMatchingNote = (taskNoteId: string, currentId: string | null) => {
 
 export const RightPanel: React.FC = () => {
   const { t } = useTranslation();
-  const { rightPanelOpen, setViewMode } = useUiStore();
-  const { backlinks, selectNote, currentNoteId, currentNoteContent } = useNoteStore();
+  // Individual Zustand selectors — only subscribe to fields we actually use
+  const rightPanelOpen = useUiStore(s => s.rightPanelOpen);
+  const setViewMode = useUiStore(s => s.setViewMode);
+  const backlinks = useNoteStore(s => s.backlinks);
+  const selectNote = useNoteStore(s => s.selectNote);
+  const currentNoteId = useNoteStore(s => s.currentNoteId);
   const { tasks, loadTasks, toggleTask, updateTaskMetadata } = useTaskStore();
   
   const [activeTab, setActiveTab] = useState<'links' | 'outline'>('links');
@@ -61,23 +65,40 @@ export const RightPanel: React.FC = () => {
     return tasks.filter(t => isMatchingNote(t.note_id, currentNoteId));
   }, [tasks, currentNoteId]);
 
-  // Extract H1-H4 headings dynamically from active note content
-  const headings = useMemo<OutlineHeading[]>(() => {
-    if (!currentNoteContent) return [];
+  // Extract H1-H4 headings via custom event channel from MainEditor
+  // This decouples outline extraction from the noteStore's 400ms save cycle
+  const [headings, setHeadings] = useState<OutlineHeading[]>([]);
+
+  const extractHeadings = useCallback((content: string) => {
+    if (!content) { setHeadings([]); return; }
     const list: OutlineHeading[] = [];
-    const lines = currentNoteContent.split('\n');
-    lines.forEach((line, index) => {
-      const match = line.match(/^(#{1,4})\s+(.*)/);
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].match(/^(#{1,4})\s+(.*)/);
       if (match) {
         list.push({
           level: match[1].length,
           text: match[2].replace(/#+\s*$/, '').trim(),
-          line: index,
+          line: i,
         });
       }
-    });
-    return list;
-  }, [currentNoteContent]);
+    }
+    setHeadings(list);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: CustomEvent<string>) => extractHeadings(e.detail);
+    window.addEventListener('outline-content-update', handler as EventListener);
+    return () => window.removeEventListener('outline-content-update', handler as EventListener);
+  }, [extractHeadings]);
+
+  // Also extract headings on note switch (initial load from store)
+  const currentNoteContent = useNoteStore(s => s.currentNoteContent);
+  useEffect(() => {
+    if (currentNoteId && currentNoteContent) {
+      extractHeadings(currentNoteContent);
+    }
+  }, [currentNoteId, extractHeadings]); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally not tracking currentNoteContent; live updates come via custom event
 
   if (!rightPanelOpen) {
     return null;
@@ -187,6 +208,9 @@ export const RightPanel: React.FC = () => {
                         h.level === 3 && "font-medium text-gray-700 dark:text-gray-300",
                         h.level === 4 && "font-normal text-gray-500 dark:text-gray-400"
                       )}
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('scroll-to-heading', { detail: { line: h.line } }));
+                      }}
                     >
                       <span className="text-[9px] font-mono text-gray-400 group-hover:text-mac-accent transition-colors shrink-0">H{h.level}</span>
                       <span className="truncate">{h.text}</span>

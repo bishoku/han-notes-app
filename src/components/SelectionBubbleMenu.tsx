@@ -64,7 +64,7 @@ const PRESET_COLORS = [
   { name: 'Gri', value: '#6b7280', bg: 'bg-gray-500' },
 ];
 
-export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
+export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.memo(({
   bubbleState,
   onFormat,
 }) => {
@@ -486,5 +486,6 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = ({
       )}
     </div>
   );
-};
+});
+
 

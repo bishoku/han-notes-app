@@ -9,8 +9,21 @@ import { cn } from '@/lib/utils';
 
 export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
-  const { sidebarOpen, setSettingsModalOpen, setViewMode, viewMode } = useUiStore();
-  const { fileTree, notes, activeFolderPath, createNote, createFolder, moveNode, vaultTags, activeTagFilter, setActiveTagFilter, vaultPath } = useNoteStore();
+  // Individual Zustand selectors — prevent re-renders from unrelated store changes
+  const sidebarOpen = useUiStore(s => s.sidebarOpen);
+  const setSettingsModalOpen = useUiStore(s => s.setSettingsModalOpen);
+  const setViewMode = useUiStore(s => s.setViewMode);
+  const viewMode = useUiStore(s => s.viewMode);
+  const fileTree = useNoteStore(s => s.fileTree);
+  const notes = useNoteStore(s => s.notes);
+  const activeFolderPath = useNoteStore(s => s.activeFolderPath);
+  const createNote = useNoteStore(s => s.createNote);
+  const createFolder = useNoteStore(s => s.createFolder);
+  const moveNode = useNoteStore(s => s.moveNode);
+  const vaultTags = useNoteStore(s => s.vaultTags);
+  const activeTagFilter = useNoteStore(s => s.activeTagFilter);
+  const setActiveTagFilter = useNoteStore(s => s.setActiveTagFilter);
+  const vaultPath = useNoteStore(s => s.vaultPath);
   const { settings: aiSettings, isChatDrawerOpen, setChatDrawerOpen } = useAiStore();
   
   const [isRootDragOver, setIsRootDragOver] = useState(false);

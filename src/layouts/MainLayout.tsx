@@ -24,8 +24,12 @@ function isTauri(): boolean {
 }
 
 export const MainLayout: React.FC = () => {
-  const { theme, viewMode, rightPanelOpen, initPreferences } = useUiStore();
-  const { loadVault } = useNoteStore();
+  // Individual Zustand selectors — prevent re-renders from unrelated store changes
+  const theme = useUiStore(s => s.theme);
+  const viewMode = useUiStore(s => s.viewMode);
+  const rightPanelOpen = useUiStore(s => s.rightPanelOpen);
+  const initPreferences = useUiStore(s => s.initPreferences);
+  const loadVault = useNoteStore(s => s.loadVault);
   const { initAiStore } = useAiStore();
   const [storageReady, setStorageReady] = useState(false);
   const [needsDirectoryPick, setNeedsDirectoryPick] = useState(false);

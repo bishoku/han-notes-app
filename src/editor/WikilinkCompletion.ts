@@ -32,10 +32,17 @@ export function wikilinkCompletionSource(context: CompletionContext): Completion
   };
 }
 
-export const editorAutocomplete = autocompletion({
+export const previewAutocomplete = autocompletion({
   override: [wikilinkCompletionSource, emojiCompletionSource],
   defaultKeymap: true,
 });
 
+export const rawAutocomplete = autocompletion({
+  override: [wikilinkCompletionSource],
+  defaultKeymap: true,
+});
+
 // Alias for backwards compatibility
-export const wikilinkAutocomplete = editorAutocomplete;
+export const editorAutocomplete = previewAutocomplete;
+export const wikilinkAutocomplete = rawAutocomplete;
+

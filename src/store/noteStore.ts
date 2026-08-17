@@ -8,6 +8,10 @@ import type { FileNode, NoteInfo, TagCount, BacklinkInfo } from '@/services/stor
 // Re-export types for backward compatibility with existing component imports
 export type { FileNode, NoteInfo, TagCount, BacklinkInfo };
 
+// Module-level debounce timers for updateNote side effects
+let _backlinkTimer: ReturnType<typeof setTimeout> | null = null;
+let _storeContentTimer: ReturnType<typeof setTimeout> | null = null;
+
 interface NoteState {
   notes: NoteInfo[];
   fileTree: FileNode[];
@@ -175,10 +179,28 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     
     try {
       await storage.writeNote(currentNoteId, content);
-      // Update store state after successful write
-      set({ currentNoteContent: content });
-      // Non-blocking backlink refresh — don't await
-      get().loadBacklinks(currentNoteId);
+
+      // Debounced store state sync (2s) — keeps currentNoteContent fresh for
+      // imperative consumers (ChatDrawer, aiStore) without triggering reactive
+      // subscribers (RightPanel headings, etc.) on every 400ms save cycle
+      if (_storeContentTimer) clearTimeout(_storeContentTimer);
+      _storeContentTimer = setTimeout(() => {
+        // Only update if still on the same note
+        if (get().currentNoteId === currentNoteId) {
+          set({ currentNoteContent: content });
+        }
+        _storeContentTimer = null;
+      }, 2000);
+
+      // Debounced backlink refresh (2s) — backlinks don't need real-time updates
+      if (_backlinkTimer) clearTimeout(_backlinkTimer);
+      _backlinkTimer = setTimeout(() => {
+        if (get().currentNoteId === currentNoteId) {
+          get().loadBacklinks(currentNoteId);
+        }
+        _backlinkTimer = null;
+      }, 2000);
+
       // Non-blocking graph index update
       useGraphStore.getState().updateNoteContent(currentNoteId, content);
 

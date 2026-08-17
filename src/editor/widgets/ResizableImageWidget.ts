@@ -397,24 +397,36 @@ export class ResizableImageWidget extends WidgetType {
       const cleanAlt = this.alt.split('|')[0];
       const newMarkdown = `![${cleanAlt}|${finalWidth}](${this.relPath})`;
 
-      // Scan live document for exact matching markdown image syntax
+      // Fast path: check known position first
       const doc = view.state.doc;
       let matchFrom = -1;
       let matchTo = -1;
-      for (let i = 1; i <= doc.lines; i++) {
-        const line = doc.line(i);
-        if (line.text.includes(this.relPath)) {
-          const lineText = line.text;
-          const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
-          let m;
-          while ((m = imgRegex.exec(lineText)) !== null) {
-            if (m[2].trim() === this.relPath.trim() || m[2].includes(this.relPath) || this.relPath.includes(m[2])) {
-              matchFrom = line.from + m.index;
-              matchTo = matchFrom + m[0].length;
-              break;
-            }
+
+      const tryMatchLine = (lineNum: number): boolean => {
+        if (lineNum < 1 || lineNum > doc.lines) return false;
+        const line = doc.line(lineNum);
+        if (!line.text.includes(this.relPath)) return false;
+        const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        let m;
+        while ((m = imgRegex.exec(line.text)) !== null) {
+          if (m[2].trim() === this.relPath.trim() || m[2].includes(this.relPath) || this.relPath.includes(m[2])) {
+            matchFrom = line.from + m.index;
+            matchTo = matchFrom + m[0].length;
+            return true;
           }
-          if (matchFrom !== -1) break;
+        }
+        return false;
+      };
+
+      // 1. Try known position
+      const knownLineNum = this.from < doc.length ? doc.lineAt(this.from).number : 1;
+      if (!tryMatchLine(knownLineNum)) {
+        // 2. Scan nearby ±50 lines
+        const scanStart = Math.max(1, knownLineNum - 50);
+        const scanEnd = Math.min(doc.lines, knownLineNum + 50);
+        for (let i = scanStart; i <= scanEnd; i++) {
+          if (i === knownLineNum) continue;
+          if (tryMatchLine(i)) break;
         }
       }
 

@@ -50,6 +50,8 @@ interface SlashCommandDef {
   cursorOffset?: number;
   /** Special action type for non-insert commands */
   action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker';
+  /** Sub-commands for nested menus (e.g., language selection for code blocks) */
+  subCommands?: { id: string; lang: string; label: string; abbr: string }[];
 }
 
 // ─── Static Definitions ──────────────────────────────────────────────────────
@@ -105,8 +107,20 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     category: 'Format',
     colorClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
     icon: React.createElement(Code, { size: 14 }),
-    snippet: '```typescript\n\n```',
-    cursorOffset: 15,
+    snippet: '```\n\n```',
+    cursorOffset: 4,
+    subCommands: [
+      { id: 'code-ts', lang: 'typescript', label: 'TypeScript', abbr: 'TS' },
+      { id: 'code-js', lang: 'javascript', label: 'JavaScript', abbr: 'JS' },
+      { id: 'code-py', lang: 'python', label: 'Python', abbr: 'PY' },
+      { id: 'code-html', lang: 'html', label: 'HTML', abbr: '<>' },
+      { id: 'code-css', lang: 'css', label: 'CSS', abbr: '#' },
+      { id: 'code-json', lang: 'json', label: 'JSON', abbr: '{}' },
+      { id: 'code-bash', lang: 'bash', label: 'Bash', abbr: '$' },
+      { id: 'code-sql', lang: 'sql', label: 'SQL', abbr: 'SQL' },
+      { id: 'code-md', lang: 'markdown', label: 'Markdown', abbr: 'MD' },
+      { id: 'code-plain', lang: '', label: 'Plain Text', abbr: 'TXT' },
+    ],
   },
   {
     id: 'h1',
@@ -249,32 +263,52 @@ export function buildSlashCommands(
   openEmojiPicker: () => void,
   t: TFunction,
 ): SlashCommand[] {
-  return SLASH_COMMAND_DEFS.map((def) => ({
-    id: def.id,
-    label: t(def.labelKey),
-    command: def.command,
-    description: t(def.descriptionKey),
-    category: def.category,
-    colorClass: def.colorClass,
-    icon: def.icon,
-    execute: () => {
-      if (def.action === 'openEmojiPicker') {
-        executeSlashCommand('');
-        openEmojiPicker();
-      } else if (def.action === 'openTagModal') {
-        executeSlashCommand('', { openTagModal: true });
-      } else if (def.action === 'openImagePicker') {
-        executeSlashCommand('');
-        openImagePicker();
-      } else if (def.action === 'openDiagramEditor') {
-        executeSlashCommand('');
-        openDiagramEditor();
-      } else if (def.action === 'openExcalidrawEditor') {
-        executeSlashCommand('');
-        openExcalidrawEditor();
-      } else {
-        executeSlashCommand(def.snippet, def.cursorOffset ? { cursorOffset: def.cursorOffset } : undefined);
-      }
-    },
-  }));
+  return SLASH_COMMAND_DEFS.map((def) => {
+    // Build sub-commands for language selection
+    const subCommands = def.subCommands?.map((sub) => {
+      const fence = '`'.repeat(3);
+      const langSnippet = sub.lang ? fence + sub.lang + '\n\n' + fence : fence + '\n\n' + fence;
+      const langOffset = sub.lang ? sub.lang.length + 4 : 4; // ``` + lang + \n
+      return {
+        id: sub.id,
+        label: sub.label,
+        command: `/${sub.lang || 'plain'}`,
+        description: `${sub.label} kod bloğu ekle`,
+        category: def.category,
+        colorClass: def.colorClass,
+        icon: React.createElement(Code, { size: 14 }),
+        execute: () => executeSlashCommand(langSnippet, { cursorOffset: langOffset }),
+      };
+    });
+
+    return {
+      id: def.id,
+      label: t(def.labelKey),
+      command: def.command,
+      description: t(def.descriptionKey),
+      category: def.category,
+      colorClass: def.colorClass,
+      icon: def.icon,
+      subCommands,
+      execute: () => {
+        if (def.action === 'openEmojiPicker') {
+          executeSlashCommand('');
+          openEmojiPicker();
+        } else if (def.action === 'openTagModal') {
+          executeSlashCommand('', { openTagModal: true });
+        } else if (def.action === 'openImagePicker') {
+          executeSlashCommand('');
+          openImagePicker();
+        } else if (def.action === 'openDiagramEditor') {
+          executeSlashCommand('');
+          openDiagramEditor();
+        } else if (def.action === 'openExcalidrawEditor') {
+          executeSlashCommand('');
+          openExcalidrawEditor();
+        } else {
+          executeSlashCommand(def.snippet, def.cursorOffset ? { cursorOffset: def.cursorOffset } : undefined);
+        }
+      },
+    };
+  });
 }

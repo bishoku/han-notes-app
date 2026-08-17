@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +12,8 @@ export interface SlashCommand {
   colorClass: string;
   category: string;
   execute: () => void;
+  /** Optional sub-commands for nested menus (e.g., language selection) */
+  subCommands?: SlashCommand[];
 }
 
 interface SlashCommandMenuProps {
@@ -29,19 +31,22 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
   onClose
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [activeSubMenu, setActiveSubMenu] = useState<SlashCommand | null>(null);
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Filter commands by query
-  const filteredCommands = commands.filter((cmd) =>
-    cmd.command.toLowerCase().includes(query.toLowerCase()) ||
-    cmd.label.toLowerCase().includes(query.toLowerCase())
-  );
+  // Filter commands by query — sub-menus show all items (query belongs to parent)
+  const filteredCommands = activeSubMenu
+    ? (activeSubMenu.subCommands || [])
+    : commands.filter((cmd) =>
+        cmd.command.toLowerCase().includes(query.toLowerCase()) ||
+        cmd.label.toLowerCase().includes(query.toLowerCase())
+      );
 
-  // Reset selected index when query changes
+  // Reset selected index when query changes or sub-menu opens/closes
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, [query, activeSubMenu]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -68,117 +73,177 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
         e.stopPropagation();
         setSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % filteredCommands.length);
         break;
+      case 'ArrowRight': {
+        // Open sub-menu if the selected command has sub-commands
+        const cmd = filteredCommands[selectedIndex];
+        if (cmd?.subCommands && cmd.subCommands.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          setActiveSubMenu(cmd);
+        }
+        break;
+      }
+      case 'ArrowLeft':
+      case 'Backspace':
+        // Go back to main menu from sub-menu
+        if (activeSubMenu && (e.key === 'ArrowLeft' || (e.key === 'Backspace' && !query))) {
+          e.preventDefault();
+          e.stopPropagation();
+          setActiveSubMenu(null);
+        }
+        break;
       case 'Enter':
-      case 'Tab':
+      case 'Tab': {
         e.preventDefault();
         e.stopPropagation();
-        filteredCommands[selectedIndex]?.execute();
+        const cmd = filteredCommands[selectedIndex];
+        if (cmd?.subCommands && cmd.subCommands.length > 0 && !activeSubMenu) {
+          // Open sub-menu instead of executing
+          setActiveSubMenu(cmd);
+        } else {
+          cmd?.execute();
+        }
         break;
+      }
       case 'Escape':
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        if (activeSubMenu) {
+          setActiveSubMenu(null);
+        } else {
+          onClose();
+        }
         break;
     }
-  }, [filteredCommands, selectedIndex, onClose]);
+  }, [filteredCommands, selectedIndex, onClose, activeSubMenu, query]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [handleKeyDown]);
 
-  if (filteredCommands.length === 0) {
+  if (filteredCommands.length === 0 && !activeSubMenu) {
     return null;
   }
 
-  // Position below the slash character, using fixed viewport coordinates
+  // Best practice positioning: anchor menu BOTTOM edge near the cursor, grow upward.
+  const MENU_WIDTH = 288;
+  const GAP = 6;
   const menuStyle: React.CSSProperties = {
     position: 'fixed',
-    top: anchorRect.bottom + 6,
+    bottom: typeof window !== 'undefined' ? window.innerHeight - anchorRect.top + GAP : GAP,
     left: anchorRect.left,
     zIndex: 9999,
   };
 
-  // Clamp to stay in viewport
   if (typeof window !== 'undefined') {
-    if (anchorRect.left + 288 > window.innerWidth) {
-      menuStyle.left = window.innerWidth - 296;
+    if (anchorRect.left + MENU_WIDTH > window.innerWidth) {
+      menuStyle.left = window.innerWidth - MENU_WIDTH - 8;
     }
-    if (anchorRect.bottom + 320 > window.innerHeight) {
-      menuStyle.top = anchorRect.top - 320;
+    if (anchorRect.top < 340) {
+      delete menuStyle.bottom;
+      menuStyle.top = anchorRect.bottom + GAP;
     }
   }
+
+  const displayCommands = filteredCommands;
+  const headerLabel = activeSubMenu ? activeSubMenu.label : t('slashMenuCommands');
 
   return (
     <div
       ref={menuRef}
       className="w-72 bg-white/98 dark:bg-zinc-900/98 backdrop-blur-xl border border-gray-200/70 dark:border-zinc-700/70 rounded-xl shadow-2xl p-1 flex flex-col select-none"
       style={menuStyle}
-      onMouseDown={(e) => e.preventDefault()} // Prevent editor blur
+      onMouseDown={(e) => e.preventDefault()}
     >
       {/* Header */}
       <div className="px-2.5 py-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-        <span>{t('slashMenuCommands')}</span>
-        <span className="font-mono text-[9px] normal-case opacity-60">{t('slashMenuHint')}</span>
+        <div className="flex items-center gap-1.5">
+          {activeSubMenu && (
+            <button
+              onClick={() => setActiveSubMenu(null)}
+              className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <ArrowLeft size={10} />
+            </button>
+          )}
+          <span>{headerLabel}</span>
+        </div>
+        <span className="font-mono text-[9px] normal-case opacity-60">
+          {activeSubMenu ? '← geri' : t('slashMenuHint')}
+        </span>
       </div>
 
       {/* Command List */}
       <div className="flex flex-col max-h-[280px] overflow-y-auto">
-        {filteredCommands.map((cmd, idx) => {
-          const isSelected = idx === selectedIndex;
+        {displayCommands.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-gray-400 text-center italic">
+            Sonuç bulunamadı
+          </div>
+        ) : (
+          displayCommands.map((cmd, idx) => {
+            const isSelected = idx === selectedIndex;
+            const hasSubMenu = !activeSubMenu && cmd.subCommands && cmd.subCommands.length > 0;
 
-          return (
-            <button
-              key={cmd.id}
-              data-index={idx}
-              onClick={() => {
-                cmd.execute();
-              }}
-              onMouseEnter={() => setSelectedIndex(idx)}
-              className={cn(
-                "w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-colors duration-100 group cursor-default",
-                isSelected
-                  ? "bg-purple-600 text-white"
-                  : "text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800/60"
-              )}
-            >
-              {/* Icon */}
-              <div
+            return (
+              <button
+                key={cmd.id}
+                data-index={idx}
+                onClick={() => {
+                  if (hasSubMenu) {
+                    setActiveSubMenu(cmd);
+                  } else {
+                    cmd.execute();
+                  }
+                }}
+                onMouseEnter={() => setSelectedIndex(idx)}
                 className={cn(
-                  "w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors",
+                  "w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-colors duration-100 group cursor-default",
                   isSelected
-                    ? "bg-white/20 text-white"
-                    : cmd.colorClass
+                    ? "bg-purple-600 text-white"
+                    : "text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800/60"
                 )}
               >
-                {cmd.icon}
-              </div>
+                {/* Icon */}
+                <div
+                  className={cn(
+                    "w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors",
+                    isSelected
+                      ? "bg-white/20 text-white"
+                      : cmd.colorClass
+                  )}
+                >
+                  {cmd.icon}
+                </div>
 
-              {/* Label & Description */}
-              <div className="flex flex-col min-w-0 flex-1 gap-px">
-                <div className="flex items-center justify-between">
-                  <span className={cn("text-[13px] font-semibold truncate leading-tight", isSelected ? "text-white" : "text-gray-900 dark:text-gray-100")}>
-                    {cmd.label}
-                  </span>
-                  <span className={cn("text-[10px] font-mono shrink-0 ml-2", isSelected ? "text-purple-200" : "text-gray-400 dark:text-gray-500")}>
-                    {cmd.command}
+                {/* Label & Description */}
+                <div className="flex flex-col min-w-0 flex-1 gap-px">
+                  <div className="flex items-center justify-between">
+                    <span className={cn("text-[13px] font-semibold truncate leading-tight", isSelected ? "text-white" : "text-gray-900 dark:text-gray-100")}>
+                      {cmd.label}
+                    </span>
+                    <span className={cn("text-[10px] font-mono shrink-0 ml-2", isSelected ? "text-purple-200" : "text-gray-400 dark:text-gray-500")}>
+                      {cmd.command}
+                    </span>
+                  </div>
+                  <span className={cn("text-[11px] truncate leading-tight", isSelected ? "text-purple-200" : "text-gray-400 dark:text-gray-500")}>
+                    {cmd.description}
                   </span>
                 </div>
-                <span className={cn("text-[11px] truncate leading-tight", isSelected ? "text-purple-200" : "text-gray-400 dark:text-gray-500")}>
-                  {cmd.description}
-                </span>
-              </div>
 
-              <ChevronRight
-                size={12}
-                className={cn(
-                  "shrink-0 transition-all",
-                  isSelected ? "opacity-80 text-white translate-x-0.5" : "opacity-0"
-                )}
-              />
-            </button>
-          );
-        })}
+                <ChevronRight
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-all",
+                    hasSubMenu
+                      ? (isSelected ? "opacity-80 text-white translate-x-0.5" : "opacity-40")
+                      : (isSelected ? "opacity-80 text-white translate-x-0.5" : "opacity-0")
+                  )}
+                />
+              </button>
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -149,12 +149,17 @@
   font-family: var(--font-sans) !important;
   outline: none !important;
   overflow-anchor: auto !important;
+  /* Layout containment — prevents widget size changes from triggering global
+     page reflow during scroll. Paint containment keeps rendering isolated. */
+  contain: layout style paint;
 }
 
 .cm-theme-han .cm-content {
   caret-color: var(--color-mac-accent) !important;
   outline: none !important;
   border: none !important;
+  /* Inline layout changes (widget insert/remove) stay contained within content */
+  contain: layout style;
 }
 
 /* Headings: remove underlines and set proper typography */
@@ -257,12 +262,14 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Fenced Code Block — Premium 100% Continuous Unified Container
+   Fenced Code Block — Premium Full-Box Container
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* All code lines — unified box structure */
 .cm-theme-han .cm-line.cm-codeblock-line {
-  background: rgba(99, 102, 241, 0.05) !important;
-  border-left: 3px solid #6366f1 !important;
+  background: #f8fafc !important;
+  border-left: 1px solid #e2e8f0 !important;
+  border-right: 1px solid #e2e8f0 !important;
   margin-left: 0.5rem !important;
   margin-right: 0.5rem !important;
   margin-top: 0 !important;
@@ -270,40 +277,66 @@
   padding-left: 1.25rem !important;
   padding-right: 1rem !important;
   font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace !important;
-  font-size: 0.85em !important;
-  line-height: 1.65 !important;
+  font-size: 0.84em !important;
+  line-height: 1.7 !important;
   color: #334155;
   position: relative;
 }
 
 .dark .cm-theme-han .cm-line.cm-codeblock-line {
-  background: rgba(99, 102, 241, 0.10) !important;
-  border-left-color: #818cf8 !important;
+  background: rgba(30, 41, 59, 0.65) !important;
+  border-left-color: rgba(148, 163, 184, 0.15) !important;
+  border-right-color: rgba(148, 163, 184, 0.15) !important;
   color: #e2e8f0;
 }
 
-/* Opening Fence Header Line */
+/* Opening Fence Header — darker bar with language badge + copy */
 .cm-theme-han .cm-line.cm-codeblock-header {
-  border-top-left-radius: 8px !important;
-  border-top-right-radius: 8px !important;
-  padding-top: 0.35rem !important;
-  padding-bottom: 0.35rem !important;
-  font-weight: 600;
+  background: #f1f5f9 !important;
+  border-top: 1px solid #e2e8f0 !important;
+  border-top-left-radius: 10px !important;
+  border-top-right-radius: 10px !important;
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
+  gap: 6px;
 }
 
-/* Closing Fence Footer Line */
+.dark .cm-theme-han .cm-line.cm-codeblock-header {
+  background: rgba(30, 41, 59, 0.85) !important;
+  border-top-color: rgba(148, 163, 184, 0.15) !important;
+}
+
+/* Closing Fence Footer — bottom cap */
 .cm-theme-han .cm-line.cm-codeblock-footer {
-  border-bottom-left-radius: 8px !important;
-  border-bottom-right-radius: 8px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-bottom-left-radius: 10px !important;
+  border-bottom-right-radius: 10px !important;
   padding-bottom: 0.35rem !important;
+  min-height: 4px !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
 }
 
-.dark .cm-theme-han .cm-line.cm-codeblock-fence[data-lang]::after {
-  background: #818cf8;
-  color: #1e1b4b;
+.dark .cm-theme-han .cm-line.cm-codeblock-footer {
+  border-bottom-color: rgba(148, 163, 184, 0.15) !important;
+}
+
+/* Copy button — show on hover only */
+.cm-code-copy-btn {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.cm-theme-han .cm-line.cm-codeblock-header:hover .cm-code-copy-btn {
+  opacity: 1;
+}
+/* Also show when any code line in the block is hovered (via CSS :has if supported) */
+@supports selector(:has(*)) {
+  .cm-theme-han .cm-content:has(.cm-codeblock-line:hover) .cm-codeblock-header .cm-code-copy-btn {
+    opacity: 1;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

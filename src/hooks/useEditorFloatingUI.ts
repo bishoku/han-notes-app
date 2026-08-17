@@ -57,7 +57,10 @@ const SLASH_TRIGGER_RE = /(?:^|\s)\/([a-zA-Z0-9_-]*)$/;
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
-export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement | null>) {
+export function useEditorFloatingUI(
+  wrapperRef: React.RefObject<HTMLDivElement | null>,
+  editorMode: 'preview' | 'raw' = 'preview'
+) {
   // Block menu (+) button
   const [menuPos, setMenuPos] = useState<BlockMenuState>(INITIAL_BLOCK_MENU);
   const [showOptions, setShowOptions] = useState(false);
@@ -98,15 +101,36 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
     setShowNotePicker(false);
   }, []);
 
+  // Mutable ref tracking visibility flags — keeps handleEditorUpdate stable
+  // without including .show booleans in its dependency array
+  const showStateRef = useRef({ menu: false, task: false, decision: false, bubble: false, slash: false });
+  // Sync ref with state on every render (cheap assignment, no allocation)
+  showStateRef.current.menu = menuPos.show;
+  showStateRef.current.task = taskEditBtn.show;
+  showStateRef.current.decision = decisionEditBtn.show;
+  showStateRef.current.bubble = selectionBubble.show;
+  showStateRef.current.slash = slashMenuState.show;
+
   /**
    * Main CodeMirror `onUpdate` handler. Detects current selection and line type.
    */
   const handleEditorUpdate = useCallback((update: ViewUpdate) => {
+    // If in raw mode, floating menus and toolbars must never appear
+    if (editorMode === 'raw') {
+      const s = showStateRef.current;
+      if (s.menu || s.task || s.decision || s.bubble || s.slash) {
+        hideAll();
+        setSelectionBubble(prev => prev.show ? { ...prev, show: false } : prev);
+        setSlashMenuState(prev => prev.show ? { ...prev, show: false } : prev);
+      }
+      return;
+    }
+
     if (!update.selectionSet && !update.docChanged && !update.geometryChanged) return;
 
     const sel = update.state.selection.main;
 
-    // ── 1. Selection Bubble Menu (Medium / Notion Style with 60ms debounce) ──
+    // ── 1. Selection Bubble Menu (Medium / Notion Style with 80ms debounce) ──
     if (bubbleTimerRef.current) {
       clearTimeout(bubbleTimerRef.current);
       bubbleTimerRef.current = null;
@@ -118,7 +142,6 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
       const selectedText = update.state.sliceDoc(from, to);
 
       if (selectedText.trim().length > 0) {
-        // Wait 60ms after selection finishes moving before displaying bubble menu
         bubbleTimerRef.current = setTimeout(() => {
           const coordsFrom = update.view.coordsAtPos(from);
           const coordsTo = update.view.coordsAtPos(to);
@@ -138,7 +161,7 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
               activeFormats,
             });
           }
-        }, 60);
+        }, 80);
       } else {
         setSelectionBubble(prev => prev.show ? { ...prev, show: false } : prev);
       }
@@ -150,7 +173,7 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
     const line = update.state.doc.lineAt(head);
     const lineNumber = line.number - 1;
 
-    // ── 2. Slash Command Trigger ──
+    // ── 2. Slash Command Trigger (Only in Preview Mode) ──
     const textBeforeHead = line.text.slice(0, head - line.from);
     const slashMatch = textBeforeHead.match(SLASH_TRIGGER_RE);
 
@@ -184,6 +207,9 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
       const top = getRelativeTop(update, line.from);
       if (top !== null) {
         setMenuPos(prev => {
+          if (prev.show && prev.lineFrom === line.from && Math.abs(prev.top - top) < 2) {
+            return prev;
+          }
           if (prev.lineFrom !== line.from) {
             setShowOptions(false);
             setShowNotePicker(false);
@@ -198,7 +224,12 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
       // Task line → show task edit button
       const top = getRelativeTop(update, line.from);
       if (top !== null) {
-        setTaskEditBtn({ top, show: true, lineNumber, lineText });
+        setTaskEditBtn(prev => {
+          if (prev.show && prev.lineNumber === lineNumber && prev.lineText === lineText && Math.abs(prev.top - top) < 2) {
+            return prev;
+          }
+          return { top, show: true, lineNumber, lineText };
+        });
         setDecisionEditBtn(prev => prev.show ? { ...prev, show: false } : prev);
         setMenuPos(prev => prev.show ? { ...prev, show: false } : prev);
         return;
@@ -207,7 +238,12 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
       // Decision line → show decision edit button
       const top = getRelativeTop(update, line.from);
       if (top !== null) {
-        setDecisionEditBtn({ top, show: true, lineNumber, lineText });
+        setDecisionEditBtn(prev => {
+          if (prev.show && prev.lineNumber === lineNumber && prev.lineText === lineText && Math.abs(prev.top - top) < 2) {
+            return prev;
+          }
+          return { top, show: true, lineNumber, lineText };
+        });
         setTaskEditBtn(prev => prev.show ? { ...prev, show: false } : prev);
         setMenuPos(prev => prev.show ? { ...prev, show: false } : prev);
         return;
@@ -216,7 +252,7 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
 
     // No match → hide everything
     hideAll();
-  }, [getRelativeTop, hideAll, wrapperRef]);
+  }, [editorMode, getRelativeTop, hideAll, wrapperRef]);
 
   return {
     // Block menu
@@ -243,3 +279,4 @@ export function useEditorFloatingUI(wrapperRef: React.RefObject<HTMLDivElement |
     handleEditorUpdate,
   };
 }
+

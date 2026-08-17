@@ -45,7 +45,7 @@ interface FloatingBlockMenuProps {
   onOpenInlineAi?: () => void;
 }
 
-export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
+export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = React.memo(({
   menuPos,
   showOptions,
   showNotePicker,
@@ -294,4 +294,5 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = ({
       )}
     </>
   );
-};
+});
+

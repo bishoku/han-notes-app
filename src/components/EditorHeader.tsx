@@ -44,7 +44,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onUpdateTags,
 }) => {
   const { t } = useTranslation();
-  const { fontSize, setFontSize } = useUiStore();
+  const fontSize = useUiStore(s => s.fontSize);
+  const setFontSize = useUiStore(s => s.setFontSize);
   const readMinutes = Math.max(1, Math.ceil(localContent.split(' ').length / 200));
 
   return (

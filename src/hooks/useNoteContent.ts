@@ -7,13 +7,21 @@ import { extractTagsFromFrontmatter } from '@/utils/lineParser';
  * and debounced frontmatter tag parsing.
  */
 export function useNoteContent() {
-  const { currentNoteId, currentNoteContent, updateNote, notes, vaultTags, updateNoteTags } = useNoteStore();
+  // Individual Zustand selectors — subscribe only to fields we use, preventing
+  // re-renders from unrelated store changes (fileTree, backlinks, etc.)
+  const currentNoteId = useNoteStore(s => s.currentNoteId);
+  const currentNoteContent = useNoteStore(s => s.currentNoteContent);
+  const updateNote = useNoteStore(s => s.updateNote);
+  const notes = useNoteStore(s => s.notes);
+  const vaultTags = useNoteStore(s => s.vaultTags);
+  const updateNoteTags = useNoteStore(s => s.updateNoteTags);
   const [localContent, setLocalContent] = useState('');
   const [showTagPopover, setShowTagPopover] = useState(false);
 
   // Debounce timer refs — prevent disk writes and heavy parsing on every keystroke
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tagParseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cleanId = currentNoteId ? currentNoteId.replace(/\.md$/, '') : '';
   const currentNote = notes.find((n: NoteInfo) =>
@@ -53,16 +61,28 @@ export function useNoteContent() {
     );
   }, [notes, currentNoteId, cleanId]);
 
-  // Track current local content in a ref to reliably flush on unmount
-  const localContentRef = useRef(localContent);
-  useEffect(() => {
-    localContentRef.current = localContent;
-  }, [localContent]);
+  // Track actively loaded note ID and local content ref
+  const loadedNoteIdRef = useRef<string | null>(null);
+  const localContentRef = useRef<string>(localContent);
 
-  // Sync state when active note changes or content reloads
+
+  // Sync state ONLY when active note changes or on initial load
   useEffect(() => {
-    setLocalContent(currentNoteContent);
-  }, [currentNoteId, currentNoteContent]);
+    if (currentNoteId !== loadedNoteIdRef.current) {
+      // Flush previous note if switching notes
+      if (loadedNoteIdRef.current && saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        if (localContentRef.current !== undefined) {
+          updateNote(localContentRef.current);
+        }
+      }
+
+      loadedNoteIdRef.current = currentNoteId;
+      setLocalContent(currentNoteContent || '');
+      localContentRef.current = currentNoteContent || '';
+    }
+  }, [currentNoteId, currentNoteContent, updateNote]);
 
   // Handle content updates with immediate local state and debounced disk persist
   const handleUpdate = useCallback((val: string) => {
@@ -73,16 +93,23 @@ export function useNoteContent() {
     saveTimerRef.current = setTimeout(() => {
       updateNote(val);
       saveTimerRef.current = null;
-    }, 500);
+    }, 400);
+
+    // Debounced outline event for RightPanel heading extraction (1.5s)
+    if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current);
+    outlineTimerRef.current = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('outline-content-update', { detail: val }));
+      outlineTimerRef.current = null;
+    }, 1500);
   }, [updateNote]);
 
-  // Cleanup timers & flush pending save on unmount or active note change
+  // Cleanup timers & flush pending save on unmount
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
-        if (currentNoteId && localContentRef.current !== undefined) {
+        if (loadedNoteIdRef.current && localContentRef.current !== undefined) {
           updateNote(localContentRef.current);
         }
       }
@@ -90,8 +117,12 @@ export function useNoteContent() {
         clearTimeout(tagParseTimerRef.current);
         tagParseTimerRef.current = null;
       }
+      if (outlineTimerRef.current) {
+        clearTimeout(outlineTimerRef.current);
+        outlineTimerRef.current = null;
+      }
     };
-  }, [currentNoteId, updateNote]);
+  }, [updateNote]);
 
   return {
     currentNoteId,
