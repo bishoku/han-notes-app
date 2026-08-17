@@ -512,8 +512,14 @@ export const ChatDrawer: React.FC = () => {
                 >
                   {isUser ? (
                     msg.content
-                  ) : msg.content ? (
-                    <MarkdownMessage content={msg.content} isStreaming={isStreaming && isLast} />
+                  ) : msg.content || msg.reasoning ? (
+                    <MarkdownMessage
+                      content={msg.content}
+                      reasoning={msg.reasoning}
+                      thinkingTimeMs={msg.thinkingTimeMs}
+                      isThinking={isStreaming && isLast && (msg.isThinking || (!msg.content && !!msg.reasoning))}
+                      isStreaming={isStreaming && isLast}
+                    />
                   ) : isStreaming && isLast ? (
                     <span className="inline-flex items-center gap-1 text-gray-400 py-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-mac-accent animate-bounce" />

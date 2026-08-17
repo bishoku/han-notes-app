@@ -1,12 +1,17 @@
 /**
  * MarkdownMessage.tsx — Rich Markdown renderer for AI chat messages.
- * Contains isolated horizontal scrolling for tables and code blocks so chat layout never breaks.
+ * Integrates ThinkingBlock for reasoning and guarantees clean content rendering.
  */
 import React, { useMemo } from 'react';
 import { marked, Renderer } from 'marked';
+import { ThinkingBlock } from './ThinkingBlock';
+import { stripReasoning } from '@/services/ai/reasoningParser';
 
 interface MarkdownMessageProps {
   content: string;
+  reasoning?: string;
+  thinkingTimeMs?: number;
+  isThinking?: boolean;
   isStreaming?: boolean;
 }
 
@@ -14,7 +19,6 @@ interface MarkdownMessageProps {
 const customRenderer = new Renderer();
 
 customRenderer.table = function (token: any) {
-  // marked v12+ token format or legacy string format
   let headerHtml = '';
   let bodyHtml = '';
 
@@ -51,33 +55,57 @@ marked.use({
   breaks: true,
 });
 
-export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, isStreaming }) => {
-  const html = useMemo(() => {
-    if (!content) return '';
-    try {
-      return marked.parse(content) as string;
-    } catch {
-      return content;
-    }
+export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
+  content,
+  reasoning,
+  thinkingTimeMs,
+  isThinking,
+  isStreaming,
+}) => {
+  // Strip any residual thinking tags from final content
+  const cleanContent = useMemo(() => {
+    return stripReasoning(content);
   }, [content]);
+
+  const html = useMemo(() => {
+    if (!cleanContent) return '';
+    try {
+      return marked.parse(cleanContent) as string;
+    } catch {
+      return cleanContent;
+    }
+  }, [cleanContent]);
 
   return (
     <div className="relative text-xs leading-relaxed break-words ai-markdown-content select-text w-full min-w-0 max-w-full overflow-hidden">
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
-        className="prose prose-xs dark:prose-invert max-w-none 
-          prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-headings:my-2
-          prose-h1:text-sm prose-h2:text-xs prose-h3:text-xs
-          prose-p:my-1.5 prose-p:leading-relaxed
-          prose-ul:my-1.5 prose-ul:pl-4 prose-ul:list-disc
-          prose-ol:my-1.5 prose-ol:pl-4 prose-ol:list-decimal
-          prose-li:my-0.5
-          prose-blockquote:border-l-2 prose-blockquote:border-mac-accent/60 prose-blockquote:pl-3 prose-blockquote:my-2 prose-blockquote:italic prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-300
-          prose-strong:font-bold prose-strong:text-gray-900 dark:prose-strong:text-gray-100
-          prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:font-mono prose-code:text-[11px] prose-code:before:content-none prose-code:after:content-none
-          prose-pre:p-3 prose-pre:rounded-xl prose-pre:bg-zinc-900 dark:prose-pre:bg-black/80 prose-pre:text-zinc-100 prose-pre:font-mono prose-pre:text-[11px] prose-pre:my-2 prose-pre:max-w-full prose-pre:overflow-x-auto"
-      />
-      {isStreaming && (
+      {/* Antigravity / DeepSeek Style Collapsible Thinking Block */}
+      {(reasoning || isThinking) && (
+        <ThinkingBlock
+          reasoning={reasoning}
+          thinkingTimeMs={thinkingTimeMs}
+          isThinking={isThinking}
+        />
+      )}
+
+      {/* Clean Response Body */}
+      {html ? (
+        <div
+          dangerouslySetInnerHTML={{ __html: html }}
+          className="prose prose-xs dark:prose-invert max-w-none 
+            prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-headings:my-2
+            prose-h1:text-sm prose-h2:text-xs prose-h3:text-xs
+            prose-p:my-1.5 prose-p:leading-relaxed
+            prose-ul:my-1.5 prose-ul:pl-4 prose-ul:list-disc
+            prose-ol:my-1.5 prose-ol:pl-4 prose-ol:list-decimal
+            prose-li:my-0.5
+            prose-blockquote:border-l-2 prose-blockquote:border-mac-accent/60 prose-blockquote:pl-3 prose-blockquote:my-2 prose-blockquote:italic prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-300
+            prose-strong:font-bold prose-strong:text-gray-900 dark:prose-strong:text-gray-100
+            prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:font-mono prose-code:text-[11px] prose-code:before:content-none prose-code:after:content-none
+            prose-pre:p-3 prose-pre:rounded-xl prose-pre:bg-zinc-900 dark:prose-pre:bg-black/80 prose-pre:text-zinc-100 prose-pre:font-mono prose-pre:text-[11px] prose-pre:my-2 prose-pre:max-w-full prose-pre:overflow-x-auto"
+        />
+      ) : null}
+
+      {isStreaming && !isThinking && (
         <span className="inline-block w-1.5 h-3 ml-1 bg-mac-accent animate-pulse align-middle" />
       )}
     </div>

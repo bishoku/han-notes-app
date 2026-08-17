@@ -284,12 +284,13 @@ export const MainEditor: React.FC = () => {
   }, [selectionBubble]);
 
   // 9. CodeMirror Extensions Memo
+  const isDarkTheme = ['dark', 'dracula', 'synthwave'].includes(theme);
   const editorExtensions = useMemo(() => {
+    const activeHighlightStyle = isDarkTheme ? hanHighlightStyleDark : hanHighlightStyle;
     const exts = [
       EditorView.lineWrapping,
       markdown({ base: markdownLanguage, codeLanguages: languages }),
-      syntaxHighlighting(hanHighlightStyle),
-      syntaxHighlighting(hanHighlightStyleDark),
+      syntaxHighlighting(activeHighlightStyle),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       smartPastePlugin,
     ];
@@ -300,7 +301,7 @@ export const MainEditor: React.FC = () => {
       exts.push(rawAutocomplete);
     }
     return exts;
-  }, [editorMode]);
+  }, [editorMode, isDarkTheme]);
 
   if (!currentNoteId) {
     return (

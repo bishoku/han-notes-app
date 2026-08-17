@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -36,12 +36,14 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Filter commands by query — sub-menus show all items (query belongs to parent)
-  const filteredCommands = activeSubMenu
-    ? (activeSubMenu.subCommands || [])
-    : commands.filter((cmd) =>
-        cmd.command.toLowerCase().includes(query.toLowerCase()) ||
-        cmd.label.toLowerCase().includes(query.toLowerCase())
-      );
+  const filteredCommands = useMemo(() => {
+    return activeSubMenu
+      ? (activeSubMenu.subCommands || [])
+      : commands.filter((cmd) =>
+          cmd.command.toLowerCase().includes(query.toLowerCase()) ||
+          cmd.label.toLowerCase().includes(query.toLowerCase())
+        );
+  }, [activeSubMenu, commands, query]);
 
   // Reset selected index when query changes or sub-menu opens/closes
   useEffect(() => {
@@ -181,7 +183,7 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
             Sonuç bulunamadı
           </div>
         ) : (
-          displayCommands.map((cmd, idx) => {
+          displayCommands.map((cmd: SlashCommand, idx: number) => {
             const isSelected = idx === selectedIndex;
             const hasSubMenu = !activeSubMenu && cmd.subCommands && cmd.subCommands.length > 0;
 

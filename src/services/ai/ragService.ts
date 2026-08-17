@@ -35,12 +35,13 @@ export class RagService {
   public async query(
     userQuery: string,
     settings: AiSettings,
-    chatHistory: { role: string; content: string }[],
+    chatHistory: { role: string; content: string }[] = [],
     activeNote?: ActiveNoteContext,
     extraNotes?: AttachedNoteContext[],
     onChunk?: (text: string) => void,
+    onReasoningChunk?: (text: string) => void,
     signal?: AbortSignal
-  ): Promise<{ response: string; citations: Citation[] }> {
+  ): Promise<{ response: string; reasoning: string; hasReasoning: boolean; thinkingTimeMs?: number; citations: Citation[] }> {
     const isEnglish = useUiStore.getState().language === 'en';
     const citations: Citation[] = [];
     const contextBlocks: string[] = [];
@@ -176,7 +177,8 @@ export class RagService {
     ];
 
     let fullResponse = '';
-    await llmClient.streamChat(
+    let fullReasoning = '';
+    const result = await llmClient.streamChat(
       settings,
       messagesToSend,
       (chunk) => {
@@ -185,10 +187,22 @@ export class RagService {
           onChunk(chunk);
         }
       },
+      (reasoningChunk) => {
+        fullReasoning += reasoningChunk;
+        if (onReasoningChunk) {
+          onReasoningChunk(reasoningChunk);
+        }
+      },
       signal
     );
 
-    return { response: fullResponse, citations };
+    return {
+      response: result.content || fullResponse,
+      reasoning: result.reasoning || fullReasoning,
+      hasReasoning: result.hasReasoning || fullReasoning.trim().length > 0,
+      thinkingTimeMs: result.thinkingTimeMs,
+      citations,
+    };
   }
 }
 

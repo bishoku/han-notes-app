@@ -1,8 +1,16 @@
 /**
- * llmClient.ts — Unified multi-provider streaming LLM client.
- * Supports OpenRouter, Gemini, Anthropic, OpenAI, Ollama, and Custom endpoints.
+ * llmClient.ts — Unified multi-provider streaming LLM client with Reasoning Extraction.
+ * Supports OpenRouter, Gemini, Anthropic, OpenAI, Ollama, and Custom/On-Prem vLLM (Qwen, DeepSeek).
  */
 import type { AiSettings } from './types';
+import { ReasoningStreamParser } from './reasoningParser';
+
+export interface StreamChatResult {
+  content: string;
+  reasoning: string;
+  hasReasoning: boolean;
+  thinkingTimeMs?: number;
+}
 
 export class LlmClient {
   /**
@@ -30,28 +38,31 @@ export class LlmClient {
 
   /**
    * Streams chat completions across different provider protocols.
+   * Extracts reasoning / thinking tokens into separate callbacks.
    */
   public async streamChat(
     settings: AiSettings,
     messages: { role: string; content: string }[],
-    onChunk: (text: string) => void,
+    onChunk: (cleanContentChunk: string) => void,
+    onReasoningChunk?: (reasoningChunk: string) => void,
     signal?: AbortSignal
-  ): Promise<string> {
+  ): Promise<StreamChatResult> {
     const { provider, apiKey, baseUrl, model, temperature } = settings;
+    const parser = new ReasoningStreamParser();
 
     if (provider === 'gemini') {
-      return this.streamGemini(baseUrl, apiKey, model, messages, temperature, onChunk, signal);
+      return this.streamGemini(baseUrl, apiKey, model, messages, temperature, parser, onChunk, onReasoningChunk, signal);
     } else if (provider === 'anthropic') {
-      return this.streamAnthropic(baseUrl, apiKey, model, messages, temperature, onChunk, signal);
+      return this.streamAnthropic(baseUrl, apiKey, model, messages, temperature, parser, onChunk, onReasoningChunk, signal);
     } else if (provider === 'ollama') {
-      return this.streamOllama(baseUrl, model, messages, temperature, onChunk, signal);
+      return this.streamOllama(baseUrl, model, messages, temperature, parser, onChunk, onReasoningChunk, signal);
     } else {
-      // Default: OpenAI / OpenRouter / Custom compatible endpoint
-      return this.streamOpenAiCompatible(baseUrl, apiKey, model, messages, temperature, provider, onChunk, signal);
+      // Default: OpenAI / OpenRouter / Custom compatible endpoint (vLLM, LM Studio, Qwen)
+      return this.streamOpenAiCompatible(baseUrl, apiKey, model, messages, temperature, provider, parser, onChunk, onReasoningChunk, signal);
     }
   }
 
-  // ── OpenRouter & OpenAI & Custom ──────────────────────────────────────────
+  // ── OpenRouter & OpenAI & Custom & vLLM ──────────────────────────────────
 
   private async streamOpenAiCompatible(
     baseUrl: string,
@@ -60,9 +71,11 @@ export class LlmClient {
     messages: { role: string; content: string }[],
     temperature: number,
     provider: string,
+    parser: ReasoningStreamParser,
     onChunk: (text: string) => void,
+    onReasoningChunk?: (text: string) => void,
     signal?: AbortSignal
-  ): Promise<string> {
+  ): Promise<StreamChatResult> {
     const url = baseUrl.endsWith('/chat/completions')
       ? baseUrl
       : `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -101,7 +114,6 @@ export class LlmClient {
     if (!reader) throw new Error('Response stream reader could not be created.');
 
     const decoder = new TextDecoder();
-    let fullText = '';
     let buffer = '';
 
     while (true) {
@@ -118,10 +130,28 @@ export class LlmClient {
         if (trimmed.startsWith('data: ')) {
           try {
             const data = JSON.parse(trimmed.slice(6));
-            const delta = data.choices?.[0]?.delta?.content || '';
-            if (delta) {
-              fullText += delta;
-              onChunk(delta);
+            const delta = data.choices?.[0]?.delta;
+            if (!delta) continue;
+
+            // 1. Explicit reasoning fields from DeepSeek, OpenRouter, vLLM
+            const explicitReasoning = delta.reasoning_content || delta.reasoning || delta.thought || '';
+            if (explicitReasoning) {
+              const { reasoningDelta } = parser.feed(explicitReasoning, true);
+              if (reasoningDelta && onReasoningChunk) {
+                onReasoningChunk(reasoningDelta);
+              }
+            }
+
+            // 2. Main content (may contain inline <think> tags from Qwen/Ollama)
+            const contentChunk = delta.content || '';
+            if (contentChunk) {
+              const { reasoningDelta, contentDelta } = parser.feed(contentChunk, false);
+              if (reasoningDelta && onReasoningChunk) {
+                onReasoningChunk(reasoningDelta);
+              }
+              if (contentDelta) {
+                onChunk(contentDelta);
+              }
             }
           } catch {
             // Partial JSON slice, continue
@@ -130,7 +160,7 @@ export class LlmClient {
       }
     }
 
-    return fullText;
+    return parser.getResult();
   }
 
   // ── Google Gemini ─────────────────────────────────────────────────────────
@@ -141,13 +171,14 @@ export class LlmClient {
     model: string,
     messages: { role: string; content: string }[],
     temperature: number,
+    parser: ReasoningStreamParser,
     onChunk: (text: string) => void,
+    onReasoningChunk?: (text: string) => void,
     signal?: AbortSignal
-  ): Promise<string> {
+  ): Promise<StreamChatResult> {
     const cleanModel = model.replace(/^models\//, '');
     const url = `${baseUrl.replace(/\/+$/, '')}/models/${cleanModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
 
-    // Convert messages to Gemini contents format
     const contents = messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({
@@ -182,7 +213,6 @@ export class LlmClient {
     if (!reader) throw new Error('Response stream reader could not be created.');
 
     const decoder = new TextDecoder();
-    let fullText = '';
     let buffer = '';
 
     while (true) {
@@ -199,10 +229,17 @@ export class LlmClient {
         if (trimmed.startsWith('data: ')) {
           try {
             const data = JSON.parse(trimmed.slice(6));
-            const chunkText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (chunkText) {
-              fullText += chunkText;
-              onChunk(chunkText);
+            const parts = data.candidates?.[0]?.content?.parts || [];
+            for (const part of parts) {
+              if (part.thought) {
+                const { reasoningDelta } = parser.feed(part.thought, true);
+                if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+              }
+              if (part.text) {
+                const { reasoningDelta, contentDelta } = parser.feed(part.text, false);
+                if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+                if (contentDelta) onChunk(contentDelta);
+              }
             }
           } catch {
             // Partial JSON slice
@@ -211,7 +248,7 @@ export class LlmClient {
       }
     }
 
-    return fullText;
+    return parser.getResult();
   }
 
   // ── Anthropic Claude ──────────────────────────────────────────────────────
@@ -222,9 +259,11 @@ export class LlmClient {
     model: string,
     messages: { role: string; content: string }[],
     temperature: number,
+    parser: ReasoningStreamParser,
     onChunk: (text: string) => void,
+    onReasoningChunk?: (text: string) => void,
     signal?: AbortSignal
-  ): Promise<string> {
+  ): Promise<StreamChatResult> {
     const url = `${baseUrl.replace(/\/+$/, '')}/messages`;
 
     const systemMsg = messages.find((m) => m.role === 'system');
@@ -263,7 +302,6 @@ export class LlmClient {
     if (!reader) throw new Error('Response stream reader could not be created.');
 
     const decoder = new TextDecoder();
-    let fullText = '';
     let buffer = '';
 
     while (true) {
@@ -280,10 +318,14 @@ export class LlmClient {
         try {
           const data = JSON.parse(trimmed.slice(6));
           if (data.type === 'content_block_delta') {
-            const delta = data.delta?.text || '';
-            if (delta) {
-              fullText += delta;
-              onChunk(delta);
+            const delta = data.delta;
+            if (delta?.type === 'thinking_delta' && delta.thinking) {
+              const { reasoningDelta } = parser.feed(delta.thinking, true);
+              if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+            } else if (delta?.text) {
+              const { reasoningDelta, contentDelta } = parser.feed(delta.text, false);
+              if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+              if (contentDelta) onChunk(contentDelta);
             }
           }
         } catch {
@@ -292,7 +334,7 @@ export class LlmClient {
       }
     }
 
-    return fullText;
+    return parser.getResult();
   }
 
   // ── Ollama Local ──────────────────────────────────────────────────────────
@@ -302,9 +344,11 @@ export class LlmClient {
     model: string,
     messages: { role: string; content: string }[],
     temperature: number,
+    parser: ReasoningStreamParser,
     onChunk: (text: string) => void,
+    onReasoningChunk?: (text: string) => void,
     signal?: AbortSignal
-  ): Promise<string> {
+  ): Promise<StreamChatResult> {
     const url = `${baseUrl.replace(/\/+$/, '')}/api/chat`;
 
     const response = await fetch(url, {
@@ -330,7 +374,6 @@ export class LlmClient {
     if (!reader) throw new Error('Response stream reader could not be created.');
 
     const decoder = new TextDecoder();
-    let fullText = '';
     let buffer = '';
 
     while (true) {
@@ -346,10 +389,17 @@ export class LlmClient {
         if (!trimmed) continue;
         try {
           const data = JSON.parse(trimmed);
-          const delta = data.message?.content || '';
-          if (delta) {
-            fullText += delta;
-            onChunk(delta);
+          const explicitReasoning = data.message?.reasoning || '';
+          if (explicitReasoning) {
+            const { reasoningDelta } = parser.feed(explicitReasoning, true);
+            if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+          }
+
+          const contentChunk = data.message?.content || '';
+          if (contentChunk) {
+            const { reasoningDelta, contentDelta } = parser.feed(contentChunk, false);
+            if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+            if (contentDelta) onChunk(contentDelta);
           }
         } catch {
           // Partial JSON
@@ -357,7 +407,7 @@ export class LlmClient {
       }
     }
 
-    return fullText;
+    return parser.getResult();
   }
 }
 

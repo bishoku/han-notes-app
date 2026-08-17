@@ -11,6 +11,7 @@ import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
 import { initBrowserStorage, pickBrowserDirectory } from '@/services/storage';
 import { PwaUpdateBanner } from '@/components/PwaUpdateBanner';
+import { ModelDownloadIndicator } from '@/components/ai/ModelDownloadIndicator';
 import { FolderOpen } from 'lucide-react';
 
 import { SettingsModal } from '@/components/SettingsModal';
@@ -146,6 +147,7 @@ export const MainLayout: React.FC = () => {
       {viewMode === 'mindmap' && <MindmapView />}
       {viewMode === 'notes' && rightPanelOpen && <RightPanel />}
       <ChatDrawer />
+      <ModelDownloadIndicator />
       {!isTauri() && <PwaUpdateBanner />}
       <SettingsModal />
     </div>

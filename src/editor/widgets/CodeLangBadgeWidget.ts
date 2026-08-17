@@ -68,33 +68,19 @@ export class CodeLangBadgeWidget extends WidgetType {
 
     const wrap = document.createElement('span');
     wrap.className = 'cm-code-lang-badge';
-    wrap.style.cssText = 'display: inline-flex; align-items: center; gap: 5px; pointer-events: none; user-select: none;';
 
     // Colored abbreviation pill
     const pill = document.createElement('span');
     pill.className = 'cm-code-lang-pill';
     pill.textContent = config.abbr;
-    pill.style.cssText = `
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 9px; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      letter-spacing: 0.03em;
-      min-width: 22px; height: 16px; padding: 0 4px;
-      border-radius: 4px;
-      background: ${config.color}20;
-      color: ${config.color};
-      border: 1px solid ${config.color}30;
-      line-height: 1;
-    `;
+    pill.style.backgroundColor = `${config.color}20`;
+    pill.style.color = config.color;
+    pill.style.border = `1px solid ${config.color}35`;
 
     // Language name
     const name = document.createElement('span');
     name.className = 'cm-code-lang-name';
     name.textContent = config.name;
-    name.style.cssText = `
-      font-size: 11px; font-weight: 600;
-      color: inherit; opacity: 0.65;
-      font-family: inherit;
-    `;
 
     wrap.appendChild(pill);
     wrap.appendChild(name);

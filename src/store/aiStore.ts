@@ -405,6 +405,8 @@ export const useAiStore = create<AiState>((set, get) => ({
       sessionId: targetSession.id,
       role: 'assistant',
       content: '',
+      reasoning: '',
+      isThinking: false,
       timestamp: Date.now(),
     };
 
@@ -472,18 +474,36 @@ export const useAiStore = create<AiState>((set, get) => ({
         }
       }
 
-      const { response, citations } = await ragService.query(
+      const { response, reasoning, thinkingTimeMs, citations } = await ragService.query(
         text.trim(),
         settings,
         chatHistory,
         activeNoteContext,
         extraNotesContext,
-        (chunk) => {
+        (contentChunk) => {
           set((state) => {
             const currentSessions = state.sessions.map((s) => {
               if (s.id === targetSession!.id) {
                 const msgs = s.messages.map((m) =>
-                  m.id === assistantMessageId ? { ...m, content: m.content + chunk } : m
+                  m.id === assistantMessageId
+                    ? { ...m, content: m.content + contentChunk, isThinking: false }
+                    : m
+                );
+                return { ...s, messages: msgs };
+              }
+              return s;
+            });
+            return { sessions: currentSessions };
+          });
+        },
+        (reasoningChunk) => {
+          set((state) => {
+            const currentSessions = state.sessions.map((s) => {
+              if (s.id === targetSession!.id) {
+                const msgs = s.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? { ...m, reasoning: (m.reasoning || '') + reasoningChunk, isThinking: true }
+                    : m
                 );
                 return { ...s, messages: msgs };
               }
@@ -495,12 +515,21 @@ export const useAiStore = create<AiState>((set, get) => ({
         controller.signal
       );
 
-      // Final update with citations
+      // Final update with citations & reasoning metadata
       set((state) => {
         const finalSessions = state.sessions.map((s) => {
           if (s.id === targetSession!.id) {
             const msgs = s.messages.map((m) =>
-              m.id === assistantMessageId ? { ...m, content: response, citations } : m
+              m.id === assistantMessageId
+                ? {
+                    ...m,
+                    content: response,
+                    reasoning: reasoning || m.reasoning,
+                    thinkingTimeMs,
+                    isThinking: false,
+                    citations,
+                  }
+                : m
             );
             return { ...s, messages: msgs, updatedAt: Date.now() };
           }

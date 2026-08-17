@@ -2,12 +2,14 @@
  * InlineAiComposer.tsx — Interactive inline AI Ghostwriter / Paragraph Generator Modal.
  * Opens as a focused, centered modal with full RAG context to generate paragraphs,
  * task lists, decision drafts, or tables to be inserted directly at the target line.
+ * Guaranteed zero leakage of reasoning / thinking tags into user notes.
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAiStore } from '@/store/aiStore';
 import { ragService } from '@/services/ai/ragService';
+import { stripReasoning } from '@/services/ai/reasoningParser';
 import { MarkdownMessage } from './MarkdownMessage';
 import {
   Bot,
@@ -16,7 +18,6 @@ import {
   RotateCcw,
   Check,
   X,
-  Loader2,
   AlertCircle,
 } from 'lucide-react';
 
@@ -46,6 +47,9 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
 
   const [prompt, setPrompt] = useState('');
   const [generatedText, setGeneratedText] = useState('');
+  const [reasoningText, setReasoningText] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [thinkingTimeMs, setThinkingTimeMs] = useState<number | undefined>();
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +62,9 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
     if (isOpen) {
       setPrompt('');
       setGeneratedText('');
+      setReasoningText('');
+      setIsThinking(false);
+      setThinkingTimeMs(undefined);
       setError(null);
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
@@ -86,6 +93,7 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
       abortControllerRef.current = null;
     }
     setIsStreaming(false);
+    setIsThinking(false);
   };
 
   const handleGenerate = async (customPrompt?: string) => {
@@ -94,6 +102,9 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
 
     setError(null);
     setGeneratedText('');
+    setReasoningText('');
+    setIsThinking(false);
+    setThinkingTimeMs(undefined);
     setIsStreaming(true);
 
     const abortController = new AbortController();
@@ -111,7 +122,9 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
         ? `You are the HAN AI Ghostwriter. The user is writing a document and requests content to be inserted at a specific line position in their note.\n${docContext}\nCRITICAL INSTRUCTION: Output ONLY the exact Markdown content to be inserted directly into the document. Do NOT write conversational greetings or pleasantries like "Sure! Here is the paragraph:". Start directly with the markdown text (paragraphs, bullet lists, headers, tables, etc.).`
         : `Sen HAN Not Defteri Yapay Zeka Yazıcısısın (Ghostwriter). Kullanıcı dokümanın arasına yeni bir içerik eklemek istiyor.\n${docContext}\nKRİTİK TALİMAT: Yalnızca doğrudan dokümana eklenebilecek saf Markdown içeriği üret. Başında veya sonunda "İşte istediğiniz paragraf:" gibi sohbet cümleleri ASLA kurma. Doğrudan biçimlendirilmiş markdown metnini (paragraflar, maddeler, başlıklar, tablolar) üret.`;
 
-      let accumulated = '';
+      let accumulatedContent = '';
+      let accumulatedReasoning = '';
+
       const activeContext = surroundingContext
         ? {
             id: surroundingContext.noteId,
@@ -125,18 +138,34 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
         systemPrompt: ghostwriterSystemPrompt,
       };
 
-      await ragService.query(
+      const result = await ragService.query(
         targetPrompt,
         overrideSettings,
         [],
         activeContext,
         undefined,
         (chunk: string) => {
-          accumulated += chunk;
-          setGeneratedText(accumulated);
+          accumulatedContent += chunk;
+          setGeneratedText(accumulatedContent);
+          setIsThinking(false);
+        },
+        (reasoningChunk: string) => {
+          accumulatedReasoning += reasoningChunk;
+          setReasoningText(accumulatedReasoning);
+          setIsThinking(true);
         },
         abortController.signal
       );
+
+      if (result.response) {
+        setGeneratedText(result.response);
+      }
+      if (result.reasoning) {
+        setReasoningText(result.reasoning);
+      }
+      if (result.thinkingTimeMs) {
+        setThinkingTimeMs(result.thinkingTimeMs);
+      }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Inline AI generation error:', err);
@@ -144,14 +173,19 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
       }
     } finally {
       setIsStreaming(false);
+      setIsThinking(false);
       abortControllerRef.current = null;
     }
   };
 
   const handleApply = () => {
     if (!generatedText.trim()) return;
-    onInsertMarkdown(generatedText);
-    onClose();
+    // Guaranteed pure content — strip any lingering reasoning tokens
+    const cleanContent = stripReasoning(generatedText);
+    if (cleanContent.trim()) {
+      onInsertMarkdown(cleanContent);
+      onClose();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -270,41 +304,42 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
             </div>
           )}
 
-          {/* 3. Streaming Generated Output Preview */}
-          {(generatedText || isStreaming) && (
+          {/* 3. Streaming Generated Output Preview with Thinking Process */}
+          {(generatedText || reasoningText || isStreaming) && (
             <div className="mt-1 flex flex-col gap-2">
               <div className="p-3.5 max-h-64 overflow-y-auto rounded-xl bg-gray-50/90 dark:bg-zinc-950/80 border border-gray-200/70 dark:border-zinc-800/80 shadow-2xs select-text">
-                <MarkdownMessage content={generatedText} isStreaming={isStreaming} />
+                <MarkdownMessage
+                  content={generatedText}
+                  reasoning={reasoningText}
+                  thinkingTimeMs={thinkingTimeMs}
+                  isThinking={isStreaming && isThinking}
+                  isStreaming={isStreaming}
+                />
               </div>
 
               {/* Insertion & Control Footer */}
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                  {isStreaming ? (
-                    <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                      <Loader2 size={11} className="animate-spin" />
-                      <span>{t('aiInlineGenerating')}</span>
-                    </span>
-                  ) : (
-                    <span>Enter: {t('aiInlineInsert')} • Esc: {t('aiInlineCancel')}</span>
-                  )}
-                </div>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-zinc-800">
+                <button
+                  onClick={() => handleGenerate()}
+                  disabled={isStreaming}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-gray-300 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  <RotateCcw size={12} />
+                  <span>{t('aiInlineRetry')}</span>
+                </button>
 
                 <div className="flex items-center gap-2">
-                  {!isStreaming && (
-                    <button
-                      onClick={() => handleGenerate()}
-                      className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 text-gray-700 dark:text-gray-300 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <RotateCcw size={11} />
-                      <span>{t('aiInlineRetry')}</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={onClose}
+                    className="px-3 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-gray-400 font-medium text-xs transition-colors cursor-pointer"
+                  >
+                    {t('aiInlineCancel')}
+                  </button>
 
                   <button
                     onClick={handleApply}
-                    disabled={!generatedText.trim() || isStreaming}
-                    className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-40 transition-all"
+                    disabled={isStreaming || !generatedText.trim()}
+                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-mac-accent hover:from-purple-500 hover:to-mac-accent active:scale-95 text-white font-medium text-xs shadow-md shadow-purple-500/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
                   >
                     <Check size={13} />
                     <span>{t('aiInlineInsert')}</span>

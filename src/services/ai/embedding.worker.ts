@@ -4,10 +4,13 @@
  */
 import { pipeline, env } from '@xenova/transformers';
 
-// Configure transformers to use remote or cached models smoothly
+// Configure transformers to use local models from GitHub Pages/PWA or fallback to HuggingFace
+const baseUrl = import.meta.env.BASE_URL || '/';
+const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
 env.allowLocalModels = true;
-env.allowRemoteModels = false;
-env.localModelPath = '/models/';
+env.allowRemoteModels = true; // Fallback to HuggingFace CDN if local asset is missing
+env.localModelPath = `${normalizedBase}models/`;
 env.useBrowserCache = true;
 
 let embedder: any = null;

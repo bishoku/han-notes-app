@@ -222,7 +222,6 @@ export const MindmapView: React.FC = () => {
           'text-background-opacity': 0.85,
           'text-background-padding': '2.5px',
           'text-background-shape': 'roundrectangle',
-          'text-border-radius': '4px',
           'transition-property': 'background-color, border-color, width, height, opacity',
           'transition-duration': 0.15,
         },
@@ -240,9 +239,10 @@ export const MindmapView: React.FC = () => {
         style: {
           'border-color': '#ec4899',
           'border-width': 4,
-          'shadow-blur': 15,
-          'shadow-color': '#ec4899',
-          'shadow-opacity': 0.8,
+          'underlay-color': '#ec4899',
+          'underlay-padding': '6px',
+          'underlay-opacity': 0.5,
+          'underlay-shape': 'ellipse',
         },
       },
       {
@@ -250,9 +250,10 @@ export const MindmapView: React.FC = () => {
         style: {
           'border-color': '#06b6d4',
           'border-width': 4,
-          'shadow-blur': 20,
-          'shadow-color': '#06b6d4',
-          'shadow-opacity': 0.9,
+          'underlay-color': '#06b6d4',
+          'underlay-padding': '8px',
+          'underlay-opacity': 0.6,
+          'underlay-shape': 'ellipse',
         },
       },
       {
@@ -305,7 +306,6 @@ export const MindmapView: React.FC = () => {
         container: containerRef.current,
         elements: visibleElements,
         style: getCytoscapeStyle() as any,
-        wheelSensitivity: 0.25,
         minZoom: 0.15,
         maxZoom: 3.5,
       });

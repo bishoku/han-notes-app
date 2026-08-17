@@ -99,6 +99,11 @@ function getCachedWidget<T extends WidgetType>(
   return widget;
 }
 
+export function clearLivePreviewCaches(): void {
+  _widgetCache.clear();
+  _metaCache.clear();
+}
+
 export function livePreviewDecorations(view: EditorView): DecorationSet {
   const doc = view.state.doc;
   if (doc.length === 0) {
@@ -488,7 +493,7 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       const meta = parseCachedMeta(cMatch[1]);
       if (meta) {
         const widget = getCachedWidget(
-          `task:${commentFrom}:${commentTo}`,
+          `task:${commentFrom}:${commentTo}:${cMatch[1]}`,
           () => new TaskBadgeWidget(meta)
         );
         const widgetDec = Decoration.replace({ widget });
@@ -508,7 +513,7 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       const meta = parseCachedMeta(dMatch[1]);
       if (meta) {
         const widget = getCachedWidget(
-          `dec:${commentFrom}:${commentTo}`,
+          `dec:${commentFrom}:${commentTo}:${dMatch[1]}`,
           () => new DecisionBadgeWidget(meta)
         );
         const widgetDec = Decoration.replace({ widget });

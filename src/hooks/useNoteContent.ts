@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNoteStore, type NoteInfo } from '@/store/noteStore';
 import { extractTagsFromFrontmatter } from '@/utils/lineParser';
+import { clearLivePreviewCaches } from '@/editor/LivePreviewPlugin';
 
 /**
  * Custom hook to manage active note content, debounced saving to storage,
@@ -79,6 +80,7 @@ export function useNoteContent() {
       }
 
       loadedNoteIdRef.current = currentNoteId;
+      clearLivePreviewCaches();
       setLocalContent(currentNoteContent || '');
       localContentRef.current = currentNoteContent || '';
     }

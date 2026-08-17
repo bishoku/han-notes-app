@@ -49,7 +49,10 @@ export interface ChatMessage {
   id: string;
   sessionId?: string;
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string; // The pure, clean answer without thinking/reasoning clutter
+  reasoning?: string; // The extracted chain-of-thought / reasoning process
+  thinkingTimeMs?: number; // Time elapsed thinking (in milliseconds)
+  isThinking?: boolean; // True while the model is actively thinking in stream
   timestamp: number;
   citations?: Citation[];
   error?: boolean;

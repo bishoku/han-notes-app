@@ -368,3 +368,151 @@ pub fn wasm_find_backlinks(content: &str, source_note_id: &str, target_note_id: 
     
     serde_wasm_bindgen::to_value(&backlinks).unwrap_or(JsValue::NULL)
 }
+
+// ─── Reasoning & Thinking Extraction ────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct ParsedReasoningOutput {
+    pub reasoning: String,
+    pub content: String,
+    pub has_reasoning: bool,
+}
+
+/// Parses LLM output to cleanly extract reasoning/thinking blocks from the final answer.
+/// Covers:
+/// 1. <think>...</think>, <thought>...</thought>, <thinking>...</thinking>, <thinking_process>...</thinking_process>
+/// 2. Qwen special tokens: <|thought|>...<|/thought|>, <|thought|>...<|endofthought|>, <|im_start|>thought\n...<|im_end|>
+/// 3. Markdown codeblocks: ```thought\n...\n```, ```thinking\n...\n```
+/// 4. Implicit start tags where prompt prefill emitted <think>, so stream only has </think>
+pub fn parse_reasoning_blocks(raw: &str) -> ParsedReasoningOutput {
+    if raw.trim().is_empty() {
+        return ParsedReasoningOutput::default();
+    }
+
+    let mut reasoning_parts = Vec::new();
+    let mut content = raw.to_string();
+
+    // 1. Tag pairs: (open_tag, list of possible close tags)
+    let tag_specs: &[(&str, &[&str])] = &[
+        ("<think>", &["</think>"]),
+        ("<thought>", &["</thought>"]),
+        ("<thinking>", &["</thinking>"]),
+        ("<thinking_process>", &["</thinking_process>"]),
+        ("<|thought|>", &["<|/thought|>", "<|endofthought|>"]),
+        ("<|im_start|>thought", &["<|im_end|>"]),
+        ("```thought", &["```"]),
+        ("```thinking", &["```"]),
+    ];
+
+    for &(open_tag, close_tags) in tag_specs.iter() {
+        while let Some(start_idx) = content.find(open_tag) {
+            let inner_start = start_idx + open_tag.len();
+            
+            // Find earliest matching close tag
+            let mut earliest_close: Option<(usize, &str)> = None;
+            for &close_tag in close_tags.iter() {
+                if let Some(pos) = content[inner_start..].find(close_tag) {
+                    if earliest_close.map_or(true, |(min_pos, _)| pos < min_pos) {
+                        earliest_close = Some((pos, close_tag));
+                    }
+                }
+            }
+
+            if let Some((rel_pos, matched_close_tag)) = earliest_close {
+                let inner_end = inner_start + rel_pos;
+                let thought_text = content[inner_start..inner_end].trim().to_string();
+                if !thought_text.is_empty() {
+                    reasoning_parts.push(thought_text);
+                }
+                let before = &content[..start_idx];
+                let after = &content[inner_end + matched_close_tag.len()..];
+                content = format!("{}{}", before, after);
+            } else {
+                // Unclosed opening tag (still streaming or model truncated)
+                let thought_text = content[inner_start..].trim().to_string();
+                if !thought_text.is_empty() {
+                    reasoning_parts.push(thought_text);
+                }
+                content = content[..start_idx].to_string();
+                break;
+            }
+        }
+    }
+
+    // 2. Implicit opening tag case (Prompt prefill contained `<think>`, so model started directly and only closed with `</think>` or `<|/thought|>`)
+    let close_only_tags = ["</think>", "</thought>", "</thinking>", "</thinking_process>", "<|/thought|>", "<|endofthought|>"];
+    for close_tag in close_only_tags.iter() {
+        if let Some(close_idx) = content.find(close_tag) {
+            let thought_text = content[..close_idx].trim().to_string();
+            if !thought_text.is_empty() {
+                reasoning_parts.push(thought_text);
+            }
+            content = content[close_idx + close_tag.len()..].to_string();
+        }
+    }
+
+    // 3. Clean remaining stray tokens or trailing whitespace
+    content = content.trim().to_string();
+    let reasoning = reasoning_parts.join("\n\n---\n\n").trim().to_string();
+    let has_reasoning = !reasoning.is_empty();
+
+    ParsedReasoningOutput {
+        reasoning,
+        content,
+        has_reasoning,
+    }
+}
+
+#[wasm_bindgen]
+pub fn wasm_parse_reasoning(raw: &str) -> JsValue {
+    let result = parse_reasoning_blocks(raw);
+    serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+}
+
+#[wasm_bindgen]
+pub fn wasm_strip_reasoning(raw: &str) -> String {
+    let result = parse_reasoning_blocks(raw);
+    result.content
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_standard_think_tags() {
+        let input = "<think>\nAnalyzing the architecture...\n</think>\n\nHere is the final answer.";
+        let res = parse_reasoning_blocks(input);
+        assert_eq!(res.has_reasoning, true);
+        assert_eq!(res.reasoning, "Analyzing the architecture...");
+        assert_eq!(res.content, "Here is the final answer.");
+    }
+
+    #[test]
+    fn test_implicit_prefill_closing_only() {
+        let input = "Step 1: Check nodes.\nStep 2: Conclude.\n</think>\n\nFinal response.";
+        let res = parse_reasoning_blocks(input);
+        assert_eq!(res.has_reasoning, true);
+        assert_eq!(res.reasoning, "Step 1: Check nodes.\nStep 2: Conclude.");
+        assert_eq!(res.content, "Final response.");
+    }
+
+    #[test]
+    fn test_qwen_special_tokens() {
+        let input = "<|thought|>\nQwen reasoning process\n<|endofthought|>\nClean response.";
+        let res = parse_reasoning_blocks(input);
+        assert_eq!(res.has_reasoning, true);
+        assert_eq!(res.reasoning, "Qwen reasoning process");
+        assert_eq!(res.content, "Clean response.");
+    }
+
+    #[test]
+    fn test_no_reasoning() {
+        let input = "Regular markdown response without thinking.";
+        let res = parse_reasoning_blocks(input);
+        assert_eq!(res.has_reasoning, false);
+        assert_eq!(res.reasoning, "");
+        assert_eq!(res.content, "Regular markdown response without thinking.");
+    }
+}
+
