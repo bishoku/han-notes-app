@@ -7,7 +7,8 @@ import { pipeline, env } from '@xenova/transformers';
 // Configure transformers to use remote or cached models smoothly
 env.allowLocalModels = true;
 env.allowRemoteModels = false;
-env.localModelPath = '/models/';
+// Prepend BASE_URL to correctly resolve the local model path when hosted in a subdirectory (e.g. GitHub Pages)
+env.localModelPath = import.meta.env.BASE_URL + 'models/';
 env.useBrowserCache = true;
 
 let embedder: any = null;
