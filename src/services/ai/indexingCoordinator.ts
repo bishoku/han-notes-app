@@ -1,6 +1,7 @@
 /**
  * indexingCoordinator.ts — Battery-friendly, idle-only incremental indexing coordinator.
- * Prevents UI lag by scheduling embedding jobs when the browser and user are completely idle.
+ * Prevents UI lag by offloading embedding computations to a Web Worker and scheduling
+ * diff checks during browser idle periods (requestIdleCallback).
  */
 import { chunkMarkdownNote } from './chunker';
 import { embeddingService } from './embeddingService';
@@ -20,8 +21,9 @@ class IndexingCoordinator {
   }
 
   /**
-   * Called by the editor on each keystroke.
-   * Debounced with 25-second idle inactivity to guarantee zero typing latency.
+   * Called on note edits.
+   * Debounced with 3-second idle window and scheduled with requestIdleCallback
+   * to guarantee zero typing latency while keeping vector index near-real-time.
    */
   public queueNoteUpdate(noteId: string, title: string, content: string) {
     this.pendingNoteUpdates.set(noteId, { title, content });
@@ -31,15 +33,21 @@ class IndexingCoordinator {
     }
 
     this.idleTimer = setTimeout(() => {
-      this.flushPendingNotes();
-    }, 25000); // 25s idle window
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        window.requestIdleCallback(() => {
+          this.flushPendingNotes();
+        }, { timeout: 2000 });
+      } else {
+        this.flushPendingNotes();
+      }
+    }, 3000); // 3s adaptive idle window
   }
 
   /**
-   * Called when user switches to another note or leaves the editor.
+   * Called when user switches note, leaves editor, or submits an AI chat query.
    * Flushes pending changes immediately.
    */
-  public flushImmediate(noteId?: string, title?: string, content?: string) {
+  public async flushImmediate(noteId?: string, title?: string, content?: string): Promise<void> {
     if (noteId && title && content) {
       this.pendingNoteUpdates.set(noteId, { title, content });
     }
@@ -47,10 +55,10 @@ class IndexingCoordinator {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
-    this.flushPendingNotes();
+    await this.flushPendingNotes();
   }
 
-  private async flushPendingNotes() {
+  public async flushPendingNotes(): Promise<void> {
     if (this.isProcessing || this.pendingNoteUpdates.size === 0) return;
     this.isProcessing = true;
 
@@ -92,12 +100,12 @@ class IndexingCoordinator {
           vector: old.vector,
         });
       } else {
-        // New or modified chunk: needs embedding
+        // New or modified chunk: needs embedding in Web Worker
         chunksNeedingEmbedding.push(nc);
       }
     }
 
-    // Embed only the new/modified chunks
+    // Embed only the new/modified chunks in background Web Worker
     if (chunksNeedingEmbedding.length > 0) {
       const textsToEmbed = chunksNeedingEmbedding.map((c) => c.content);
       const vectors = await embeddingService.embedTexts(textsToEmbed);

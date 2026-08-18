@@ -6,6 +6,7 @@
 import { embeddingService } from './embeddingService';
 import { vectorStore } from './vectorStore';
 import { llmClient } from './llmClient';
+import { indexingCoordinator } from './indexingCoordinator';
 import { useGraphStore } from '@/store/graphStore';
 import { useUiStore } from '@/store/uiStore';
 import type { AiSettings, Citation } from './types';
@@ -89,6 +90,13 @@ export class RagService {
       }
     }
 
+    // Flush any pending note edits into the vector store before embedding query to ensure 100% freshness
+    try {
+      await indexingCoordinator.flushPendingNotes();
+    } catch (flushErr) {
+      console.warn('Pre-query flush failed, proceeding with existing vector index:', flushErr);
+    }
+
     // 3. Embed query & Search Similar Chunks from Vector Store
     let queryVector: number[] = [];
     try {
@@ -110,6 +118,7 @@ export class RagService {
         // Skip since we already included the full note content above
         continue;
       }
+      excludedNoteIds.add(chunk.noteId);
 
       if (citationCounter > 6) break; // Limit to 6 total sources for crisp, high-token context
 
@@ -158,8 +167,8 @@ export class RagService {
     }
 
     const formattingInstruction = isEnglish
-      ? `\n\nFORMATTING & LANGUAGE RULES:\n- Always respond in rich, hierarchical, and visually well-structured GitHub-flavored Markdown.\n- Use subheadings (###), bullet points (-), numbered lists (1.), bold text (**text**), tables, and code blocks (\`\`\`lang ... \`\`\`) where helpful.\n- Cite references using source numbers like [1], [2].\n- LANGUAGE DIRECTIVE: You MUST respond in ENGLISH to match the user's application language.`
-      : `\n\nFORMATLAMA & DİL KURALLARI:\n- Cevaplarını daima zengin, hiyerarşik ve görsel olarak düzenli GitHub-flavored Markdown formatında ver.\n- Gerektiğinde alt başlıklar (###), madde işaretleri (-), numaralandırılmış listeler (1.), kalın vurgular (**metin**), tablolar ve kod blokları (\`\`\`dil ... \`\`\`) kullan.\n- Bilgi aldığın kaynaklara [1], [2] şeklinde kaynak numaralarıyla atıf yap.\n- DİL KURALI: Cevaplarını TÜRKÇE olarak ver.`;
+      ? `\n\nFORMATTING & LANGUAGE RULES:\n- Always respond in rich, hierarchical, and visually well-structured GitHub-flavored Markdown.\n- Use subheadings (###), bullet points (-), numbered lists (1.), bold text (**text**), tables, and code blocks (\`\`\`lang ... \`\`\`) where helpful.\n- Cite references using exact source numbers like [1], [2]. Do NOT format numbers as wikilinks like [[1]]. When referencing notes by name, you may use [[Note Title]].\n- LANGUAGE DIRECTIVE: You MUST respond in ENGLISH to match the user's application language.`
+      : `\n\nFORMATLAMA & DİL KURALLARI:\n- Cevaplarını daima zengin, hiyerarşik ve görsel olarak düzenli GitHub-flavored Markdown formatında ver.\n- Gerektiğinde alt başlıklar (###), madde işaretleri (-), numaralandırılmış listeler (1.), kalın vurgular (**metin**), tablolar ve kod blokları (\`\`\`dil ... \`\`\`) kullan.\n- Bilgi aldığın kaynaklara [1], [2] şeklinde kaynak numaralarıyla atıf yap. Asla [[1]] şeklinde wikilink formatında yazma. Bir nota doğrudan ismiyle atıf yapacaksan [[Not Başlığı]] kullanabilirsin.\n- DİL KURALI: Cevaplarını TÜRKÇE olarak ver.`;
 
     const defaultRolePrompt = isEnglish
       ? 'You are the HAN (Hierarchical Adaptive Notebook) AI assistant. Carefully analyze the user\'s notes, answer questions, and cite relationships accurately.'

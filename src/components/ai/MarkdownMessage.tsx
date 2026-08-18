@@ -1,11 +1,15 @@
 /**
  * MarkdownMessage.tsx — Rich Markdown renderer for AI chat messages.
- * Integrates ThinkingBlock for reasoning and guarantees clean content rendering.
+ * Integrates ThinkingBlock for reasoning, guarantees clean content rendering,
+ * and renders interactive citation badges ([1], [2]) linking to vault notes.
  */
 import React, { useMemo } from 'react';
 import { marked, Renderer } from 'marked';
 import { ThinkingBlock } from './ThinkingBlock';
 import { stripReasoning } from '@/services/ai/reasoningParser';
+import { useNoteStore } from '@/store/noteStore';
+import { useUiStore } from '@/store/uiStore';
+import type { Citation } from '@/services/ai/types';
 
 interface MarkdownMessageProps {
   content: string;
@@ -13,6 +17,8 @@ interface MarkdownMessageProps {
   thinkingTimeMs?: number;
   isThinking?: boolean;
   isStreaming?: boolean;
+  citations?: Citation[];
+  onCitationClick?: (noteId: string) => void;
 }
 
 // Custom renderer to ensure tables are always wrapped in a self-contained horizontally-scrollable box
@@ -55,29 +61,125 @@ marked.use({
   breaks: true,
 });
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
   content,
   reasoning,
   thinkingTimeMs,
   isThinking,
   isStreaming,
+  citations,
+  onCitationClick,
 }) => {
   // Strip any residual thinking tags from final content
   const cleanContent = useMemo(() => {
     return stripReasoning(content);
   }, [content]);
 
-  const html = useMemo(() => {
+  // Preprocess text to convert citation numbers and wikilinks to interactive HTML elements
+  const processedMarkdown = useMemo(() => {
     if (!cleanContent) return '';
+    let text = cleanContent;
+
+    // 1. Convert [[1]], [[2]] or [[Kaynak 1]] to citation buttons
+    text = text.replace(/\[\[(?:Kaynak|Source)?\s*(\d+)\]\]/gi, (_match, p1) => {
+      const idx = parseInt(p1, 10);
+      const citation = citations && citations[idx - 1];
+      const noteId = citation ? citation.noteId : '';
+      const tooltip = citation ? `${citation.title}${citation.heading ? ` > ${citation.heading}` : ''}` : `Kaynak ${idx}`;
+      return `<button type="button" class="ai-citation-pill" data-citation-idx="${idx}" data-note-id="${escapeHtml(noteId)}" title="${escapeHtml(tooltip)}">[${idx}]</button>`;
+    });
+
+    // 2. Convert [1], [2], [Kaynak 1], [Source 1] (not followed by '(') to citation buttons
+    text = text.replace(/\[(?:Kaynak|Source)?\s*(\d+)\](?!\()/gi, (_match, p1) => {
+      const idx = parseInt(p1, 10);
+      const citation = citations && citations[idx - 1];
+      const noteId = citation ? citation.noteId : '';
+      const tooltip = citation ? `${citation.title}${citation.heading ? ` > ${citation.heading}` : ''}` : `Kaynak ${idx}`;
+      return `<button type="button" class="ai-citation-pill" data-citation-idx="${idx}" data-note-id="${escapeHtml(noteId)}" title="${escapeHtml(tooltip)}">[${idx}]</button>`;
+    });
+
+    // 3. Convert [[Note Title]] or [[Note Title|Display]] to interactive wikilinks
+    text = text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, p1, p2) => {
+      const target = p1.trim();
+      const display = (p2 || target).trim();
+      return `<a href="#" class="ai-wikilink" data-wikilink="${escapeHtml(target)}">[[${escapeHtml(display)}]]</a>`;
+    });
+
+    return text;
+  }, [cleanContent, citations]);
+
+  const html = useMemo(() => {
+    if (!processedMarkdown) return '';
     try {
-      return marked.parse(cleanContent) as string;
+      return marked.parse(processedMarkdown) as string;
     } catch {
-      return cleanContent;
+      return processedMarkdown;
     }
-  }, [cleanContent]);
+  }, [processedMarkdown]);
+
+  // Delegated click handler for citation pills & wikilinks inside AI response
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+
+    // 1. Handle clicking on [1], [2] Citation Pill
+    const citationBtn = target.closest('.ai-citation-pill') as HTMLElement | null;
+    if (citationBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const noteId = citationBtn.getAttribute('data-note-id');
+      const idxStr = citationBtn.getAttribute('data-citation-idx');
+
+      if (noteId && onCitationClick) {
+        onCitationClick(noteId);
+      } else if (idxStr && citations && onCitationClick) {
+        const idx = parseInt(idxStr, 10);
+        if (idx > 0 && idx <= citations.length) {
+          onCitationClick(citations[idx - 1].noteId);
+        }
+      }
+      return;
+    }
+
+    // 2. Handle clicking on Wikilinks [[Note Title]] in AI response
+    const wikilinkEl = target.closest('.ai-wikilink') as HTMLElement | null;
+    if (wikilinkEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      const targetTitle = wikilinkEl.getAttribute('data-wikilink');
+      if (targetTitle) {
+        const { notes, selectNote, createNote } = useNoteStore.getState();
+        const targetNote = notes.find(
+          (n) =>
+            n.id.toLowerCase() === targetTitle.toLowerCase() ||
+            n.title.toLowerCase() === targetTitle.toLowerCase() ||
+            n.id.toLowerCase().endsWith(`/${targetTitle.toLowerCase()}`) ||
+            n.id.toLowerCase().endsWith(`/${targetTitle.toLowerCase()}.md`)
+        );
+        if (targetNote) {
+          selectNote(targetNote.id);
+        } else {
+          createNote(targetTitle);
+        }
+        useUiStore.getState().setViewMode('notes');
+      }
+      return;
+    }
+  };
 
   return (
-    <div className="relative text-xs leading-relaxed break-words ai-markdown-content select-text w-full min-w-0 max-w-full overflow-hidden">
+    <div
+      onClick={handleContainerClick}
+      className="relative text-xs leading-relaxed break-words ai-markdown-content select-text w-full min-w-0 max-w-full overflow-hidden"
+    >
       {/* Antigravity / DeepSeek Style Collapsible Thinking Block */}
       {(reasoning || isThinking) && (
         <ThinkingBlock
@@ -87,7 +189,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
         />
       )}
 
-      {/* Clean Response Body */}
+      {/* Clean Response Body with Interactive Citations & Wikilinks */}
       {html ? (
         <div
           dangerouslySetInnerHTML={{ __html: html }}

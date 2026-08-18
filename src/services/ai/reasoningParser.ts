@@ -5,7 +5,8 @@
  * - XML/Inline tags (<think>...</think>, <thought>...</thought>, <|thought|>...<|endofthought|>, etc.)
  * - Qwen & on-prem models natural language thinking blocks:
  *   "Here's a thinking process:" ... "[Done.]\n*Output Generation* (Proceeds)" / "[Output Generation]"
- * - Prompt prefill implicit start tags (closing </think> / [Done.] / [Output Generation] only)
+ * - Dynamic token buffer to prevent leaking opening thinking headers during stream start
+ * - Automatic stray transition marker stripping
  * - Markdown thought blocks (```thought ... ```)
  * - Zero-leakage pure content extraction
  */
@@ -26,14 +27,14 @@ const OPEN_REGEXES: RegExp[] = [
   /<\|thought\|>/i,
   /<\|im_start|>thought/i,
   /```(?:thought|thinking)/i,
-  /Here'?s (?:a|the) (?:step-by-step )?thinking process(?:[^\n:]*)?:/i,
-  /Here is (?:a|the|my) (?:step-by-step )?thought process(?:[^\n:]*)?:/i,
-  /Thinking Process:/i,
-  /Thought Process:/i,
-  /Reasoning Process:/i,
-  /###\s*(?:Thinking|Thought|Reasoning) Process/i,
-  /##\s*(?:Thinking|Thought|Reasoning) Process/i,
-  /#\s*(?:Thinking|Thought|Reasoning) Process/i,
+  /Here'?s (?:a|the) (?:step-by-step )?thinking process(?:[^\n:]*)?:?/i,
+  /Here is (?:a|the|my) (?:step-by-step )?(?:thinking|thought) process(?:[^\n:]*)?:?/i,
+  /(?:\*|_){0,2}Thinking Process(?:\*|_){0,2}:?/i,
+  /(?:\*|_){0,2}Thought Process(?:\*|_){0,2}:?/i,
+  /(?:\*|_){0,2}Reasoning Process(?:\*|_){0,2}:?/i,
+  /###\s*(?:Thinking|Thought|Reasoning)(?: Process)?:?/i,
+  /##\s*(?:Thinking|Thought|Reasoning)(?: Process)?:?/i,
+  /#\s*(?:Thinking|Thought|Reasoning)(?: Process)?:?/i,
 ];
 
 const CLOSE_REGEXES: RegExp[] = [
@@ -47,7 +48,7 @@ const CLOSE_REGEXES: RegExp[] = [
   // Full composite markers with [Done.] and *Output Generation* (Proceeds)
   /(?:\[Done\.?\]\s*)?(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?/i,
   /(?:\[Done\.?\]\s*)?\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?/i,
-  /\[Done\.?\](?:\s*(?:\(?Proceeds?\)?|\*Proceeds\*|\[Proceeds\]|Proceeds))?/i,
+  /\[Done\.?\](?:\s*(?:(?:\*|_){1,2}Output Generation(?:\*|_){1,2}|\(?Proceeds?\)?)?)?/i,
   /\[Final Response\]/i,
   /\[Response\]/i,
   /\[Output\]/i,
@@ -56,6 +57,9 @@ const CLOSE_REGEXES: RegExp[] = [
   /---\s*(?:Response|Output)\s*---/i,
   /```/i,
 ];
+
+const STRAY_OUTPUT_MARKERS =
+  /^\s*(?:\[Done\.?\]\s*)?(?:(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?|\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?|(?:\*|_){1,2}(?:Final )?(?:Response|Output)(?:\*|_){1,2}:?|\[Final Response\]|\[Response\]|\[Output\]|\(?Proceeds\)?)\s*/i;
 
 function findOpenMatch(str: string): { index: number; length: number } | null {
   let earliestIdx = -1;
@@ -130,89 +134,98 @@ export class ReasoningStreamParser {
     }
 
     this.rawAccumulated += chunk;
+    this.pendingBuffer += chunk;
 
-    let remaining = this.pendingBuffer + chunk;
-    this.pendingBuffer = '';
     let reasoningDelta = '';
     let contentDelta = '';
 
-    // 2. Parse inline tags & reasoning headers in the text stream
-    while (remaining.length > 0) {
-      if (!this.inThinkingMode) {
-        const openMatch = findOpenMatch(remaining);
-        const closeMatch = findCloseMatch(remaining);
+    // 2. Initial buffering at start of stream to accurately detect natural language thinking header
+    if (!this.inThinkingMode && this.contentAccumulated.length === 0 && this.reasoningAccumulated.length === 0) {
+      const openMatch = findOpenMatch(this.pendingBuffer);
+      if (openMatch) {
+        if (openMatch.index > 0) {
+          const before = this.pendingBuffer.slice(0, openMatch.index);
+          contentDelta += before;
+          this.contentAccumulated += before;
+        }
+        this.inThinkingMode = true;
+        this.thinkingStartTime = this.thinkingStartTime || Date.now();
+        this.pendingBuffer = this.pendingBuffer.slice(openMatch.index + openMatch.length);
+      } else {
+        const startsWithPossibleHeader =
+          /^(?:H(?:e(?:r(?:e(?:'s?)?)?)?)?|T(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?|R(?:e(?:a(?:s(?:o(?:n(?:i(?:n(?:g)?)?)?)?)?)?)?)?|<(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?|\*(?:T|\*T))/i.test(
+            this.pendingBuffer
+          );
 
-        if (openMatch) {
-          // Content before open tag
-          const beforeContent = remaining.slice(0, openMatch.index);
-          if (beforeContent) {
-            contentDelta += beforeContent;
-            this.contentAccumulated += beforeContent;
-          }
+        if (startsWithPossibleHeader && this.pendingBuffer.length < 80 && !this.pendingBuffer.includes('\n\n')) {
+          // Buffer until full header arrives or non-header confirmed
+          return { reasoningDelta: '', contentDelta: '', isThinking: false };
+        } else {
+          // Normal content text
+          contentDelta += this.pendingBuffer;
+          this.contentAccumulated += this.pendingBuffer;
+          this.pendingBuffer = '';
+          return { reasoningDelta: '', contentDelta, isThinking: false };
+        }
+      }
+    }
 
-          // Enter thinking mode
-          this.inThinkingMode = true;
-          this.thinkingStartTime = this.thinkingStartTime || Date.now();
-          remaining = remaining.slice(openMatch.index + openMatch.length);
-        } else if (closeMatch && this.contentAccumulated.trim().length === 0) {
-          // Implicit start: text received so far was reasoning!
-          const thoughtSoFar = remaining.slice(0, closeMatch.index);
-          if (thoughtSoFar) {
-            reasoningDelta += thoughtSoFar;
-            this.reasoningAccumulated += thoughtSoFar;
+    // 3. Process remaining buffer
+    while (this.pendingBuffer.length > 0) {
+      if (this.inThinkingMode) {
+        const closeMatch = findCloseMatch(this.pendingBuffer);
+        if (closeMatch) {
+          const thought = this.pendingBuffer.slice(0, closeMatch.index);
+          if (thought) {
+            reasoningDelta += thought;
+            this.reasoningAccumulated += thought;
           }
           this.inThinkingMode = false;
           this.thinkingEndTime = Date.now();
-          remaining = remaining.slice(closeMatch.index + closeMatch.length);
+          this.pendingBuffer = this.pendingBuffer.slice(closeMatch.index + closeMatch.length);
+
+          // Strip any immediate trailing stray output markers like *Output Generation* (Proceeds)
+          const stray = this.pendingBuffer.match(STRAY_OUTPUT_MARKERS);
+          if (stray) {
+            this.pendingBuffer = this.pendingBuffer.slice(stray[0].length);
+          }
         } else {
-          // Check if remaining tail could be a split prefix of an open/close tag
-          const prefixIdx = this.findPotentialPrefix(remaining);
-          if (prefixIdx !== -1 && prefixIdx > 0) {
-            const safe = remaining.slice(0, prefixIdx);
-            contentDelta += safe;
-            this.contentAccumulated += safe;
-            this.pendingBuffer = remaining.slice(prefixIdx);
-            remaining = '';
-          } else if (prefixIdx === 0) {
-            this.pendingBuffer = remaining;
-            remaining = '';
+          // In thinking mode, emit safe reasoning chunk
+          const tailMatch = this.pendingBuffer.match(/(?:\[|\*|<|#|-)[^[<#*-]*$/);
+          if (tailMatch && tailMatch.index !== undefined && this.pendingBuffer.length - tailMatch.index < 40) {
+            const safe = this.pendingBuffer.slice(0, tailMatch.index);
+            reasoningDelta += safe;
+            this.reasoningAccumulated += safe;
+            this.pendingBuffer = this.pendingBuffer.slice(tailMatch.index);
+            break;
           } else {
-            // Normal content text
-            contentDelta += remaining;
-            this.contentAccumulated += remaining;
-            remaining = '';
+            reasoningDelta += this.pendingBuffer;
+            this.reasoningAccumulated += this.pendingBuffer;
+            this.pendingBuffer = '';
           }
         }
       } else {
-        // In thinking mode — look for closing tags / output markers
-        const closeMatch = findCloseMatch(remaining);
+        // Content mode — strip stray output markers if at start of content
+        if (this.contentAccumulated.trim().length === 0) {
+          const stray = this.pendingBuffer.match(STRAY_OUTPUT_MARKERS);
+          if (stray) {
+            this.pendingBuffer = this.pendingBuffer.slice(stray[0].length);
+          }
+        }
 
-        if (closeMatch) {
-          const thoughtChunk = remaining.slice(0, closeMatch.index);
-          if (thoughtChunk) {
-            reasoningDelta += thoughtChunk;
-            this.reasoningAccumulated += thoughtChunk;
+        const openMatch = findOpenMatch(this.pendingBuffer);
+        if (openMatch) {
+          const before = this.pendingBuffer.slice(0, openMatch.index);
+          if (before) {
+            contentDelta += before;
+            this.contentAccumulated += before;
           }
-          this.inThinkingMode = false;
-          this.thinkingEndTime = Date.now();
-          remaining = remaining.slice(closeMatch.index + closeMatch.length);
+          this.inThinkingMode = true;
+          this.pendingBuffer = this.pendingBuffer.slice(openMatch.index + openMatch.length);
         } else {
-          // Check if tail could be a split prefix of a close tag
-          const prefixIdx = this.findPotentialClosePrefix(remaining);
-          if (prefixIdx !== -1 && prefixIdx > 0) {
-            const safe = remaining.slice(0, prefixIdx);
-            reasoningDelta += safe;
-            this.reasoningAccumulated += safe;
-            this.pendingBuffer = remaining.slice(prefixIdx);
-            remaining = '';
-          } else if (prefixIdx === 0) {
-            this.pendingBuffer = remaining;
-            remaining = '';
-          } else {
-            reasoningDelta += remaining;
-            this.reasoningAccumulated += remaining;
-            remaining = '';
-          }
+          contentDelta += this.pendingBuffer;
+          this.contentAccumulated += this.pendingBuffer;
+          this.pendingBuffer = '';
         }
       }
     }
@@ -222,58 +235,6 @@ export class ReasoningStreamParser {
       contentDelta,
       isThinking: this.inThinkingMode,
     };
-  }
-
-  private findPotentialPrefix(str: string): number {
-    const lower = str.toLowerCase();
-    const prefixes = [
-      '<think',
-      '<thought',
-      '<thinking',
-      "here's",
-      'thinking',
-      'thought',
-      'reasoning',
-      '[done',
-      '*output',
-      '[output',
-      '###',
-    ];
-    for (let len = Math.min(lower.length, 30); len >= 2; len--) {
-      const tail = lower.slice(-len);
-      for (const p of prefixes) {
-        if (p.startsWith(tail)) {
-          return str.length - len;
-        }
-      }
-    }
-    return -1;
-  }
-
-  private findPotentialClosePrefix(str: string): number {
-    const lower = str.toLowerCase();
-    const prefixes = [
-      '</think',
-      '</thought',
-      '</thinking',
-      '[done',
-      '*output',
-      '[output',
-      '[final',
-      '[response',
-      '### final',
-      '### output',
-      '--- output',
-    ];
-    for (let len = Math.min(lower.length, 30); len >= 2; len--) {
-      const tail = lower.slice(-len);
-      for (const p of prefixes) {
-        if (p.startsWith(tail)) {
-          return str.length - len;
-        }
-      }
-    }
-    return -1;
   }
 
   private flush() {
@@ -338,7 +299,6 @@ export function stripReasoning(rawText: string): string {
   }
 
   // 2. Qwen & Open-source Natural Language Thinking blocks
-  // e.g. "Here's a thinking process: ... [Done.]\n*Output Generation* (Proceeds) ... <Content>"
   const nlThoughtRe =
     /^\s*(?:Here'?s (?:a|the) (?:step-by-step )?thinking process(?:[^\n:]*)?:|Thinking Process:|Thought Process:|### Thinking Process|## Thinking Process|# Thinking Process|### Thought Process|Reasoning Process:)\s*[\s\S]*?(?:(?:\[Done\.?\]\s*)?(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?|(?:\[Done\.?\]\s*)?\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?|\[Done\.?\]|\[Output\]|\[Final Response\]|\[Response\]|\[Proceeds\]|\[Proceeding with response\]|### (?:Final )?(?:Response|Output|Answer)|--- (?:Output|Response) ---|(?:\n\n|\r?\n)(?:Final )?(?:Response|Output):)([\s\S]*)$/i;
 

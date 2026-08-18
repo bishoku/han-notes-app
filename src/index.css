@@ -720,3 +720,53 @@
 .cm-fontsize-lg .cm-h2, .cm-fontsize-lg .tok-heading2 { font-size: 2.0rem !important; line-height: 2.4rem !important; }
 .cm-fontsize-lg .cm-h3, .cm-fontsize-lg .tok-heading3 { font-size: 1.5rem !important; line-height: 1.9rem !important; }
 .cm-fontsize-lg .cm-h4, .cm-fontsize-lg .tok-heading4 { font-size: 1.2rem !important; line-height: 1.6rem !important; }
+
+/* ─── AI Chat Citation Pills & Inline Links ─── */
+.ai-citation-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1.5px 5px;
+  margin: 0 2px;
+  border-radius: 6px;
+  background-color: rgba(168, 85, 247, 0.12);
+  color: #9333ea;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  cursor: pointer;
+  vertical-align: baseline;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.dark .ai-citation-pill {
+  background-color: rgba(192, 132, 252, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+}
+
+.ai-citation-pill:hover {
+  background-color: rgba(168, 85, 247, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dark .ai-citation-pill:hover {
+  background-color: rgba(192, 132, 252, 0.3);
+}
+
+.ai-wikilink {
+  display: inline-block;
+  color: var(--color-mac-accent);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.15s;
+  cursor: pointer;
+}
+
+.ai-wikilink:hover {
+  opacity: 0.8;
+}

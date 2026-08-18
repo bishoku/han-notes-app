@@ -114,6 +114,15 @@ export const ChatDrawer: React.FC = () => {
     }
   }, [isChatDrawerOpen]);
 
+  // Auto-resize input textarea to comfortably fit content without early scrolling
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const newHeight = Math.min(Math.max(el.scrollHeight, 40), 180);
+    el.style.height = `${newHeight}px`;
+  }, [input]);
+
   // Close menus on outside click
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -519,6 +528,8 @@ export const ChatDrawer: React.FC = () => {
                       thinkingTimeMs={msg.thinkingTimeMs}
                       isThinking={isStreaming && isLast && (msg.isThinking || (!msg.content && !!msg.reasoning))}
                       isStreaming={isStreaming && isLast}
+                      citations={msg.citations}
+                      onCitationClick={handleOpenCitation}
                     />
                   ) : isStreaming && isLast ? (
                     <span className="inline-flex items-center gap-1 text-gray-400 py-1">
@@ -559,7 +570,7 @@ export const ChatDrawer: React.FC = () => {
 
       {/* 4. Input Footer */}
       <div className="p-3 border-t border-gray-100 dark:border-zinc-800/80 bg-gray-50/50 dark:bg-zinc-900/50">
-        <div className="flex items-end gap-2 bg-white dark:bg-zinc-800 p-2 rounded-2xl border border-gray-200/80 dark:border-zinc-700/80 focus-within:ring-2 focus-within:ring-mac-accent/40 focus-within:border-mac-accent transition-all shadow-xs">
+        <div className="flex items-end gap-2 bg-white dark:bg-zinc-800 p-2.5 rounded-2xl border border-gray-200/80 dark:border-zinc-700/80 focus-within:ring-2 focus-within:ring-mac-accent/40 focus-within:border-mac-accent transition-all shadow-xs">
           <textarea
             ref={textareaRef}
             rows={1}
@@ -567,7 +578,7 @@ export const ChatDrawer: React.FC = () => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('aiInputPlaceholder')}
-            className="w-full resize-none bg-transparent outline-none text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 max-h-28 py-0.5"
+            className="w-full resize-none bg-transparent outline-none text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 min-h-[38px] max-h-48 py-1.5 px-1 leading-relaxed custom-scrollbar"
           />
 
           {isStreaming ? (
