@@ -4,8 +4,8 @@
  * - Structured SSE delta fields (reasoning_content, reasoning, thought)
  * - XML/Inline tags (<think>...</think>, <thought>...</thought>, <|thought|>...<|endofthought|>, etc.)
  * - Qwen & on-prem models natural language thinking blocks:
- *   "Here's a thinking process:" ... "[Output Generation] -> Proceeds"
- * - Prompt prefill implicit start tags (closing </think> / [Output Generation] only)
+ *   "Here's a thinking process:" ... "[Done.]\n*Output Generation* (Proceeds)" / "[Output Generation]"
+ * - Prompt prefill implicit start tags (closing </think> / [Done.] / [Output Generation] only)
  * - Markdown thought blocks (```thought ... ```)
  * - Zero-leakage pure content extraction
  */
@@ -18,53 +18,74 @@ export interface ReasoningParseResult {
   thinkingTimeMs?: number;
 }
 
-const OPEN_TAGS = [
-  '<think>',
-  '<thought>',
-  '<thinking>',
-  '<thinking_process>',
-  '<|thought|>',
-  '<|im_start|>thought',
-  '```thought',
-  '```thinking',
-  // Qwen / DeepSeek / Open-source natural language reasoning headers
-  "Here's a thinking process:",
-  "Here's the thinking process:",
-  "Here is the thinking process:",
-  "Here is my thought process:",
-  "Thinking Process:",
-  "Thought Process:",
-  "### Thinking Process",
-  "## Thinking Process",
-  "# Thinking Process",
-  "### Thought Process",
-  "Reasoning Process:",
+const OPEN_REGEXES: RegExp[] = [
+  /<think>/i,
+  /<thought>/i,
+  /<thinking>/i,
+  /<thinking_process>/i,
+  /<\|thought\|>/i,
+  /<\|im_start|>thought/i,
+  /```(?:thought|thinking)/i,
+  /Here'?s (?:a|the) (?:step-by-step )?thinking process(?:[^\n:]*)?:/i,
+  /Here is (?:a|the|my) (?:step-by-step )?thought process(?:[^\n:]*)?:/i,
+  /Thinking Process:/i,
+  /Thought Process:/i,
+  /Reasoning Process:/i,
+  /###\s*(?:Thinking|Thought|Reasoning) Process/i,
+  /##\s*(?:Thinking|Thought|Reasoning) Process/i,
+  /#\s*(?:Thinking|Thought|Reasoning) Process/i,
 ];
 
-const CLOSE_TAGS = [
-  '</think>',
-  '</thought>',
-  '</thinking>',
-  '</thinking_process>',
-  '<|/thought|>',
-  '<|endofthought|>',
-  '<|im_end|>',
-  // Qwen / Open-source output markers & transition tokens
-  '[Output Generation] -> Proceeds',
-  '[Output Generation]',
-  '[Final Response]',
-  '[Response]',
-  '[Output]',
-  '[Proceeds]',
-  '[Proceeding with response]',
-  '### Final Response',
-  '### Final Answer',
-  '### Output',
-  '### Response',
-  '--- Output ---',
-  '--- Response ---',
-  '```',
+const CLOSE_REGEXES: RegExp[] = [
+  /<\/think>/i,
+  /<\/thought>/i,
+  /<\/thinking>/i,
+  /<\/thinking_process>/i,
+  /<\|\/thought\|>/i,
+  /<\|endofthought\|>/i,
+  /<\|im_end\|>/i,
+  // Full composite markers with [Done.] and *Output Generation* (Proceeds)
+  /(?:\[Done\.?\]\s*)?(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?/i,
+  /(?:\[Done\.?\]\s*)?\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?/i,
+  /\[Done\.?\](?:\s*(?:\(?Proceeds?\)?|\*Proceeds\*|\[Proceeds\]|Proceeds))?/i,
+  /\[Final Response\]/i,
+  /\[Response\]/i,
+  /\[Output\]/i,
+  /(?:\*|_){1,2}Final (?:Response|Output|Answer)(?:\*|_){1,2}/i,
+  /###\s*(?:Final )?(?:Response|Output|Answer)/i,
+  /---\s*(?:Response|Output)\s*---/i,
+  /```/i,
 ];
+
+function findOpenMatch(str: string): { index: number; length: number } | null {
+  let earliestIdx = -1;
+  let matchedLength = 0;
+  for (const re of OPEN_REGEXES) {
+    const match = str.match(re);
+    if (match && match.index !== undefined) {
+      if (earliestIdx === -1 || match.index < earliestIdx) {
+        earliestIdx = match.index;
+        matchedLength = match[0].length;
+      }
+    }
+  }
+  return earliestIdx !== -1 ? { index: earliestIdx, length: matchedLength } : null;
+}
+
+function findCloseMatch(str: string): { index: number; length: number } | null {
+  let earliestIdx = -1;
+  let matchedLength = 0;
+  for (const re of CLOSE_REGEXES) {
+    const match = str.match(re);
+    if (match && match.index !== undefined) {
+      if (earliestIdx === -1 || match.index < earliestIdx) {
+        earliestIdx = match.index;
+        matchedLength = match[0].length;
+      }
+    }
+  }
+  return earliestIdx !== -1 ? { index: earliestIdx, length: matchedLength } : null;
+}
 
 /**
  * Stateful streaming parser for LLM output.
@@ -118,32 +139,12 @@ export class ReasoningStreamParser {
     // 2. Parse inline tags & reasoning headers in the text stream
     while (remaining.length > 0) {
       if (!this.inThinkingMode) {
-        // Check for opening tags
-        let foundOpenIndex = -1;
-        let matchedOpenTag = '';
+        const openMatch = findOpenMatch(remaining);
+        const closeMatch = findCloseMatch(remaining);
 
-        for (const tag of OPEN_TAGS) {
-          const idx = remaining.toLowerCase().indexOf(tag.toLowerCase());
-          if (idx !== -1 && (foundOpenIndex === -1 || idx < foundOpenIndex)) {
-            foundOpenIndex = idx;
-            matchedOpenTag = remaining.slice(idx, idx + tag.length);
-          }
-        }
-
-        // Check for implicit start (only closing tag arrives in stream)
-        let foundCloseIndex = -1;
-        let matchedCloseTag = '';
-        for (const tag of CLOSE_TAGS) {
-          const idx = remaining.toLowerCase().indexOf(tag.toLowerCase());
-          if (idx !== -1 && (foundCloseIndex === -1 || idx < foundCloseIndex)) {
-            foundCloseIndex = idx;
-            matchedCloseTag = remaining.slice(idx, idx + tag.length);
-          }
-        }
-
-        if (foundOpenIndex !== -1) {
+        if (openMatch) {
           // Content before open tag
-          const beforeContent = remaining.slice(0, foundOpenIndex);
+          const beforeContent = remaining.slice(0, openMatch.index);
           if (beforeContent) {
             contentDelta += beforeContent;
             this.contentAccumulated += beforeContent;
@@ -152,20 +153,20 @@ export class ReasoningStreamParser {
           // Enter thinking mode
           this.inThinkingMode = true;
           this.thinkingStartTime = this.thinkingStartTime || Date.now();
-          remaining = remaining.slice(foundOpenIndex + matchedOpenTag.length);
-        } else if (foundCloseIndex !== -1 && this.contentAccumulated.trim().length === 0) {
+          remaining = remaining.slice(openMatch.index + openMatch.length);
+        } else if (closeMatch && this.contentAccumulated.trim().length === 0) {
           // Implicit start: text received so far was reasoning!
-          const thoughtSoFar = remaining.slice(0, foundCloseIndex);
+          const thoughtSoFar = remaining.slice(0, closeMatch.index);
           if (thoughtSoFar) {
             reasoningDelta += thoughtSoFar;
             this.reasoningAccumulated += thoughtSoFar;
           }
           this.inThinkingMode = false;
           this.thinkingEndTime = Date.now();
-          remaining = remaining.slice(foundCloseIndex + matchedCloseTag.length);
+          remaining = remaining.slice(closeMatch.index + closeMatch.length);
         } else {
           // Check if remaining tail could be a split prefix of an open/close tag
-          const prefixIdx = this.findPotentialTagPrefix(remaining);
+          const prefixIdx = this.findPotentialPrefix(remaining);
           if (prefixIdx !== -1 && prefixIdx > 0) {
             const safe = remaining.slice(0, prefixIdx);
             contentDelta += safe;
@@ -184,29 +185,20 @@ export class ReasoningStreamParser {
         }
       } else {
         // In thinking mode — look for closing tags / output markers
-        let foundCloseIndex = -1;
-        let matchedCloseTag = '';
+        const closeMatch = findCloseMatch(remaining);
 
-        for (const tag of CLOSE_TAGS) {
-          const idx = remaining.toLowerCase().indexOf(tag.toLowerCase());
-          if (idx !== -1 && (foundCloseIndex === -1 || idx < foundCloseIndex)) {
-            foundCloseIndex = idx;
-            matchedCloseTag = remaining.slice(idx, idx + tag.length);
-          }
-        }
-
-        if (foundCloseIndex !== -1) {
-          const thoughtChunk = remaining.slice(0, foundCloseIndex);
+        if (closeMatch) {
+          const thoughtChunk = remaining.slice(0, closeMatch.index);
           if (thoughtChunk) {
             reasoningDelta += thoughtChunk;
             this.reasoningAccumulated += thoughtChunk;
           }
           this.inThinkingMode = false;
           this.thinkingEndTime = Date.now();
-          remaining = remaining.slice(foundCloseIndex + matchedCloseTag.length);
+          remaining = remaining.slice(closeMatch.index + closeMatch.length);
         } else {
           // Check if tail could be a split prefix of a close tag
-          const prefixIdx = this.findPotentialCloseTagPrefix(remaining);
+          const prefixIdx = this.findPotentialClosePrefix(remaining);
           if (prefixIdx !== -1 && prefixIdx > 0) {
             const safe = remaining.slice(0, prefixIdx);
             reasoningDelta += safe;
@@ -232,13 +224,25 @@ export class ReasoningStreamParser {
     };
   }
 
-  private findPotentialTagPrefix(str: string): number {
+  private findPotentialPrefix(str: string): number {
     const lower = str.toLowerCase();
-    const all = [...OPEN_TAGS, ...CLOSE_TAGS];
-    for (let len = Math.min(lower.length, 35); len >= 2; len--) {
+    const prefixes = [
+      '<think',
+      '<thought',
+      '<thinking',
+      "here's",
+      'thinking',
+      'thought',
+      'reasoning',
+      '[done',
+      '*output',
+      '[output',
+      '###',
+    ];
+    for (let len = Math.min(lower.length, 30); len >= 2; len--) {
       const tail = lower.slice(-len);
-      for (const tag of all) {
-        if (tag.toLowerCase().startsWith(tail)) {
+      for (const p of prefixes) {
+        if (p.startsWith(tail)) {
           return str.length - len;
         }
       }
@@ -246,12 +250,25 @@ export class ReasoningStreamParser {
     return -1;
   }
 
-  private findPotentialCloseTagPrefix(str: string): number {
+  private findPotentialClosePrefix(str: string): number {
     const lower = str.toLowerCase();
-    for (let len = Math.min(lower.length, 35); len >= 2; len--) {
+    const prefixes = [
+      '</think',
+      '</thought',
+      '</thinking',
+      '[done',
+      '*output',
+      '[output',
+      '[final',
+      '[response',
+      '### final',
+      '### output',
+      '--- output',
+    ];
+    for (let len = Math.min(lower.length, 30); len >= 2; len--) {
       const tail = lower.slice(-len);
-      for (const tag of CLOSE_TAGS) {
-        if (tag.toLowerCase().startsWith(tail)) {
+      for (const p of prefixes) {
+        if (p.startsWith(tail)) {
           return str.length - len;
         }
       }
@@ -321,9 +338,9 @@ export function stripReasoning(rawText: string): string {
   }
 
   // 2. Qwen & Open-source Natural Language Thinking blocks
-  // e.g. "Here's a thinking process: ... [Output Generation] -> Proceeds ... <Content>"
+  // e.g. "Here's a thinking process: ... [Done.]\n*Output Generation* (Proceeds) ... <Content>"
   const nlThoughtRe =
-    /^\s*(?:Here'?s (?:a|the) (?:step-by-step )?thinking process(?:[^\n:]*)?:|Thinking Process:|Thought Process:|### Thinking Process|## Thinking Process|# Thinking Process|### Thought Process|Reasoning Process:)\s*[\s\S]*?(?:\[Output Generation\](?:\s*->\s*Proceeds)?|\[Output\]|\[Final Response\]|\[Response\]|\[Proceeds\]|\[Proceeding with response\]|### (?:Final )?(?:Response|Output|Answer)|--- (?:Output|Response) ---|(?:\n\n|\r?\n)(?:Final )?(?:Response|Output):)([\s\S]*)$/i;
+    /^\s*(?:Here'?s (?:a|the) (?:step-by-step )?thinking process(?:[^\n:]*)?:|Thinking Process:|Thought Process:|### Thinking Process|## Thinking Process|# Thinking Process|### Thought Process|Reasoning Process:)\s*[\s\S]*?(?:(?:\[Done\.?\]\s*)?(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?|(?:\[Done\.?\]\s*)?\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?|\[Done\.?\]|\[Output\]|\[Final Response\]|\[Response\]|\[Proceeds\]|\[Proceeding with response\]|### (?:Final )?(?:Response|Output|Answer)|--- (?:Output|Response) ---|(?:\n\n|\r?\n)(?:Final )?(?:Response|Output):)([\s\S]*)$/i;
 
   const nlMatch = clean.match(nlThoughtRe);
   if (nlMatch && nlMatch[1] !== undefined) {
@@ -337,7 +354,8 @@ export function stripReasoning(rawText: string): string {
     /^[\s\S]*?<\/thinking>/i,
     /^[\s\S]*?<\|\/thought\|>/i,
     /^[\s\S]*?<\|endofthought\|>/i,
-    /^[\s\S]*?\[Output Generation\](?:\s*->\s*Proceeds)?/i,
+    /^[\s\S]*?(?:\[Done\.?\]\s*)?(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?/i,
+    /^[\s\S]*?(?:\[Done\.?\]\s*)?\[Output Generation\](?:\s*->\s*Proceeds)?/i,
     /^[\s\S]*?\[Final Response\]/i,
   ];
 
