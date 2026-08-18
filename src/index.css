@@ -562,8 +562,49 @@
   color: #fbbf24;
 }
 
-.cm-strikethrough {
-  text-decoration: line-through;
+/* ─── Raw Mode: Strict plain text without visual formatting ─── */
+.cm-raw-mode .cm-editor .cm-line span {
+  font-weight: 400 !important;
+  font-style: normal !important;
+  text-decoration: none !important;
+}
+
+/* ─── Live Preview Mode: Text Decorators ─── */
+.cm-bold,
+.cm-bold *,
+.cm-preview-mode .cm-bold,
+.cm-preview-mode .cm-bold * {
+  font-weight: 700 !important;
+}
+
+.cm-italic,
+.cm-italic *,
+.cm-preview-mode .cm-italic,
+.cm-preview-mode .cm-italic * {
+  font-style: italic !important;
+}
+
+.cm-bold-italic,
+.cm-bold-italic *,
+.cm-preview-mode .cm-bold-italic,
+.cm-preview-mode .cm-bold-italic * {
+  font-weight: 700 !important;
+  font-style: italic !important;
+}
+
+.cm-underline,
+.cm-underline *,
+.cm-preview-mode .cm-underline,
+.cm-preview-mode .cm-underline * {
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+}
+
+.cm-strikethrough,
+.cm-strikethrough *,
+.cm-preview-mode .cm-strikethrough,
+.cm-preview-mode .cm-strikethrough * {
+  text-decoration: line-through !important;
   opacity: 0.75;
 }
 

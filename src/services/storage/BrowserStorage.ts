@@ -451,15 +451,49 @@ export class BrowserStorage implements IStorageService {
 
   async renameNode(relativePath: string, newName: string): Promise<void> {
     const dir = this.getDir();
-    const content = await readFileText(dir, relativePath);
-    const parts = relativePath.split('/');
-    parts.pop();
-    const finalName = !relativePath.includes('.') || relativePath.endsWith('.md')
-      ? (newName.endsWith('.md') ? newName : `${newName}.md`)
-      : newName;
-    const newPath = parts.length > 0 ? `${parts.join('/')}/${finalName}` : finalName;
-    await writeFileText(dir, newPath, content);
-    await this.deleteFileByPath(dir, relativePath);
+    const srcFile = await getOrCreateFile(dir, relativePath, false);
+
+    if (srcFile) {
+      // ── Source is a FILE ──
+      const content = await readFileText(dir, relativePath);
+      const parts = relativePath.split('/').filter(Boolean);
+      parts.pop();
+      const finalName = newName.endsWith('.md') ? newName : `${newName}.md`;
+      const newPath = parts.length > 0 ? `${parts.join('/')}/${finalName}` : finalName;
+
+      // Prevent renaming to the exact same path
+      if (relativePath === newPath) return;
+
+      await writeFileText(dir, newPath, content);
+      await this.deleteFileByPath(dir, relativePath);
+    } else {
+      // ── Source is a DIRECTORY ──
+      const cleanNewName = newName.replace(/\.md$/, '').trim();
+      const srcParts = relativePath.split('/').filter(Boolean);
+      srcParts.pop(); // Remove old folder name to get parent
+      const newPath = srcParts.length > 0 ? `${srcParts.join('/')}/${cleanNewName}` : cleanNewName;
+
+      // Prevent renaming to the exact same path
+      if (relativePath === newPath) return;
+
+      // 1. Get source directory handle
+      let currentSrc = dir;
+      for (const part of relativePath.split('/').filter(Boolean)) {
+        currentSrc = await currentSrc.getDirectoryHandle(part);
+      }
+
+      // 2. Create destination directory handle
+      let currentDest = dir;
+      for (const part of newPath.split('/').filter(Boolean)) {
+        currentDest = await currentDest.getDirectoryHandle(part, { create: true });
+      }
+
+      // 3. Copy directory contents recursively
+      await this.copyDirRecursive(currentSrc, currentDest);
+
+      // 4. Delete old directory
+      await this.deleteFileByPath(dir, relativePath);
+    }
   }
 
   async updateNoteTags(id: string, tags: string[]): Promise<void> {

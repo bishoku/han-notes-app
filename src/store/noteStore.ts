@@ -278,41 +278,69 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   renameNode: async (relPath: string, newName: string) => {
     try {
-      const isFile = !relPath.includes('.') || relPath.endsWith('.md');
-      const parts = relPath.split('/');
+      const findNodeInTree = (nodes: FileNode[], path: string): FileNode | null => {
+        for (const n of nodes) {
+          if (n.relative_path === path) return n;
+          if (n.children && n.children.length > 0) {
+            const found = findNodeInTree(n.children, path);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const foundNode = findNodeInTree(get().fileTree, relPath);
+      const isFile = foundNode
+        ? !foundNode.is_dir
+        : (relPath.endsWith('.md') || get().notes.some((n) => n.id === relPath || n.id === relPath.replace(/\.md$/, '')));
+
+      const parts = relPath.split('/').filter(Boolean);
       parts.pop();
+
       const finalName = isFile
         ? (newName.endsWith('.md') ? newName : `${newName}.md`)
-        : newName;
+        : newName.replace(/\.md$/, '').trim();
       const newPath = parts.length > 0 ? `${parts.join('/')}/${finalName}` : finalName;
 
       await storage.renameNode(relPath, newName);
 
       // Update current active note ID if it was affected
       const currentId = get().currentNoteId;
-      if (currentId === relPath) {
-        set({ currentNoteId: newPath });
-      } else if (currentId && currentId.startsWith(relPath + '/')) {
-        const updatedCurrentId = newPath + currentId.slice(relPath.length);
-        set({ currentNoteId: updatedCurrentId });
-      }
-
-      useGraphStore.getState().removeNoteFromGraph(relPath);
-      await get().loadVault();
-
-      // Refresh vector index immediately for the renamed note/folder
       if (isFile) {
+        const oldNoteId = relPath.replace(/\.md$/, '');
+        const newNoteId = newPath.replace(/\.md$/, '');
+        if (currentId === oldNoteId || currentId === relPath) {
+          set({ currentNoteId: newNoteId });
+        }
+        useGraphStore.getState().removeNoteFromGraph(oldNoteId);
+        await get().loadVault();
+
+        // Refresh vector index immediately for the renamed note
         try {
-          const content = await storage.readNote(newPath);
+          const content = await storage.readNote(newNoteId);
           const newTitle = finalName.replace(/\.md$/, '');
-          await indexingCoordinator.renameNote(relPath, newPath, newTitle, content);
+          await indexingCoordinator.renameNote(oldNoteId, newNoteId, newTitle, content);
         } catch (err) {
           console.warn('Failed to re-index renamed note:', err);
         }
       } else {
         // Folder rename
-        await indexingCoordinator.deleteFolder(relPath);
-        const updatedNotes = get().notes.filter((n) => n.id.startsWith(newPath + '/'));
+        const oldFolderId = relPath.replace(/\.md$/, '');
+        const newFolderId = newPath.replace(/\.md$/, '');
+        if (currentId && (currentId === oldFolderId || currentId.startsWith(oldFolderId + '/'))) {
+          const updatedCurrentId = newFolderId + currentId.slice(oldFolderId.length);
+          set({ currentNoteId: updatedCurrentId });
+        }
+        if (get().activeFolderPath === oldFolderId || get().activeFolderPath === relPath) {
+          set({ activeFolderPath: newFolderId });
+        }
+
+        // Clean up old folder in vector index and load reloaded vault
+        await indexingCoordinator.deleteFolder(oldFolderId);
+        await get().loadVault();
+
+        // Re-index all notes under new folder path
+        const updatedNotes = get().notes.filter((n) => n.id.startsWith(newFolderId + '/'));
         for (const n of updatedNotes) {
           try {
             const content = await storage.readNote(n.id);

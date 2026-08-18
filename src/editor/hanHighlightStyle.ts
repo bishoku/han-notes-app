@@ -1,7 +1,7 @@
 /**
  * hanHighlightStyle.ts — Rich syntax highlighting theme for code blocks.
  * Inspired by VS Code Dark+ / GitHub Light with high contrast tokens.
- * Replaces the default CodeMirror highlighting with more vibrant colors.
+ * Replaces the default CodeMirror highlighting with more vibrant colors for code tokens.
  */
 import { HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';

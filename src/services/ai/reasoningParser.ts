@@ -6,7 +6,7 @@
  * - Qwen & on-prem models natural language thinking blocks:
  *   "Here's a thinking process:" ... "[Done.]\n*Output Generation* (Proceeds)" / "[Output Generation]"
  * - Dynamic token buffer to prevent leaking opening thinking headers during stream start
- * - Automatic stray transition marker stripping
+ * - State-machine transition buffering to prevent leaking transition markers (*Output Generation*, [Done.], etc.)
  * - Markdown thought blocks (```thought ... ```)
  * - Zero-leakage pure content extraction
  */
@@ -45,7 +45,6 @@ const CLOSE_REGEXES: RegExp[] = [
   /<\|\/thought\|>/i,
   /<\|endofthought\|>/i,
   /<\|im_end\|>/i,
-  // Full composite markers with [Done.] and *Output Generation* (Proceeds)
   /(?:\[Done\.?\]\s*)?(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?/i,
   /(?:\[Done\.?\]\s*)?\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?/i,
   /\[Done\.?\](?:\s*(?:(?:\*|_){1,2}Output Generation(?:\*|_){1,2}|\(?Proceeds?\)?)?)?/i,
@@ -58,8 +57,31 @@ const CLOSE_REGEXES: RegExp[] = [
   /```/i,
 ];
 
-const STRAY_OUTPUT_MARKERS =
-  /^\s*(?:\[Done\.?\]\s*)?(?:(?:\*|_){1,2}Output Generation(?:\*|_){1,2}(?:\s*\(?Proceeds?\)?)?|\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?|(?:\*|_){1,2}(?:Final )?(?:Response|Output)(?:\*|_){1,2}:?|\[Final Response\]|\[Response\]|\[Output\]|\(?Proceeds\)?)\s*/i;
+const STRAY_MARKERS: RegExp[] = [
+  /^\s*\[Done\.?\]\s*/i,
+  /^\s*(?:\*|_){1,2}Output Generation(?:\*|_){1,2}\s*/i,
+  /^\s*\[Output Generation\](?:\s*(?:->|\()?Proceeds?\)?)?\s*/i,
+  /^\s*\(?Proceeds\)?\s*/i,
+  /^\s*(?:\*|_){1,2}(?:Final )?(?:Response|Output|Answer)(?:\*|_){1,2}:?\s*/i,
+  /^\s*\[(?:Final )?(?:Response|Output|Answer)\]\s*/i,
+  /^\s*###\s*(?:Final )?(?:Response|Output|Answer):?\s*/i,
+  /^\s*---\s*(?:Response|Output)\s*---\s*/i,
+];
+
+function stripStrayMarkers(str: string): string {
+  let changed = true;
+  let result = str;
+  while (changed) {
+    changed = false;
+    for (const re of STRAY_MARKERS) {
+      if (re.test(result)) {
+        result = result.replace(re, '');
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
 
 function findOpenMatch(str: string): { index: number; length: number } | null {
   let earliestIdx = -1;
@@ -100,7 +122,9 @@ export class ReasoningStreamParser {
   private reasoningAccumulated = '';
   private contentAccumulated = '';
   private inThinkingMode = false;
+  private inTransitionMode = false;
   private inExplicitReasoningMode = false;
+  private headerResolved = false;
   private thinkingStartTime: number | null = null;
   private thinkingEndTime: number | null = null;
   private pendingBuffer = '';
@@ -139,38 +163,32 @@ export class ReasoningStreamParser {
     let reasoningDelta = '';
     let contentDelta = '';
 
-    // 2. Initial buffering at start of stream to accurately detect natural language thinking header
-    if (!this.inThinkingMode && this.contentAccumulated.length === 0 && this.reasoningAccumulated.length === 0) {
+    // 2. Initial header resolution at stream start (prevent leaking natural language headers)
+    if (!this.headerResolved) {
       const openMatch = findOpenMatch(this.pendingBuffer);
       if (openMatch) {
         if (openMatch.index > 0) {
-          const before = this.pendingBuffer.slice(0, openMatch.index);
-          contentDelta += before;
-          this.contentAccumulated += before;
+          const before = this.pendingBuffer.slice(0, openMatch.index).trim();
+          if (before) {
+            contentDelta += before;
+            this.contentAccumulated += before;
+          }
         }
         this.inThinkingMode = true;
+        this.headerResolved = true;
         this.thinkingStartTime = this.thinkingStartTime || Date.now();
         this.pendingBuffer = this.pendingBuffer.slice(openMatch.index + openMatch.length);
       } else {
-        const startsWithPossibleHeader =
-          /^(?:H(?:e(?:r(?:e(?:'s?)?)?)?)?|T(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?|R(?:e(?:a(?:s(?:o(?:n(?:i(?:n(?:g)?)?)?)?)?)?)?)?|<(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?|\*(?:T|\*T))/i.test(
-            this.pendingBuffer
-          );
-
-        if (startsWithPossibleHeader && this.pendingBuffer.length < 80 && !this.pendingBuffer.includes('\n\n')) {
+        const trimmed = this.pendingBuffer.trimStart();
+        if (this.pendingBuffer.length < 80 && (trimmed.length === 0 || /^(?:H|T|R|<|\*|#|`)/i.test(trimmed))) {
           // Buffer until full header arrives or non-header confirmed
           return { reasoningDelta: '', contentDelta: '', isThinking: false };
-        } else {
-          // Normal content text
-          contentDelta += this.pendingBuffer;
-          this.contentAccumulated += this.pendingBuffer;
-          this.pendingBuffer = '';
-          return { reasoningDelta: '', contentDelta, isThinking: false };
         }
+        this.headerResolved = true;
       }
     }
 
-    // 3. Process remaining buffer
+    // 3. Process pending buffer with state machine
     while (this.pendingBuffer.length > 0) {
       if (this.inThinkingMode) {
         const closeMatch = findCloseMatch(this.pendingBuffer);
@@ -181,18 +199,13 @@ export class ReasoningStreamParser {
             this.reasoningAccumulated += thought;
           }
           this.inThinkingMode = false;
+          this.inTransitionMode = true;
           this.thinkingEndTime = Date.now();
           this.pendingBuffer = this.pendingBuffer.slice(closeMatch.index + closeMatch.length);
-
-          // Strip any immediate trailing stray output markers like *Output Generation* (Proceeds)
-          const stray = this.pendingBuffer.match(STRAY_OUTPUT_MARKERS);
-          if (stray) {
-            this.pendingBuffer = this.pendingBuffer.slice(stray[0].length);
-          }
         } else {
-          // In thinking mode, emit safe reasoning chunk
+          // In thinking mode, check if tail has partial closing marker
           const tailMatch = this.pendingBuffer.match(/(?:\[|\*|<|#|-)[^[<#*-]*$/);
-          if (tailMatch && tailMatch.index !== undefined && this.pendingBuffer.length - tailMatch.index < 40) {
+          if (tailMatch && tailMatch.index !== undefined && this.pendingBuffer.length - tailMatch.index < 50) {
             const safe = this.pendingBuffer.slice(0, tailMatch.index);
             reasoningDelta += safe;
             this.reasoningAccumulated += safe;
@@ -204,15 +217,28 @@ export class ReasoningStreamParser {
             this.pendingBuffer = '';
           }
         }
-      } else {
-        // Content mode — strip stray output markers if at start of content
-        if (this.contentAccumulated.trim().length === 0) {
-          const stray = this.pendingBuffer.match(STRAY_OUTPUT_MARKERS);
-          if (stray) {
-            this.pendingBuffer = this.pendingBuffer.slice(stray[0].length);
-          }
+      } else if (this.inTransitionMode) {
+        // Transition mode: strip stray transition markers like *Output Generation* (Proceeds)
+        const stripped = stripStrayMarkers(this.pendingBuffer);
+        if (stripped !== this.pendingBuffer) {
+          this.pendingBuffer = stripped;
         }
 
+        const trimmed = this.pendingBuffer.trimStart();
+        if (trimmed.length === 0) {
+          // Buffer only contains whitespace/newlines, wait for first token of real content
+          break;
+        }
+
+        if (/^(?:\[|\*|\(|P|O|F|R|#|-)/i.test(trimmed) && trimmed.length < 50) {
+          // Partial transition marker is still streaming, wait for full marker
+          break;
+        }
+
+        // Real content confirmed
+        this.inTransitionMode = false;
+      } else {
+        // Content mode: check for any late opening thinking tags
         const openMatch = findOpenMatch(this.pendingBuffer);
         if (openMatch) {
           const before = this.pendingBuffer.slice(0, openMatch.index);
@@ -241,6 +267,11 @@ export class ReasoningStreamParser {
     if (this.pendingBuffer) {
       if (this.inThinkingMode) {
         this.reasoningAccumulated += this.pendingBuffer;
+      } else if (this.inTransitionMode) {
+        const stripped = stripStrayMarkers(this.pendingBuffer).trim();
+        if (stripped) {
+          this.contentAccumulated += (this.contentAccumulated ? '\n' : '') + stripped;
+        }
       } else {
         this.contentAccumulated += this.pendingBuffer;
       }
@@ -257,9 +288,9 @@ export class ReasoningStreamParser {
 
     return {
       reasoning: this.reasoningAccumulated.trim(),
-      content: this.contentAccumulated.trim(),
+      content: stripReasoning(this.contentAccumulated).trim(),
       hasReasoning: this.reasoningAccumulated.trim().length > 0,
-      isThinking: this.inThinkingMode,
+      isThinking: false,
       thinkingTimeMs,
     };
   }
@@ -270,7 +301,9 @@ export class ReasoningStreamParser {
     this.contentAccumulated = '';
     this.pendingBuffer = '';
     this.inThinkingMode = false;
+    this.inTransitionMode = false;
     this.inExplicitReasoningMode = false;
+    this.headerResolved = false;
     this.thinkingStartTime = null;
     this.thinkingEndTime = null;
   }
@@ -323,5 +356,5 @@ export function stripReasoning(rawText: string): string {
     clean = clean.replace(re, '');
   }
 
-  return clean.trim();
+  return stripStrayMarkers(clean).trim();
 }

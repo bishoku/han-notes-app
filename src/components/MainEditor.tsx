@@ -485,7 +485,7 @@ export const MainEditor: React.FC = () => {
           ref={wrapperRef}
           className={cn(
             "py-12 relative pr-8 md:pr-12",
-            editorMode === 'preview' ? "pl-14" : "pl-8 md:pl-12"
+            editorMode === 'preview' ? "pl-14 cm-preview-mode" : "pl-8 md:pl-12 cm-raw-mode"
           )}
         >
           {editorMode === 'preview' && (

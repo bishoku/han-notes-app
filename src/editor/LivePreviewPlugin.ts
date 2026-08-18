@@ -21,14 +21,17 @@ import { CALLOUT_ICONS, calloutLineDecs, IconWidget } from "./preview/calloutDec
 import { handleEditorMouseDown } from "./preview/eventHandlers";
 
 const hiddenMark = Decoration.replace({});
+const boldMark = Decoration.mark({ class: "cm-bold" });
+const italicMark = Decoration.mark({ class: "cm-italic" });
+const boldItalicMark = Decoration.mark({ class: "cm-bold-italic" });
+const underlineMark = Decoration.mark({ class: "cm-underline" });
 const strikethroughMark = Decoration.mark({ class: "cm-strikethrough" });
 const highlightMark = Decoration.mark({ class: "cm-highlight" });
 const inlineCodeMark = Decoration.mark({ class: "cm-inline-code" });
 
 // Hoisted constants for performance — avoid recreating on each decoration pass
 const HIDE_NODES = new Set([
-  "HeaderMark", "EmphasisMark", "StrongMark",
-  "QuoteMark", "CodeMark", "CommentMark", "HTMLComment"
+  "HeaderMark", "QuoteMark", "CommentMark", "HTMLComment"
 ]);
 
 const lineDecH1 = Decoration.line({ attributes: { class: "cm-h1" } });
@@ -47,12 +50,16 @@ const imgRe = /!\[(.*?)\]\((.*?)\)/g;
 const commentRe = /<!--\s*task:(.*?)-->/g;
 const decCommentRe = /<!--\s*decision:(.*?)-->/g;
 const diagramCommentRe = /<!--\s*diagram:(.*?)\s*-->/g;
-const codeRe = /`([^`]+)`/g;
+const boldItalicRe = /\*\*\*([^*]+?)\*\*\*|___([^_]+?)___/g;
+const boldRe = /(?<!\*)\*\*([^*]+?)\*\*(?!\*)|(?<!_)__([^_]+?)__(?!_)/g;
+const italicRe = /(?<!\*)\*([^*]+?)\*(?!\*)|(?<!_)_([^_]+?)_(?!_)/g;
 const strikeRe = /~~(.*?)~~/g;
 const highlightRe = /==(.*?)==/g;
+const codeRe = /`([^`]+)`/g;
 const wikilinkRe = /\[\[(.*?)\]\]/g;
 const webLinkRe = /(?<!!)\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 const spanColorRe = /<span\s+style=["']color:\s*([^"';]+)[^"']*["']>([\s\S]*?)<\/span>/gi;
+const underlineRe = /<u>([\s\S]*?)<\/u>/gi;
 
 // Module-level cache for parsed metadata
 const _metaCache = new Map<string, any>();
@@ -583,37 +590,73 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       items.push({ from: commentFrom, to: commentTo, dec: hiddenMark });
     }
 
-    // K. Inline Code: `code`
-    codeRe.lastIndex = 0;
-    let cdMatch: RegExpExecArray | null;
-    while ((cdMatch = codeRe.exec(text)) !== null) {
-      const cFrom = line.from + cdMatch.index;
-      const cTo = cFrom + cdMatch[0].length;
-      items.push({ from: cFrom, to: cFrom + 1, dec: hiddenMark });
-      items.push({ from: cFrom + 1, to: cTo - 1, dec: inlineCodeMark });
-      items.push({ from: cTo - 1, to: cTo, dec: hiddenMark });
-    }
+    // K. Inline Text Formatting (Bold, Italic, Strikethrough, Highlight, Inline Code)
+    if (!isInsideFencedCode(line.from)) {
+      // 1. Bold Italic: ***text*** or ___text___
+      boldItalicRe.lastIndex = 0;
+      let biMatch: RegExpExecArray | null;
+      while ((biMatch = boldItalicRe.exec(text)) !== null) {
+        const biFrom = line.from + biMatch.index;
+        const biTo = biFrom + biMatch[0].length;
+        items.push({ from: biFrom, to: biFrom + 3, dec: hiddenMark });
+        items.push({ from: biFrom + 3, to: biTo - 3, dec: boldItalicMark });
+        items.push({ from: biTo - 3, to: biTo, dec: hiddenMark });
+      }
 
-    // L. Strikethrough: ~~text~~
-    strikeRe.lastIndex = 0;
-    let sMatch: RegExpExecArray | null;
-    while ((sMatch = strikeRe.exec(text)) !== null) {
-      const sFrom = line.from + sMatch.index;
-      const sTo = sFrom + sMatch[0].length;
-      items.push({ from: sFrom, to: sFrom + 2, dec: hiddenMark });
-      items.push({ from: sFrom + 2, to: sTo - 2, dec: strikethroughMark });
-      items.push({ from: sTo - 2, to: sTo, dec: hiddenMark });
-    }
+      // 2. Bold: **text** or __text__
+      boldRe.lastIndex = 0;
+      let bMatch: RegExpExecArray | null;
+      while ((bMatch = boldRe.exec(text)) !== null) {
+        const bFrom = line.from + bMatch.index;
+        const bTo = bFrom + bMatch[0].length;
+        items.push({ from: bFrom, to: bFrom + 2, dec: hiddenMark });
+        items.push({ from: bFrom + 2, to: bTo - 2, dec: boldMark });
+        items.push({ from: bTo - 2, to: bTo, dec: hiddenMark });
+      }
 
-    // M. Highlight: ==text==
-    highlightRe.lastIndex = 0;
-    let hlMatch: RegExpExecArray | null;
-    while ((hlMatch = highlightRe.exec(text)) !== null) {
-      const hlFrom = line.from + hlMatch.index;
-      const hlTo = hlFrom + hlMatch[0].length;
-      items.push({ from: hlFrom, to: hlFrom + 2, dec: hiddenMark });
-      items.push({ from: hlFrom + 2, to: hlTo - 2, dec: highlightMark });
-      items.push({ from: hlTo - 2, to: hlTo, dec: hiddenMark });
+      // 3. Italic: *text* or _text_
+      italicRe.lastIndex = 0;
+      let iMatch: RegExpExecArray | null;
+      while ((iMatch = italicRe.exec(text)) !== null) {
+        const iFrom = line.from + iMatch.index;
+        const iTo = iFrom + iMatch[0].length;
+        items.push({ from: iFrom, to: iFrom + 1, dec: hiddenMark });
+        items.push({ from: iFrom + 1, to: iTo - 1, dec: italicMark });
+        items.push({ from: iTo - 1, to: iTo, dec: hiddenMark });
+      }
+
+      // 4. Strikethrough: ~~text~~
+      strikeRe.lastIndex = 0;
+      let sMatch: RegExpExecArray | null;
+      while ((sMatch = strikeRe.exec(text)) !== null) {
+        const sFrom = line.from + sMatch.index;
+        const sTo = sFrom + sMatch[0].length;
+        items.push({ from: sFrom, to: sFrom + 2, dec: hiddenMark });
+        items.push({ from: sFrom + 2, to: sTo - 2, dec: strikethroughMark });
+        items.push({ from: sTo - 2, to: sTo, dec: hiddenMark });
+      }
+
+      // 5. Highlight: ==text==
+      highlightRe.lastIndex = 0;
+      let hlMatch: RegExpExecArray | null;
+      while ((hlMatch = highlightRe.exec(text)) !== null) {
+        const hlFrom = line.from + hlMatch.index;
+        const hlTo = hlFrom + hlMatch[0].length;
+        items.push({ from: hlFrom, to: hlFrom + 2, dec: hiddenMark });
+        items.push({ from: hlFrom + 2, to: hlTo - 2, dec: highlightMark });
+        items.push({ from: hlTo - 2, to: hlTo, dec: hiddenMark });
+      }
+
+      // 6. Inline Code: `code`
+      codeRe.lastIndex = 0;
+      let cMatch: RegExpExecArray | null;
+      while ((cMatch = codeRe.exec(text)) !== null) {
+        const cFrom = line.from + cMatch.index;
+        const cTo = cFrom + cMatch[0].length;
+        items.push({ from: cFrom, to: cFrom + 1, dec: hiddenMark });
+        items.push({ from: cFrom + 1, to: cTo - 1, dec: inlineCodeMark });
+        items.push({ from: cTo - 1, to: cTo, dec: hiddenMark });
+      }
     }
 
     // N. Wikilinks [[Note Title]]
@@ -690,6 +733,19 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       items.push({ from: closeTagFrom, to: closeTagTo, dec: hiddenMark });
     }
 
+    // P. Underline tags: <u>text</u>
+    underlineRe.lastIndex = 0;
+    let uMatch: RegExpExecArray | null;
+    while ((uMatch = underlineRe.exec(text)) !== null) {
+      const uFrom = line.from + uMatch.index;
+      const uTo = uFrom + uMatch[0].length;
+      items.push({ from: uFrom, to: uFrom + 3, dec: hiddenMark });
+      if (uTo - 4 > uFrom + 3) {
+        items.push({ from: uFrom + 3, to: uTo - 4, dec: underlineMark });
+      }
+      items.push({ from: uTo - 4, to: uTo, dec: hiddenMark });
+    }
+
     l++;
   }
 
@@ -708,6 +764,7 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   let lastReplaceEnd = -1;
   let lastAddedFrom = -1;
+  let lastAddedTo = -1;
 
   for (const item of items) {
     if (item.from < 0 || item.to > doc.length || item.from > item.to) continue;
@@ -716,13 +773,14 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       // Line decoration
       if (item.from < lastAddedFrom) continue;
       lastAddedFrom = item.from;
+      lastAddedTo = item.to;
       try {
         builder.add(item.from, item.to, item.dec);
       } catch {
         // Skip on duplicate/invalid
       }
     } else {
-      const isReplace = (item.dec as any).spec?.widget !== undefined || (item.dec as any).spec?.inclusive !== undefined;
+      const isReplace = (item.dec as any).spec?.widget !== undefined || (item.dec as any).spec?.inclusive !== undefined || (item.dec as any).isReplace;
       if (isReplace) {
         if (item.from < lastReplaceEnd) continue;
         lastReplaceEnd = item.to;
@@ -730,8 +788,9 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
         if (item.from < lastReplaceEnd && item.to > lastReplaceEnd) continue;
       }
 
-      if (item.from < lastAddedFrom) continue;
+      if (item.from < lastAddedFrom || (item.from === lastAddedFrom && item.to < lastAddedTo)) continue;
       lastAddedFrom = item.from;
+      lastAddedTo = item.to;
       try {
         builder.add(item.from, item.to, item.dec);
       } catch {
