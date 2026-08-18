@@ -70,6 +70,35 @@ export async function pickBrowserDirectory(): Promise<void> {
   }
 }
 
+/**
+ * Get the name of the previously saved directory handle (if any).
+ */
+export async function getSavedDirectoryName(): Promise<string | null> {
+  if (storage instanceof BrowserStorage) {
+    return await storage.getSavedHandleName();
+  }
+  return null;
+}
+
+/**
+ * Request permission to access the previously saved directory handle inside a user gesture (click).
+ */
+export async function requestSavedDirectoryPermission(): Promise<boolean> {
+  if (storage instanceof BrowserStorage) {
+    return await storage.requestPermissionForSaved();
+  }
+  return false;
+}
+
+/**
+ * Clear the saved directory handle from storage.
+ */
+export async function clearSavedDirectoryHandle(): Promise<void> {
+  if (storage instanceof BrowserStorage) {
+    await storage.clearSavedHandle();
+  }
+}
+
 /** Check if File System Access API is available in the browser */
 export function isFileSystemAccessSupported(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window;

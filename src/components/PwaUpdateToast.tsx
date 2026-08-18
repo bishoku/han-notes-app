@@ -15,7 +15,7 @@ export const PwaUpdateToast: React.FC<PwaUpdateToastProps> = ({ show, onAccept, 
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
+    <div className="fixed bottom-6 right-6 z-[250] animate-in slide-in-from-bottom-4 fade-in duration-300">
       <div className="flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-gray-200/60 dark:border-zinc-700/60 backdrop-blur-xl">
         <div className="w-8 h-8 rounded-lg bg-indigo-500/10 dark:bg-indigo-400/10 flex items-center justify-center shrink-0">
           <RefreshCw size={16} className="text-indigo-600 dark:text-indigo-400" />

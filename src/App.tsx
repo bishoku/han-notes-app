@@ -1,9 +1,13 @@
-import { MainLayout } from '@/layouts/MainLayout'
+import { MainLayout } from '@/layouts/MainLayout';
+import { PwaUpdateBanner } from '@/components/PwaUpdateBanner';
 
 function App() {
   return (
-    <MainLayout />
-  )
+    <>
+      <MainLayout />
+      <PwaUpdateBanner />
+    </>
+  );
 }
 
-export default App
+export default App;

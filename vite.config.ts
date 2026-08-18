@@ -21,8 +21,8 @@ export default defineConfig(({ command }) => {
         registerType: 'prompt',  // Show update prompt, don't auto-reload
         includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
         workbox: {
-          // Cache app shell (JS, CSS, HTML) — NOT user data
-          globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
+          // Cache app shell (JS, CSS, HTML, WASM) — NOT user data
+          globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico,wasm}'],
           // Network-first for navigation requests → always get latest HTML
           navigateFallback: 'index.html',
           // Clean old caches on activate

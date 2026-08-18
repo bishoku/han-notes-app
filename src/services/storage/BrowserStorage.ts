@@ -67,23 +67,46 @@ function openHandleDB(): Promise<IDBDatabase> {
 }
 
 async function saveHandle(handle: FileSystemDirectoryHandle): Promise<void> {
-  const db = await openHandleDB();
-  const tx = db.transaction(HANDLE_STORE, 'readwrite');
-  tx.objectStore(HANDLE_STORE).put(handle, 'vaultDir');
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  try {
+    const db = await openHandleDB();
+    const tx = db.transaction(HANDLE_STORE, 'readwrite');
+    tx.objectStore(HANDLE_STORE).put(handle, 'vaultDir');
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.error('[BrowserStorage] Failed to save directory handle:', err);
+  }
 }
 
 async function loadHandle(): Promise<FileSystemDirectoryHandle | null> {
-  const db = await openHandleDB();
-  const tx = db.transaction(HANDLE_STORE, 'readonly');
-  const req = tx.objectStore(HANDLE_STORE).get('vaultDir');
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror = () => reject(req.error);
-  });
+  try {
+    const db = await openHandleDB();
+    const tx = db.transaction(HANDLE_STORE, 'readonly');
+    const req = tx.objectStore(HANDLE_STORE).get('vaultDir');
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('[BrowserStorage] Failed to load saved handle from IndexedDB:', err);
+    return null;
+  }
+}
+
+async function clearHandle(): Promise<void> {
+  try {
+    const db = await openHandleDB();
+    const tx = db.transaction(HANDLE_STORE, 'readwrite');
+    tx.objectStore(HANDLE_STORE).delete('vaultDir');
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('[BrowserStorage] Failed to clear directory handle:', err);
+  }
 }
 
 // ─── File System Access API Helpers ─────────────────────────────────────
@@ -203,6 +226,18 @@ export class BrowserStorage implements IStorageService {
   private dirHandle: FileSystemDirectoryHandle | null = null;
 
   /**
+   * Get the name of the saved directory handle (if one exists in IndexedDB).
+   */
+  async getSavedHandleName(): Promise<string | null> {
+    try {
+      const saved = await loadHandle();
+      return saved ? saved.name : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Try to silently reuse a previously saved directory handle.
    * Does NOT show any browser dialogs — safe to call on page load.
    * Throws if no saved handle or permission not already granted.
@@ -211,13 +246,46 @@ export class BrowserStorage implements IStorageService {
     await ensureWasmLoaded();
     const saved = await loadHandle();
     if (saved) {
-      const perm = await (saved as any).queryPermission({ mode: 'readwrite' });
-      if (perm === 'granted') {
-        this.dirHandle = saved;
-        return;
+      try {
+        const perm = await (saved as any).queryPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
+          this.dirHandle = saved;
+          return;
+        }
+      } catch (err) {
+        console.warn('[BrowserStorage] queryPermission check failed:', err);
       }
     }
     throw new Error('No saved directory handle or permission not granted.');
+  }
+
+  /**
+   * Request permission for a previously saved directory handle inside a user gesture (click).
+   * Returns true if permission was granted, false otherwise.
+   */
+  async requestPermissionForSaved(): Promise<boolean> {
+    await ensureWasmLoaded();
+    const saved = await loadHandle();
+    if (!saved) return false;
+    try {
+      const perm = await (saved as any).requestPermission({ mode: 'readwrite' });
+      if (perm === 'granted') {
+        this.dirHandle = saved;
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn('[BrowserStorage] requestPermission failed:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Clear the saved directory handle from IndexedDB.
+   */
+  async clearSavedHandle(): Promise<void> {
+    this.dirHandle = null;
+    await clearHandle();
   }
 
   /**
