@@ -1,21 +1,24 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
 import { FileTreeNode } from '@/components/FileTreeNode';
-import { Search, Settings, CheckCircle, FolderPlus, FilePlus, Folder, FileCheck, Tag, ChevronDown, ChevronUp, X, Network, Sparkles } from 'lucide-react';
+import { Search, Settings, CheckCircle, FolderPlus, FilePlus, FileCheck, Tag, ChevronDown, ChevronUp, X, Network, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // Individual Zustand selectors — prevent re-renders from unrelated store changes
   const sidebarOpen = useUiStore(s => s.sidebarOpen);
   const setSettingsModalOpen = useUiStore(s => s.setSettingsModalOpen);
   const isSearchModalOpen = useUiStore(s => s.isSearchModalOpen);
   const setSearchModalOpen = useUiStore(s => s.setSearchModalOpen);
   const setViewMode = useUiStore(s => s.setViewMode);
-  const viewMode = useUiStore(s => s.viewMode);
   const fileTree = useNoteStore(s => s.fileTree);
   const notes = useNoteStore(s => s.notes);
   const activeFolderPath = useNoteStore(s => s.activeFolderPath);
@@ -41,6 +44,11 @@ export const Sidebar: React.FC = () => {
 
   if (!sidebarOpen) return null;
 
+  const pathname = location.pathname;
+  const isTasksActive = pathname.startsWith('/tasks');
+  const isDecisionsActive = pathname.startsWith('/decisions');
+  const isMindmapActive = pathname.startsWith('/mindmap');
+
   const closeRootContextMenu = () => setRootContextMenu(null);
 
   const handleRootDragOver = (e: React.DragEvent) => {
@@ -55,37 +63,39 @@ export const Sidebar: React.FC = () => {
   const handleRootDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsRootDragOver(false);
-    const srcRelPath = e.dataTransfer.getData('text/plain');
-    if (srcRelPath && srcRelPath.includes('/')) {
-      await moveNode(srcRelPath, "");
-    }
+    const srcPath = e.dataTransfer.getData('text/plain');
+    if (!srcPath) return;
+    
+    // Move to root
+    await moveNode(srcPath, '');
   };
 
-  const openNewNoteDialog = (parentPath = activeFolderPath || "") => {
-    const dialogTitle = parentPath ? `"${parentPath}" İçinde Yeni Not` : "Yeni Not (Kök Dizin)";
+  const openNewNoteDialog = (parentPath = activeFolderPath || '') => {
+    const dialogTitle = parentPath ? `"${parentPath}" İçinde Yeni Not` : 'Yeni Not (Kök Dizin)';
     setInputDialog({
       title: dialogTitle,
-      placeholder: "Not Adı (örn. Toplantı Notları)",
+      placeholder: 'Not Adı (örn. Toplantı Notları)',
       onConfirm: async (val) => {
-        await createNote(val, parentPath);
+        const newId = await createNote(val, parentPath);
         setViewMode('notes');
-      }
+        navigate(`/notes/${encodeURIComponent(newId)}`);
+      },
     });
   };
 
-  const openNewFolderDialog = (parentPath = activeFolderPath || "") => {
-    const dialogTitle = parentPath ? `"${parentPath}" İçinde Yeni Klasör` : "Yeni Klasör (Kök Dizin)";
+  const openNewFolderDialog = (parentPath = activeFolderPath || '') => {
+    const dialogTitle = parentPath ? `"${parentPath}" İçinde Yeni Klasör` : 'Yeni Klasör (Kök Dizin)';
     setInputDialog({
       title: dialogTitle,
-      placeholder: "Klasör Adı (örn. Projeler)",
+      placeholder: 'Klasör Adı (örn. Projeler)',
       onConfirm: async (val) => {
         await createFolder(val, parentPath);
-      }
+      },
     });
   };
 
   return (
-    <aside className="w-[20%] min-w-[220px] h-screen bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease relative select-none">
+    <aside className="w-[20%] min-w-[220px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease relative select-none">
       {/* Vault Header & Quick Actions */}
       <div className="p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -94,14 +104,14 @@ export const Sidebar: React.FC = () => {
             <button
               onClick={() => openNewNoteDialog()}
               className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-              title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Not` : "Yeni Not"}
+              title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Not` : 'Yeni Not'}
             >
               <FilePlus size={16} />
             </button>
             <button
               onClick={() => openNewFolderDialog()}
               className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-              title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Klasör` : "Yeni Klasör"}
+              title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Klasör` : 'Yeni Klasör'}
             >
               <FolderPlus size={16} />
             </button>
@@ -111,10 +121,10 @@ export const Sidebar: React.FC = () => {
         <button
           onClick={() => setSearchModalOpen(true)}
           className={cn(
-            "flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-all cursor-pointer border group",
-            isSearchModalOpen || viewMode === 'search'
-              ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-2xs"
-              : "bg-black/5 dark:bg-white/5 border-transparent hover:bg-black/10 dark:hover:bg-white/10 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+            'flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-all cursor-pointer border group',
+            isSearchModalOpen || pathname.startsWith('/search')
+              ? 'bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-2xs'
+              : 'bg-black/5 dark:bg-white/5 border-transparent hover:bg-black/10 dark:hover:bg-white/10 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
           )}
           title="Hızlı Arama & Komut Paleti (Cmd+K)"
         >
@@ -139,8 +149,8 @@ export const Sidebar: React.FC = () => {
           setRootContextMenu({ x: e.clientX, y: e.clientY });
         }}
         className={cn(
-          "flex-1 overflow-y-auto px-2 pb-4 transition-colors rounded-lg mx-2 min-h-[200px]",
-          isRootDragOver && "bg-mac-accent/10 border-2 border-dashed border-mac-accent"
+          'flex-1 overflow-y-auto px-2 pb-4 transition-colors rounded-lg mx-2 min-h-[200px]',
+          isRootDragOver && 'bg-mac-accent/10 border-2 border-dashed border-mac-accent'
         )}
       >
         <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 mb-2 px-2 uppercase tracking-wider min-w-0">
@@ -222,126 +232,133 @@ export const Sidebar: React.FC = () => {
         )}
       </div>
 
-      {/* Tags Section (Top 10 + Show More) */}
-      {vaultTags.length > 0 && (
-        <div className="border-t border-mac-borderLight dark:border-mac-borderDark p-3 flex flex-col gap-1.5 shrink-0 max-h-48 overflow-y-auto">
-          <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1">
-            <span className="flex items-center gap-1">
-              <Tag size={11} className="text-purple-500" /> Etiketler ({vaultTags.length})
+      {/* Tags Section */}
+      {vaultTags && vaultTags.length > 0 && (
+        <div className="px-3 py-2 border-t border-mac-borderLight dark:border-mac-borderDark max-h-36 flex flex-col">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1.5 uppercase tracking-wider">
+              <Tag size={11} className="text-mac-accent" />
+              Etiketler ({vaultTags.length})
             </span>
             {activeTagFilter && (
-              <button 
+              <button
                 onClick={() => setActiveTagFilter(null)}
-                className="text-[9px] text-purple-600 dark:text-purple-400 hover:underline font-mono"
+                className="text-[10px] text-mac-accent hover:underline flex items-center gap-0.5 cursor-pointer"
+                title="Filtreyi Temizle"
               >
-                Temizle
+                <X size={10} /> Temizle
               </button>
             )}
           </div>
-
-          <div className="flex flex-wrap gap-1 pt-1">
-            {(showAllTags ? vaultTags : vaultTags.slice(0, 10)).map((t) => {
-              const isActive = activeTagFilter === t.tag;
+          
+          <div className="flex flex-wrap gap-1 overflow-y-auto pr-1">
+            {(showAllTags ? vaultTags : vaultTags.slice(0, 8)).map(tagObj => {
+              const isActive = activeTagFilter === tagObj.tag;
               return (
                 <button
-                  key={t.tag}
-                  onClick={() => setActiveTagFilter(isActive ? null : t.tag)}
+                  key={tagObj.tag}
+                  onClick={() => setActiveTagFilter(isActive ? null : tagObj.tag)}
                   className={cn(
-                    "px-2 py-0.5 rounded-md text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer",
+                    'text-[10px] px-2 py-0.5 rounded-md font-mono transition-all flex items-center gap-1 cursor-pointer border',
                     isActive
-                      ? "bg-purple-600 text-white font-bold shadow-xs"
-                      : "bg-gray-100 dark:bg-zinc-800/80 text-gray-600 dark:text-gray-400 hover:bg-purple-500/15 hover:text-purple-600 dark:hover:text-purple-400"
+                      ? 'bg-mac-accent text-white border-mac-accent shadow-xs font-semibold'
+                      : 'bg-black/5 dark:bg-white/5 border-transparent text-gray-600 dark:text-gray-300 hover:bg-black/10 dark:hover:bg-white/10'
                   )}
+                  title={`${tagObj.count} notta geçiyor`}
                 >
-                  <span>#{t.tag}</span>
-                  <span className={cn("text-[9px] opacity-70", isActive ? "text-white" : "text-gray-400")}>
-                    {t.count}
+                  <span>#{tagObj.tag}</span>
+                  <span className={cn(
+                    'text-[9px] px-1 py-0.2 rounded-full',
+                    isActive ? 'bg-white/20 text-white' : 'bg-black/5 dark:bg-white/5 text-gray-400'
+                  )}>
+                    {tagObj.count}
                   </span>
                 </button>
               );
             })}
+            
+            {vaultTags.length > 8 && (
+              <button
+                onClick={() => setShowAllTags(!showAllTags)}
+                className="text-[10px] px-1.5 py-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-0.5 cursor-pointer"
+              >
+                {showAllTags ? (
+                  <><ChevronUp size={11} /> Daha Az</>
+                ) : (
+                  <><ChevronDown size={11} /> +{vaultTags.length - 8} Diğer</>
+                )}
+              </button>
+            )}
           </div>
-
-          {vaultTags.length > 10 && (
-            <button
-              onClick={() => setShowAllTags(!showAllTags)}
-              className="mt-1 flex items-center justify-center gap-1 text-[10px] font-medium text-purple-600 dark:text-purple-400 hover:underline pt-1"
-            >
-              {showAllTags ? (
-                <>
-                  <span>Daha Az Göster</span>
-                  <ChevronUp size={12} />
-                </>
-              ) : (
-                <>
-                  <span>Daha Fazlası (+{vaultTags.length - 10})</span>
-                  <ChevronDown size={12} />
-                </>
-              )}
-            </button>
-          )}
         </div>
       )}
 
-      {/* Root Context Menu Dropdown */}
+      {/* Root Context Menu Portal/Dropdown */}
       {rootContextMenu && (
         <>
-          <div className="fixed inset-0 z-40" onClick={closeRootContextMenu} />
+          <div className="fixed inset-0 z-50" onClick={closeRootContextMenu} onContextMenu={(e) => { e.preventDefault(); closeRootContextMenu(); }} />
           <div
-            className="fixed z-50 w-44 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-lg shadow-xl p-1 text-xs text-gray-700 dark:text-gray-200 animate-in fade-in zoom-in-95"
+            className="fixed z-50 min-w-[160px] bg-white dark:bg-zinc-900 border border-mac-borderLight dark:border-mac-borderDark rounded-xl shadow-xl p-1 text-xs text-gray-700 dark:text-gray-300 animate-in fade-in zoom-in-95 duration-100"
             style={{ top: rootContextMenu.y, left: rootContextMenu.x }}
           >
-            <button 
-              onClick={() => { closeRootContextMenu(); openNewNoteDialog(""); }}
-              className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left font-medium"
+            <button
+              onClick={() => {
+                closeRootContextMenu();
+                openNewNoteDialog('');
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors cursor-pointer"
             >
-              <FilePlus size={13} /> Yeni Not (Kök)
+              <FilePlus size={14} />
+              <span>Yeni Not Oluştur</span>
             </button>
-            <button 
-              onClick={() => { closeRootContextMenu(); openNewFolderDialog(""); }}
-              className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left font-medium"
+            <button
+              onClick={() => {
+                closeRootContextMenu();
+                openNewFolderDialog('');
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors cursor-pointer"
             >
-              <Folder size={13} /> Yeni Klasör (Kök)
+              <FolderPlus size={14} />
+              <span>Yeni Klasör Oluştur</span>
             </button>
           </div>
         </>
       )}
 
-      {/* Custom Input Dialog Modal */}
+      {/* Modal Dialog for Create/Rename */}
       {inputDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-xl p-4 w-80 shadow-2xl flex flex-col gap-3">
-            <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">{inputDialog.title}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
+          <div className="w-80 bg-white dark:bg-zinc-900 border border-mac-borderLight dark:border-mac-borderDark rounded-2xl shadow-2xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {inputDialog.title}
+            </h3>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const form = e.target as HTMLFormElement;
-                const input = form.elements.namedItem('inputValue') as HTMLInputElement;
-                if (input.value.trim()) {
-                  inputDialog.onConfirm(input.value.trim());
-                  setInputDialog(null);
-                }
+                const form = e.currentTarget;
+                const input = form.elements.namedItem('dialogInput') as HTMLInputElement;
+                inputDialog.onConfirm(input.value);
+                setInputDialog(null);
               }}
-              className="flex flex-col gap-3"
             >
               <input
-                name="inputValue"
                 autoFocus
+                name="dialogInput"
                 defaultValue={inputDialog.defaultValue || ''}
                 placeholder={inputDialog.placeholder}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-mac-accent/40"
+                className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-zinc-800 border border-mac-borderLight dark:border-mac-borderDark rounded-lg focus:outline-none focus:ring-2 focus:ring-mac-accent mb-3 text-gray-900 dark:text-gray-100"
               />
               <div className="flex justify-end gap-2 text-xs">
                 <button
                   type="button"
                   onClick={() => setInputDialog(null)}
-                  className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400"
+                  className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1.5 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm"
+                  className="px-3 py-1.5 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
                 >
                   Tamam
                 </button>
@@ -354,30 +371,39 @@ export const Sidebar: React.FC = () => {
       {/* Fixed Bottom Actions */}
       <div className="p-2 border-t border-mac-borderLight dark:border-mac-borderDark flex flex-col gap-1">
         <button 
-          onClick={() => setViewMode('tasks')}
+          onClick={() => {
+            setViewMode('tasks');
+            navigate('/tasks');
+          }}
           className={cn(
-            "flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors",
-            viewMode === 'tasks' ? "bg-mac-accent text-white font-medium" : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+            'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
+            isTasksActive ? 'bg-mac-accent text-white font-medium shadow-xs' : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <CheckCircle size={16} />
           {t('tasks')}
         </button>
         <button 
-          onClick={() => setViewMode('decisions')}
+          onClick={() => {
+            setViewMode('decisions');
+            navigate('/decisions');
+          }}
           className={cn(
-            "flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors",
-            viewMode === 'decisions' ? "bg-purple-600 text-white font-medium" : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+            'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
+            isDecisionsActive ? 'bg-purple-600 text-white font-medium shadow-xs' : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <FileCheck size={16} />
           Karar Kayıtları (Decisions)
         </button>
         <button 
-          onClick={() => setViewMode('mindmap')}
+          onClick={() => {
+            setViewMode('mindmap');
+            navigate('/mindmap');
+          }}
           className={cn(
-            "flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors",
-            viewMode === 'mindmap' ? "bg-emerald-600 text-white font-medium" : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+            'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
+            isMindmapActive ? 'bg-emerald-600 text-white font-medium shadow-xs' : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <Network size={16} />
@@ -392,22 +418,23 @@ export const Sidebar: React.FC = () => {
             }
           }}
           className={cn(
-            "flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer",
+            'flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
             isChatDrawerOpen
-              ? "bg-gradient-to-r from-purple-600 to-mac-accent text-white font-semibold shadow-xs"
+              ? 'bg-gradient-to-r from-purple-600 to-mac-accent text-white font-semibold shadow-xs'
               : aiSettings.enabled
-              ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold hover:bg-purple-500/20"
-              : "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+              ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold hover:bg-purple-500/20'
+              : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <div className="flex items-center gap-2">
-            <Sparkles size={16} className={aiSettings.enabled ? "text-purple-500 animate-pulse" : ""} />
+            <Sparkles size={16} className={aiSettings.enabled ? 'text-purple-500 animate-pulse' : ''} />
             <span>AI Asistan</span>
           </div>
           {aiSettings.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           )}
         </button>
+
         <button 
           onClick={() => setSettingsModalOpen(true)}
           className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"

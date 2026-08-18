@@ -1,8 +1,5 @@
-/**
- * MindmapView.tsx — Interactive Full-Workspace Mindmap & Knowledge Graph Canvas.
- * Powered by Cytoscape.js and hardware-accelerated force-directed layout engine.
- */
 import React, { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import cytoscape, { type Core, type EventObject } from 'cytoscape';
 // @ts-expect-error - cytoscape-fcose types
 import fcose from 'cytoscape-fcose';
@@ -34,6 +31,7 @@ function stringToColor(str: string, isDark: boolean): string {
 }
 
 export const MindmapView: React.FC = () => {
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
@@ -332,11 +330,15 @@ export const MindmapView: React.FC = () => {
           const id = evt.target.id();
           const targetNode = nodes.find((n) => n.id === id);
           if (targetNode?.isGhost) {
-            createNote(targetNode.title);
+            createNote(targetNode.title).then((newId) => {
+              setViewMode('notes');
+              navigate(`/notes/${encodeURIComponent(newId)}`);
+            });
           } else {
             selectNote(id);
+            setViewMode('notes');
+            navigate(`/notes/${encodeURIComponent(id)}`);
           }
-          setViewMode('notes');
         }
         lastTap = now;
       });
@@ -408,7 +410,7 @@ export const MindmapView: React.FC = () => {
 
       cy.layout(layoutConfig).run();
     }
-  }, [visibleElements, getCytoscapeStyle, layoutMode, selectedNodeId, nodes, selectNote, createNote, setViewMode, setSelectedNodeId, setHoveredNodeId]);
+  }, [visibleElements, getCytoscapeStyle, layoutMode, selectedNodeId, nodes, selectNote, createNote, setViewMode, navigate, setSelectedNodeId, setHoveredNodeId]);
 
   // Clean up
   useEffect(() => {
@@ -465,7 +467,7 @@ export const MindmapView: React.FC = () => {
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
   return (
-    <div className="relative flex-1 h-screen w-full overflow-hidden bg-mac-mainLight dark:bg-mac-mainDark select-none">
+    <div className="relative flex-1 h-full w-full overflow-hidden bg-mac-mainLight dark:bg-mac-mainDark select-none">
       {/* Background Dot Matrix Pattern */}
       <div 
         className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
@@ -509,7 +511,10 @@ export const MindmapView: React.FC = () => {
               Notlarınızın içine <code className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 font-mono text-mac-accent">[[Not Adı]]</code> yazarak bağlantılar ekleyin ve zihin haritanızı canlandırın.
             </p>
             <button
-              onClick={() => setViewMode('notes')}
+              onClick={() => {
+                setViewMode('notes');
+                navigate('/notes');
+              }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-mac-accent text-white font-semibold text-xs rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Plus size={14} />

@@ -42,6 +42,8 @@ import { MermaidEditorModal, type MermaidSavePayload } from '@/components/Mermai
 import { CodeEditorModal, type CodeSavePayload } from '@/components/CodeEditorModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { MediaFullscreenModal, type FullscreenMediaData } from '@/components/ui/MediaFullscreenModal';
+import { LinkPreviewPopover, type LinkPreviewData } from '@/components/ui/LinkPreviewPopover';
+import { WebLinkFullscreenModal, type WebLinkFullscreenData } from '@/components/ui/WebLinkFullscreenModal';
 
 export const MainEditor: React.FC = () => {
   const { t } = useTranslation();
@@ -186,6 +188,11 @@ export const MainEditor: React.FC = () => {
     to: number;
   } | null>(null);
 
+  // Link Hover Preview & Fullscreen Iframe Modal State
+  const [linkPreviewData, setLinkPreviewData] = useState<LinkPreviewData | null>(null);
+  const [webLinkFullscreenData, setWebLinkFullscreenData] = useState<WebLinkFullscreenData | null>(null);
+  const linkHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const handleFullscreenRequest = (e: CustomEvent<FullscreenMediaData>) => {
       setFullscreenMedia(e.detail);
@@ -217,6 +224,24 @@ export const MainEditor: React.FC = () => {
     const handleDeleteCodeBlockRequest = (e: CustomEvent<{ from: number; to: number }>) => {
       setConfirmDeleteCodeBlockData(e.detail);
     };
+    const handleShowLinkPreview = (e: CustomEvent<LinkPreviewData>) => {
+      if (linkHideTimerRef.current) {
+        clearTimeout(linkHideTimerRef.current);
+        linkHideTimerRef.current = null;
+      }
+      setLinkPreviewData(e.detail);
+    };
+    const handleHideLinkPreview = () => {
+      if (linkHideTimerRef.current) clearTimeout(linkHideTimerRef.current);
+      linkHideTimerRef.current = setTimeout(() => {
+        setLinkPreviewData(null);
+        linkHideTimerRef.current = null;
+      }, 220);
+    };
+    const handleOpenWebFullscreen = (e: CustomEvent<WebLinkFullscreenData>) => {
+      setWebLinkFullscreenData(e.detail);
+      setLinkPreviewData(null);
+    };
 
     window.addEventListener('open-image-fullscreen', handleFullscreenRequest as EventListener);
     window.addEventListener('request-delete-image', handleDeleteRequest as EventListener);
@@ -224,6 +249,9 @@ export const MainEditor: React.FC = () => {
     window.addEventListener('request-delete-mermaid', handleDeleteMermaidRequest as EventListener);
     window.addEventListener('edit-code-block', handleEditCodeBlock as EventListener);
     window.addEventListener('request-delete-code-block', handleDeleteCodeBlockRequest as EventListener);
+    window.addEventListener('show-link-preview', handleShowLinkPreview as EventListener);
+    window.addEventListener('hide-link-preview', handleHideLinkPreview as EventListener);
+    window.addEventListener('open-weblink-fullscreen', handleOpenWebFullscreen as EventListener);
 
     return () => {
       window.removeEventListener('open-image-fullscreen', handleFullscreenRequest as EventListener);
@@ -232,6 +260,10 @@ export const MainEditor: React.FC = () => {
       window.removeEventListener('request-delete-mermaid', handleDeleteMermaidRequest as EventListener);
       window.removeEventListener('edit-code-block', handleEditCodeBlock as EventListener);
       window.removeEventListener('request-delete-code-block', handleDeleteCodeBlockRequest as EventListener);
+      window.removeEventListener('show-link-preview', handleShowLinkPreview as EventListener);
+      window.removeEventListener('hide-link-preview', handleHideLinkPreview as EventListener);
+      window.removeEventListener('open-weblink-fullscreen', handleOpenWebFullscreen as EventListener);
+      if (linkHideTimerRef.current) clearTimeout(linkHideTimerRef.current);
     };
   }, []);
 
@@ -448,14 +480,14 @@ export const MainEditor: React.FC = () => {
 
   if (!currentNoteId) {
     return (
-      <main className="h-screen flex flex-col bg-mac-mainLight dark:bg-mac-mainDark flex-1 items-center justify-center text-gray-500">
+      <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark flex-1 items-center justify-center text-gray-500">
         {t('selectNotePrompt')}
       </main>
     );
   }
 
   return (
-    <main className="h-screen flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 ease-mac-ease flex-1">
+    <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 ease-mac-ease flex-1 min-h-0 overflow-hidden">
       {/* Hidden File Input for Image & GIF Upload */}
       <input
         type="file"
@@ -657,6 +689,32 @@ export const MainEditor: React.FC = () => {
         onClose={() => setInlineAiState((prev) => ({ ...prev, isOpen: false }))}
         onInsertMarkdown={handleInsertInlineAiMarkdown}
         surroundingContext={inlineAiContext}
+      />
+
+      {/* Link Hover Preview Popover (WhatsApp / Slack style) */}
+      <LinkPreviewPopover
+        data={linkPreviewData}
+        onOpenFullscreen={(url, title) => setWebLinkFullscreenData({ url, title })}
+        onMouseEnter={() => {
+          if (linkHideTimerRef.current) {
+            clearTimeout(linkHideTimerRef.current);
+            linkHideTimerRef.current = null;
+          }
+        }}
+        onMouseLeave={() => {
+          if (linkHideTimerRef.current) clearTimeout(linkHideTimerRef.current);
+          linkHideTimerRef.current = setTimeout(() => {
+            setLinkPreviewData(null);
+            linkHideTimerRef.current = null;
+          }, 200);
+        }}
+        onClose={() => setLinkPreviewData(null)}
+      />
+
+      {/* Fullscreen Web Browser & Iframe Modal */}
+      <WebLinkFullscreenModal
+        data={webLinkFullscreenData}
+        onClose={() => setWebLinkFullscreenData(null)}
       />
     </main>
   );

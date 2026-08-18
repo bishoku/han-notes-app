@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNoteStore } from '@/store/noteStore';
 import type { FileNode } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
@@ -17,6 +18,7 @@ interface FileTreeNodeProps {
 }
 
 export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, level = 0, openInputDialog }) => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -32,7 +34,9 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
   const renameNode = useNoteStore(state => state.renameNode);
   const setViewMode = useUiStore(state => state.setViewMode);
 
-  const isSelected = !node.is_dir && (currentNoteId === node.relative_path || currentNoteId === node.name);
+  const cleanRelPath = node.relative_path.replace(/\.md$/, '');
+  const cleanName = node.name.replace(/\.md$/, '');
+  const isSelected = !node.is_dir && (currentNoteId === cleanRelPath || currentNoteId === node.relative_path || currentNoteId === cleanName);
   const isFolderActive = node.is_dir && activeFolderPath === node.relative_path;
 
   // --- Drag & Drop Handlers ---
@@ -91,8 +95,9 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
         title: `"${node.name}" İçinde Yeni Not`,
         placeholder: "Not Adı",
         onConfirm: async (title) => {
-          await createNote(title, node.is_dir ? node.relative_path : '');
+          const newId = await createNote(title, node.is_dir ? node.relative_path : '');
           setViewMode('notes');
+          navigate(`/notes/${encodeURIComponent(newId)}`);
         }
       });
     }
@@ -146,8 +151,9 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
             setIsOpen(!isOpen);
             setActiveFolder(node.relative_path);
           } else {
-            selectNote(node.relative_path);
+            selectNote(cleanRelPath);
             setViewMode('notes');
+            navigate(`/notes/${encodeURIComponent(cleanRelPath)}`);
           }
         }}
         style={{ paddingLeft: `${level * 12 + 8}px` }}

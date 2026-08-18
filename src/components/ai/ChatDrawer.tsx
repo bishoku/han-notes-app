@@ -182,9 +182,9 @@ export const ChatDrawer: React.FC = () => {
   };
 
   return (
-    <div
+    <aside
       className={cn(
-        "h-screen bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-l border-gray-200/80 dark:border-zinc-800/80 flex flex-col z-30 shadow-2xl transition-all duration-200 select-none animate-in slide-in-from-right-4",
+        "h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-l border-gray-200/80 dark:border-zinc-800/80 flex flex-col z-20 shadow-md shrink-0 transition-all duration-200 select-none",
         isExpanded ? "w-full sm:w-[580px] md:w-[680px]" : "w-80 sm:w-96 md:w-[440px]"
       )}
     >
@@ -605,6 +605,6 @@ export const ChatDrawer: React.FC = () => {
           <span>{settings.provider}</span>
         </div>
       </div>
-    </div>
+    </aside>
   );
 };

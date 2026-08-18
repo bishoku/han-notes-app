@@ -55,8 +55,11 @@ export function handleEditorMouseDown(event: MouseEvent, view: EditorView): bool
 
       if (targetNote) {
         selectNote(targetNote.id);
+        window.location.hash = `/notes/${encodeURIComponent(targetNote.id)}`;
       } else {
-        createNote(cleanTitle);
+        createNote(cleanTitle).then((newId) => {
+          window.location.hash = `/notes/${encodeURIComponent(newId)}`;
+        });
       }
       useUiStore.getState().setViewMode("notes");
     }

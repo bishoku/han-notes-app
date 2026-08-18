@@ -194,4 +194,23 @@ export class TauriStorage implements IStorageService {
     TauriStorage.imageCache.set(relativePath, dataUrl);
     return dataUrl;
   }
+
+  // ── Generic Vault Files ──
+
+  async readVaultFile(relativePath: string): Promise<string> {
+    return invoke<string>('read_text_asset', { relativePath });
+  }
+
+  async writeVaultFile(relativePath: string, content: string): Promise<void> {
+    await invoke('save_text_asset', { relativeNoteId: '', fileName: relativePath, content });
+  }
+
+  async vaultFileExists(relativePath: string): Promise<boolean> {
+    try {
+      const content = await invoke<string>('read_text_asset', { relativePath });
+      return content !== undefined && content !== null;
+    } catch {
+      return false;
+    }
+  }
 }

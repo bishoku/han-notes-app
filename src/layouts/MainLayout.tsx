@@ -1,10 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
-import { MainEditor } from '@/components/MainEditor';
 import { RightPanel } from '@/components/RightPanel';
-import { TasksView } from '@/components/TasksView';
-import { DecisionsView } from '@/components/DecisionsView';
-import { MindmapView } from '@/components/MindmapView';
+import { AppStatusBar } from '@/components/statusbar/AppStatusBar';
 import { ChatDrawer } from '@/components/ai/ChatDrawer';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -15,12 +13,12 @@ import {
   getSavedDirectoryName,
   requestSavedDirectoryPermission,
 } from '@/services/storage';
-import { ModelDownloadIndicator } from '@/components/ai/ModelDownloadIndicator';
 import { QuickSearchModal } from '@/components/search/QuickSearchModal';
-import { SearchView } from '@/components/search/SearchView';
 import { FolderOpen, FolderCheck, Loader2 } from 'lucide-react';
 
+import { useGitStore } from '@/store/gitStore';
 import { SettingsModal } from '@/components/SettingsModal';
+import { NoteHistoryDrawer } from '@/components/git/NoteHistoryDrawer';
 import { applyAppTheme } from '@/utils/theme';
 
 /**
@@ -31,9 +29,11 @@ function isTauri(): boolean {
 }
 
 export const MainLayout: React.FC = () => {
+  const location = useLocation();
+  const isNotesRoute = location.pathname === '/' || location.pathname.startsWith('/notes');
+
   // Individual Zustand selectors — prevent re-renders from unrelated store changes
   const theme = useUiStore(s => s.theme);
-  const viewMode = useUiStore(s => s.viewMode);
   const rightPanelOpen = useUiStore(s => s.rightPanelOpen);
   const initPreferences = useUiStore(s => s.initPreferences);
   const setSearchModalOpen = useUiStore(s => s.setSearchModalOpen);
@@ -45,12 +45,19 @@ export const MainLayout: React.FC = () => {
   const [isRestoring, setIsRestoring] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
 
-  // ── Global Keyboard Shortcuts (Cmd+K / Ctrl+K) ──
+  // ── Global Keyboard Shortcuts (Cmd+K / Ctrl+K, Cmd+S / Ctrl+S) ──
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setSearchModalOpen(true);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        const currentNoteId = useNoteStore.getState().currentNoteId;
+        const note = useNoteStore.getState().notes.find((n) => n.id === currentNoteId);
+        const title = note?.title || currentNoteId?.split('/').pop() || 'Manuel snapshot';
+        useGitStore.getState().createSnapshot(`Manuel snapshot: ${title}`);
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -78,11 +85,10 @@ export const MainLayout: React.FC = () => {
         // Browser: try to reuse saved handle silently (no user gesture needed for that)
         try {
           await initBrowserStorage();
-          // If we get here, a saved handle was reused successfully
           setStorageReady(true);
           await loadVault();
         } catch {
-          // Check if there is a saved directory name in IndexedDB
+          // Check if there's a previously used directory name
           const name = await getSavedDirectoryName();
           if (name) {
             setSavedDirName(name);
@@ -99,12 +105,10 @@ export const MainLayout: React.FC = () => {
     return () => window.removeEventListener('contextmenu', disableContextMenu);
   }, [loadVault]);
 
-  /**
-   * Restore access to previously used directory with a single click permission prompt
-   */
-  const handleRestoreSavedDirectory = useCallback(async () => {
-    setStorageError(null);
+  // Handler to restore permission on previously chosen directory (requires user click)
+  const handleRestoreDirectory = async () => {
     setIsRestoring(true);
+    setStorageError(null);
     try {
       const granted = await requestSavedDirectoryPermission();
       if (granted) {
@@ -112,52 +116,46 @@ export const MainLayout: React.FC = () => {
         setStorageReady(true);
         await loadVault();
       } else {
-        setStorageError('Klasöre erişim izni verilmedi. Lütfen tarayıcı onayını kabul edin veya farklı bir klasör seçin.');
+        setStorageError('Klasöre erişim izni verilmedi. Lütfen tekrar deneyin veya yeni bir klasör seçin.');
       }
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        return;
-      }
-      console.error('Failed to restore saved directory:', err);
-      setStorageError('Klasör açılamadı. Lütfen farklı bir klasör seçin.');
+    } catch (e: any) {
+      setStorageError(e?.message || 'Klasör geri yüklenirken hata oluştu.');
     } finally {
       setIsRestoring(false);
     }
-  }, [loadVault]);
+  };
 
-  /**
-   * Called from the "Select Folder" button — runs inside a user gesture
-   */
-  const handlePickDirectory = useCallback(async () => {
+  // Handler to pick a new directory (requires user click)
+  const handlePickDirectory = async () => {
     setStorageError(null);
     try {
       await pickBrowserDirectory();
       setNeedsDirectoryPick(false);
       setStorageReady(true);
       await loadVault();
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        // User closed/cancelled the directory picker — do not show red error
-        return;
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') {
+        setStorageError(e?.message || 'Klasör seçilirken bir hata oluştu.');
       }
-      console.error('Directory picker failed:', err);
-      setStorageError('Klasör seçilemedi veya izin verilmedi. Lütfen tekrar deneyin.');
     }
-  }, [loadVault]);
+  };
 
-  // ── Welcome Screen: Browser needs directory pick / permission ──
-  if (needsDirectoryPick && !storageReady) {
+  // ── Directory Picker Screen (Browser only, first visit or permission needed) ──
+  if (needsDirectoryPick) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-indigo-950 p-4">
-        <div className="text-center max-w-lg w-full p-8 sm:p-10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-200/50 dark:border-zinc-800/50 animate-in fade-in zoom-in-95 duration-200">
-          <img src="icon-192.png" alt="H.A.N." className="w-20 h-20 mx-auto mb-5 rounded-2xl shadow-lg" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Han Notes'a Hoş Geldiniz</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-            Notlarınız yerel olarak cihazınızda saklanır. Başlamak için çalışma klasörünüzü açın veya yeni bir klasör seçin.
+      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-6">
+        <div className="max-w-md w-full p-8 rounded-3xl bg-white/10 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/20 dark:border-zinc-700/50 shadow-2xl text-center text-white">
+          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <span className="text-2xl font-bold tracking-tight">H</span>
+          </div>
+
+          <h1 className="text-2xl font-bold mb-2">H.A.N. Not Defteri</h1>
+          <p className="text-sm text-gray-300 dark:text-gray-400 mb-6 leading-relaxed">
+            Notlarınızı doğrudan kendi bilgisayarınızda yerel bir klasörde saklamak için lütfen bir klasör seçin.
           </p>
 
           {storageError && (
-            <div className="mb-5 px-4 py-3 rounded-2xl bg-red-50/90 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-xs font-medium leading-relaxed text-left">
+            <div className="mb-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-xs text-red-200">
               {storageError}
             </div>
           )}
@@ -166,7 +164,7 @@ export const MainLayout: React.FC = () => {
             {savedDirName ? (
               <>
                 <button
-                  onClick={handleRestoreSavedDirectory}
+                  onClick={handleRestoreDirectory}
                   disabled={isRestoring}
                   className="w-full inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-sm hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70 transition-all cursor-pointer"
                 >
@@ -181,7 +179,7 @@ export const MainLayout: React.FC = () => {
                 <button
                   onClick={handlePickDirectory}
                   disabled={isRestoring}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/80 transition-all cursor-pointer"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-semibold text-gray-300 hover:bg-white/10 transition-all cursor-pointer"
                 >
                   <FolderOpen size={15} />
                   Farklı Bir Klasör Seç
@@ -197,10 +195,6 @@ export const MainLayout: React.FC = () => {
               </button>
             )}
           </div>
-
-          <p className="mt-6 text-[11px] text-gray-400 dark:text-gray-500">
-            Chrome, Edge veya Arc tarayıcıları önerilir. Verileriniz tamamen cihazınızdadır.
-          </p>
         </div>
       </div>
     );
@@ -218,20 +212,26 @@ export const MainLayout: React.FC = () => {
     );
   }
 
-  // ── Main App ──
+  // ── Main App Layout with Outlet and Bottom AppStatusBar ──
   return (
-    <div className="flex h-screen w-full overflow-hidden antialiased text-gray-900 dark:text-gray-100 bg-mac-mainLight dark:bg-mac-mainDark selection:bg-mac-accent/30">
-      <Sidebar />
-      {viewMode === 'notes' && <MainEditor />}
-      {viewMode === 'tasks' && <TasksView />}
-      {viewMode === 'decisions' && <DecisionsView />}
-      {viewMode === 'mindmap' && <MindmapView />}
-      {viewMode === 'search' && <SearchView />}
-      {viewMode === 'notes' && rightPanelOpen && <RightPanel />}
-      <ChatDrawer />
-      <ModelDownloadIndicator />
+    <div className="flex flex-col h-screen w-full overflow-hidden antialiased text-gray-900 dark:text-gray-100 bg-mac-mainLight dark:bg-mac-mainDark selection:bg-mac-accent/30">
+      {/* Workspace Body: Sidebar + Dynamic Route Outlet + RightPanel + ChatDrawer */}
+      <div className="flex-1 flex min-h-0 w-full overflow-hidden">
+        <Sidebar />
+        <div className="flex-1 flex min-w-0 h-full overflow-hidden relative">
+          <Outlet />
+        </div>
+        {isNotesRoute && rightPanelOpen && <RightPanel />}
+        <ChatDrawer />
+      </div>
+
+      {/* Global Bottom Status Bar (VS Code style) */}
+      <AppStatusBar />
+
+      {/* Global Overlays & Modals */}
       <QuickSearchModal />
       <SettingsModal />
+      <NoteHistoryDrawer />
     </div>
   );
 };

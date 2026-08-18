@@ -1,11 +1,9 @@
-/**
- * EditorHeader.tsx — Top header bar for the editor, showing note metadata
- * (path, read time), tag badges with inline editor, and right panel toggle.
- */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { TagCount } from '@/store/noteStore';
 import { MultiBadgeSelect } from '@/components/MultiBadgeSelect';
+import { useGitStore } from '@/store/gitStore';
 import {
   PanelRightClose,
   PanelRightOpen,
@@ -13,6 +11,9 @@ import {
   Clock,
   Tag,
   X,
+  History,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 import { useUiStore } from '@/store/uiStore';
@@ -44,15 +45,52 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onUpdateTags,
 }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const fontSize = useUiStore(s => s.fontSize);
   const setFontSize = useUiStore(s => s.setFontSize);
   const readMinutes = Math.max(1, Math.ceil(localContent.split(' ').length / 200));
 
+  // Navigation shortcuts: Alt+Left / Alt+Right or Cmd+[ / Cmd+]
+  useEffect(() => {
+    const handleNavShortcuts = (e: KeyboardEvent) => {
+      // Don't capture when typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigate(1);
+      }
+    };
+    window.addEventListener('keydown', handleNavShortcuts);
+    return () => window.removeEventListener('keydown', handleNavShortcuts);
+  }, [navigate]);
+
   return (
     <header className="h-12 border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-4 shrink-0 relative">
-      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 font-medium">
-        <div className="flex items-center gap-1.5"><Calendar size={14} /> {currentNoteId}</div>
-        <div className="flex items-center gap-1.5"><Clock size={14} /> {readMinutes} min read</div>
+      <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0">
+        {/* Obsidian/VS Code Style Back & Forward Arrows */}
+        <div className="flex items-center gap-0.5 pr-2 border-r border-gray-200 dark:border-zinc-800">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            title="Geri (Alt + Sol Ok)"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={() => navigate(1)}
+            className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            title="İleri (Alt + Sağ Ok)"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 truncate"><Calendar size={14} className="shrink-0" /> <span className="truncate">{currentNoteId}</span></div>
+        <div className="hidden sm:flex items-center gap-1.5 shrink-0"><Clock size={14} /> {readMinutes} min read</div>
         
         {/* Note Tags Badges & Popover Trigger */}
         <div className="relative flex items-center gap-1.5 border-l border-gray-200 dark:border-zinc-800 pl-3">
@@ -143,7 +181,18 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           </button>
         </div>
 
-        <button onClick={onToggleRightPanel} className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 transition-colors">
+        {/* History / Time Machine Button */}
+        {currentNoteId && (
+          <button
+            onClick={() => useGitStore.getState().openHistoryDrawer(currentNoteId)}
+            className="p-1.5 rounded-md hover:bg-purple-500/10 text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
+            title="Not Versiyon Geçmişi & Diff"
+          >
+            <History size={16} />
+          </button>
+        )}
+
+        <button onClick={onToggleRightPanel} className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 transition-colors cursor-pointer" title="Sağ Paneli Aç/Kapat">
           {rightPanelOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
         </button>
       </div>

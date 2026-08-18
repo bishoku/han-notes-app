@@ -824,6 +824,28 @@ export class BrowserStorage implements IStorageService {
     return this.getImageDataUrl(assetPath);
   }
 
+  // ── Generic Vault Files (.han_history, configs, etc.) ──
+
+  async readVaultFile(relativePath: string): Promise<string> {
+    const dir = this.getDir();
+    return readFileText(dir, relativePath);
+  }
+
+  async writeVaultFile(relativePath: string, content: string): Promise<void> {
+    const dir = this.getDir();
+    await writeFileText(dir, relativePath, content);
+  }
+
+  async vaultFileExists(relativePath: string): Promise<boolean> {
+    try {
+      const dir = this.getDir();
+      const file = await getOrCreateFile(dir, relativePath, false);
+      return file !== null;
+    } catch {
+      return false;
+    }
+  }
+
   private async deleteFileByPath(dir: FileSystemDirectoryHandle, path: string): Promise<void> {
     const parts = path.split('/').filter(Boolean);
     const targetName = parts.pop();

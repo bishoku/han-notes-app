@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
@@ -26,6 +27,7 @@ import {
 
 export const QuickSearchModal: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { isSearchModalOpen, setSearchModalOpen, setViewMode, searchQuery, setSearchQuery } = useUiStore();
   const { selectNote, notes } = useNoteStore();
 
@@ -125,12 +127,14 @@ export const QuickSearchModal: React.FC = () => {
   const handleSelectNote = (item: SearchMatchItem) => {
     selectNote(item.noteId);
     setViewMode('notes');
+    navigate(`/notes/${encodeURIComponent(item.noteId)}`);
     setSearchModalOpen(false);
   };
 
   const handleOpenFullSearchView = () => {
     setSearchQuery(inputQuery);
     setViewMode('search');
+    navigate('/search');
     setSearchModalOpen(false);
   };
 

@@ -760,7 +760,18 @@ pub fn run() {
             get_decision_registry,
             update_decision_metadata,
             get_vault_tags,
-            update_note_tags
+            update_note_tags,
+            git_status,
+            git_init,
+            git_commit,
+            git_log,
+            git_diff,
+            git_show,
+            git_revert_file,
+            git_remote_get,
+            git_remote_set,
+            git_pull,
+            git_push
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -955,4 +966,305 @@ fn update_decision_metadata(
     update_decision_registry_file(&vault_dir, &decisions);
 
     Ok(())
+}
+
+// ─── Git Versioning & Sync Commands ────────────────────────────────────────
+
+use std::process::Command;
+
+#[derive(serde::Serialize, serde::Deserialize, Default, Clone)]
+pub struct GitCommitDto {
+    pub hash: String,
+    #[serde(rename = "shortHash")]
+    pub short_hash: String,
+    pub author: String,
+    pub email: String,
+    pub date: String,
+    pub timestamp: i64,
+    pub message: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+pub struct GitStatusDto {
+    #[serde(rename = "isInitialized")]
+    pub is_initialized: bool,
+    pub branch: String,
+    #[serde(rename = "modifiedFiles")]
+    pub modified_files: Vec<String>,
+    #[serde(rename = "untrackedFiles")]
+    pub untracked_files: Vec<String>,
+    #[serde(rename = "stagedFiles")]
+    pub staged_files: Vec<String>,
+    pub ahead: usize,
+    pub behind: usize,
+    #[serde(rename = "lastCommit")]
+    pub last_commit: Option<GitCommitDto>,
+    #[serde(rename = "remoteUrl")]
+    pub remote_url: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+pub struct GitSyncResultDto {
+    pub success: bool,
+    pub message: String,
+    #[serde(rename = "updatedFiles")]
+    pub updated_files: Option<Vec<String>>,
+    pub conflict: Option<bool>,
+}
+
+fn run_git(vault_dir: &Path, args: &[&str]) -> Result<String, String> {
+    let output = Command::new("git")
+        .current_dir(vault_dir)
+        .args(args)
+        .output()
+        .map_err(|e| format!("Git komutu çalıştırılamadı: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).to_string();
+        let out = String::from_utf8_lossy(&output.stdout).to_string();
+        let combined = if err.trim().is_empty() { out } else { err };
+        return Err(combined.trim().to_string());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+fn git_status(app: AppHandle) -> Result<GitStatusDto, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let git_dir = vault_dir.join(".git");
+
+    if !git_dir.exists() {
+        return Ok(GitStatusDto {
+            is_initialized: false,
+            ..Default::default()
+        });
+    }
+
+    let branch = run_git(&vault_dir, &["branch", "--show-current"])
+        .unwrap_or_else(|_| "main".to_string())
+        .trim()
+        .to_string();
+
+    let remote_url = run_git(&vault_dir, &["remote", "get-url", "origin"])
+        .ok()
+        .map(|s| s.trim().to_string());
+
+    let mut modified_files = Vec::new();
+    let mut untracked_files = Vec::new();
+    let mut staged_files = Vec::new();
+
+    if let Ok(status_out) = run_git(&vault_dir, &["status", "--porcelain"]) {
+        for line in status_out.lines() {
+            if line.len() < 3 {
+                continue;
+            }
+            let index_st = &line[0..1];
+            let work_st = &line[1..2];
+            let path = line[3..].trim().to_string();
+
+            if index_st == "?" || work_st == "?" {
+                untracked_files.push(path);
+            } else {
+                if index_st != " " && index_st != "?" {
+                    staged_files.push(path.clone());
+                }
+                if work_st != " " && work_st != "?" {
+                    modified_files.push(path);
+                }
+            }
+        }
+    }
+
+    let last_commit = run_git(
+        &vault_dir,
+        &["log", "-1", "--format=%H|%h|%an|%ae|%aI|%ct|%s"],
+    )
+    .ok()
+    .and_then(|out| {
+        let parts: Vec<&str> = out.trim().split('|').collect();
+        if parts.len() >= 7 {
+            Some(GitCommitDto {
+                hash: parts[0].to_string(),
+                short_hash: parts[1].to_string(),
+                author: parts[2].to_string(),
+                email: parts[3].to_string(),
+                date: parts[4].to_string(),
+                timestamp: parts[5].parse::<i64>().unwrap_or(0) * 1000,
+                message: parts[6..].join("|"),
+            })
+        } else {
+            None
+        }
+    });
+
+    let (ahead, behind) = if let Ok(counts) = run_git(&vault_dir, &["rev-list", "--left-right", "--count", "HEAD...@{u}"]) {
+        let parts: Vec<&str> = counts.trim().split_whitespace().collect();
+        if parts.len() >= 2 {
+            (parts[0].parse().unwrap_or(0), parts[1].parse().unwrap_or(0))
+        } else {
+            (0, 0)
+        }
+    } else {
+        (0, 0)
+    };
+
+    Ok(GitStatusDto {
+        is_initialized: true,
+        branch: if branch.is_empty() { "main".to_string() } else { branch },
+        modified_files,
+        untracked_files,
+        staged_files,
+        ahead,
+        behind,
+        last_commit,
+        remote_url,
+    })
+}
+
+#[tauri::command]
+fn git_init(app: AppHandle) -> Result<(), String> {
+    let vault_dir = get_vault_path(&app)?;
+    run_git(&vault_dir, &["init"])?;
+    let _ = run_git(&vault_dir, &["checkout", "-b", "main"]);
+    let _ = run_git(&vault_dir, &["add", "-A"]);
+    let _ = run_git(&vault_dir, &["commit", "-m", "İlk yerel versiyon (Initial commit)"]);
+    Ok(())
+}
+
+#[tauri::command]
+fn git_commit(app: AppHandle, message: String) -> Result<String, String> {
+    let vault_dir = get_vault_path(&app)?;
+    run_git(&vault_dir, &["add", "-A"])?;
+    if let Ok(st) = run_git(&vault_dir, &["status", "--porcelain"]) {
+        if st.trim().is_empty() {
+            let hash = run_git(&vault_dir, &["rev-parse", "HEAD"]).unwrap_or_default();
+            return Ok(hash.trim().to_string());
+        }
+    }
+    run_git(&vault_dir, &["commit", "-m", &message])?;
+    let hash = run_git(&vault_dir, &["rev-parse", "HEAD"])?;
+    Ok(hash.trim().to_string())
+}
+
+#[tauri::command]
+fn git_log(app: AppHandle, file_path: Option<String>, limit: Option<usize>) -> Result<Vec<GitCommitDto>, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let limit_num = limit.unwrap_or(50).to_string();
+    let mut args = vec!["log", "-n", &limit_num, "--format=%H|%h|%an|%ae|%aI|%ct|%s"];
+
+    let target_path;
+    if let Some(ref fp) = file_path {
+        target_path = if fp.ends_with(".md") { fp.clone() } else { format!("{}.md", fp) };
+        args.push("--");
+        args.push(&target_path);
+    }
+
+    let out = run_git(&vault_dir, &args).unwrap_or_default();
+    let mut commits = Vec::new();
+
+    for line in out.lines() {
+        let parts: Vec<&str> = line.trim().split('|').collect();
+        if parts.len() >= 7 {
+            commits.push(GitCommitDto {
+                hash: parts[0].to_string(),
+                short_hash: parts[1].to_string(),
+                author: parts[2].to_string(),
+                email: parts[3].to_string(),
+                date: parts[4].to_string(),
+                timestamp: parts[5].parse::<i64>().unwrap_or(0) * 1000,
+                message: parts[6..].join("|"),
+            });
+        }
+    }
+
+    Ok(commits)
+}
+
+#[tauri::command]
+fn git_diff(app: AppHandle, file_path: String) -> Result<String, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let target_path = if file_path.ends_with(".md") { file_path } else { format!("{}.md", file_path) };
+    run_git(&vault_dir, &["diff", "HEAD", "--", &target_path])
+}
+
+#[tauri::command]
+fn git_show(app: AppHandle, file_path: String, commit_hash: String) -> Result<String, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let target_path = if file_path.ends_with(".md") { file_path } else { format!("{}.md", file_path) };
+    let spec = format!("{}:{}", commit_hash, target_path);
+    run_git(&vault_dir, &["show", &spec])
+}
+
+#[tauri::command]
+fn git_revert_file(app: AppHandle, file_path: String, commit_hash: String) -> Result<(), String> {
+    let vault_dir = get_vault_path(&app)?;
+    let target_path = if file_path.ends_with(".md") { file_path.clone() } else { format!("{}.md", file_path) };
+    run_git(&vault_dir, &["checkout", &commit_hash, "--", &target_path])?;
+    let short_hash = if commit_hash.len() > 7 { &commit_hash[..7] } else { &commit_hash };
+    let _ = run_git(&vault_dir, &["commit", "-m", &format!("Geri yüklendi ({}): {}", short_hash, target_path)]);
+    Ok(())
+}
+
+#[tauri::command]
+fn git_remote_get(app: AppHandle) -> Result<Option<String>, String> {
+    let vault_dir = get_vault_path(&app)?;
+    Ok(run_git(&vault_dir, &["remote", "get-url", "origin"]).ok().map(|s| s.trim().to_string()))
+}
+
+#[tauri::command]
+fn git_remote_set(app: AppHandle, url: String) -> Result<(), String> {
+    let vault_dir = get_vault_path(&app)?;
+    let has_origin = run_git(&vault_dir, &["remote", "get-url", "origin"]).is_ok();
+    if has_origin {
+        run_git(&vault_dir, &["remote", "set-url", "origin", &url])?;
+    } else {
+        run_git(&vault_dir, &["remote", "add", "origin", &url])?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn git_pull(app: AppHandle) -> Result<GitSyncResultDto, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let branch = run_git(&vault_dir, &["branch", "--show-current"]).unwrap_or_else(|_| "main".to_string()).trim().to_string();
+    
+    match run_git(&vault_dir, &["pull", "--rebase", "origin", &branch]) {
+        Ok(out) => Ok(GitSyncResultDto {
+            success: true,
+            message: out.trim().to_string(),
+            updated_files: None,
+            conflict: Some(false),
+        }),
+        Err(err) => {
+            let has_conflict = err.contains("CONFLICT") || err.contains("conflict");
+            Ok(GitSyncResultDto {
+                success: false,
+                message: err,
+                updated_files: None,
+                conflict: Some(has_conflict),
+            })
+        }
+    }
+}
+
+#[tauri::command]
+fn git_push(app: AppHandle) -> Result<GitSyncResultDto, String> {
+    let vault_dir = get_vault_path(&app)?;
+    let branch = run_git(&vault_dir, &["branch", "--show-current"]).unwrap_or_else(|_| "main".to_string()).trim().to_string();
+    
+    match run_git(&vault_dir, &["push", "-u", "origin", &branch]) {
+        Ok(out) => Ok(GitSyncResultDto {
+            success: true,
+            message: out.trim().to_string(),
+            updated_files: None,
+            conflict: Some(false),
+        }),
+        Err(err) => Ok(GitSyncResultDto {
+            success: false,
+            message: err,
+            updated_files: None,
+            conflict: Some(false),
+        }),
+    }
 }

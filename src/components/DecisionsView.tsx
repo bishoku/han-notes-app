@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDecisionStore } from '@/store/decisionStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
@@ -12,10 +13,10 @@ import { DecisionsTimelineView } from './decisions/DecisionsTimelineView';
 import { DecisionsGridView } from './decisions/DecisionsGridView';
 
 export const DecisionsView: React.FC = () => {
+  const navigate = useNavigate();
   const { decisions, registry, loadDecisions, updateDecisionMetadata } = useDecisionStore();
   const selectNote = useNoteStore(state => state.selectNote);
   const setViewMode = useUiStore(state => state.setViewMode);
-
   const [editingDecision, setEditingDecision] = useState<DecisionEditData | null>(null);
 
   useEffect(() => {
@@ -41,6 +42,7 @@ export const DecisionsView: React.FC = () => {
   const handleNoteClick = (noteId: string) => {
     selectNote(noteId);
     setViewMode('notes');
+    navigate(`/notes/${encodeURIComponent(noteId)}`);
   };
 
   const handleSaveModal = async (updated: DecisionEditData) => {
@@ -60,7 +62,7 @@ export const DecisionsView: React.FC = () => {
   };
 
   return (
-    <main className="h-screen flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 flex-1 p-8 overflow-y-auto select-none">
+    <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 flex-1 p-8 overflow-y-auto select-none min-h-0">
       {/* Header Bar & Filter Controls */}
       <DecisionsHeader
         viewStyle={viewStyle}

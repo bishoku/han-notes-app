@@ -21,6 +21,7 @@ export default defineConfig(({ command }) => {
         registerType: 'prompt',  // Show update prompt, don't auto-reload
         includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
         workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           // Cache app shell (JS, CSS, HTML, WASM) — NOT user data
           globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico,wasm}'],
           // Network-first for navigation requests → always get latest HTML

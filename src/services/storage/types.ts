@@ -135,4 +135,9 @@ export interface IStorageService {
   saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string>;
   readTextAsset(relativePath: string): Promise<string>;
   getImageDataUrl(relativePath: string): Promise<string>;
+
+  // ── Generic Vault Files (.han_history, configs, etc.) ──
+  readVaultFile(relativePath: string): Promise<string>;
+  writeVaultFile(relativePath: string, content: string): Promise<void>;
+  vaultFileExists(relativePath: string): Promise<boolean>;
 }

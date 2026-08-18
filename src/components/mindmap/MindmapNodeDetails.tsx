@@ -3,6 +3,7 @@
  * connections, and direct navigation for the selected note node.
  */
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGraphStore, type GraphNode } from '@/store/graphStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
@@ -30,17 +31,21 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
   onClose,
   onSelectNode,
 }) => {
+  const navigate = useNavigate();
   const { selectNote, createNote, notes } = useNoteStore();
   const { setViewMode } = useUiStore();
   const { localGraphOnly, setLocalGraphOnly } = useGraphStore();
 
   const handleOpenNote = async () => {
     if (node.isGhost) {
-      await createNote(node.title);
+      const newId = await createNote(node.title);
+      setViewMode('notes');
+      navigate(`/notes/${encodeURIComponent(newId)}`);
     } else {
       await selectNote(node.id);
+      setViewMode('notes');
+      navigate(`/notes/${encodeURIComponent(node.id)}`);
     }
-    setViewMode('notes');
   };
 
   return (

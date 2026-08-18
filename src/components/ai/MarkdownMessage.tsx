@@ -166,8 +166,11 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
         );
         if (targetNote) {
           selectNote(targetNote.id);
+          window.location.hash = `/notes/${encodeURIComponent(targetNote.id)}`;
         } else {
-          createNote(targetTitle);
+          createNote(targetTitle).then((newId) => {
+            window.location.hash = `/notes/${encodeURIComponent(newId)}`;
+          });
         }
         useUiStore.getState().setViewMode('notes');
       }

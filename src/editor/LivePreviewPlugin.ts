@@ -58,6 +58,7 @@ const highlightRe = /==(.*?)==/g;
 const codeRe = /`([^`]+)`/g;
 const wikilinkRe = /\[\[(.*?)\]\]/g;
 const webLinkRe = /(?<!!)\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const bareUrlRe = /(?<![\])=’"\w])(https?:\/\/[^\s<>)\]"]+)/g;
 const spanColorRe = /<span\s+style=["']color:\s*([^"';]+)[^"']*["']>([\s\S]*?)<\/span>/gi;
 const underlineRe = /<u>([\s\S]*?)<\/u>/gi;
 
@@ -705,6 +706,29 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
         to: linkTo,
         dec: Decoration.replace({ widget }),
       });
+    }
+
+    // Bare URLs: https://example.com (only if not already part of an image or markdown link)
+    bareUrlRe.lastIndex = 0;
+    let buMatch: RegExpExecArray | null;
+    while ((buMatch = bareUrlRe.exec(text)) !== null) {
+      const linkFrom = line.from + buMatch.index;
+      const linkTo = linkFrom + buMatch[0].length;
+      const url = buMatch[1];
+
+      // Check for overlap with existing item ranges
+      const hasOverlap = items.some((it) => linkFrom < it.to && linkTo > it.from);
+      if (!hasOverlap) {
+        const widget = getCachedWidget(
+          `bare:${linkFrom}:${linkTo}:${url}`,
+          () => new WebLinkWidget(url, url, linkFrom, linkTo)
+        );
+        items.push({
+          from: linkFrom,
+          to: linkTo,
+          dec: Decoration.replace({ widget }),
+        });
+      }
     }
 
     // O. HTML Colored span tags: <span style="color: #ef4444">text</span>

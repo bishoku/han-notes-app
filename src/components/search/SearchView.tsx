@@ -1,8 +1,5 @@
-/**
- * SearchView.tsx — Full Workspace Hybrid & Semantic Search Workspace View.
- * Displays deep faceted search results with live Markdown preview pane.
- */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
@@ -30,6 +27,7 @@ import { MarkdownMessage } from '@/components/ai/MarkdownMessage';
 
 export const SearchView: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { searchQuery, setSearchQuery, setViewMode } = useUiStore();
   const { selectNote, notes } = useNoteStore();
 
@@ -168,8 +166,8 @@ export const SearchView: React.FC = () => {
         return false;
       }
       if (selectedTag) {
-        const hasTag = item.tags?.some((t) => t.replace(/^#/, '').toLowerCase() === selectedTag.toLowerCase());
-        if (!hasTag) return false;
+        const itemTags = item.tags.map((t) => t.replace(/^#/, ''));
+        if (!itemTags.includes(selectedTag)) return false;
       }
       return true;
     });
@@ -178,10 +176,11 @@ export const SearchView: React.FC = () => {
   const handleOpenNote = (item: SearchMatchItem) => {
     selectNote(item.noteId);
     setViewMode('notes');
+    navigate(`/notes/${encodeURIComponent(item.noteId)}`);
   };
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-mac-mainLight dark:bg-mac-mainDark select-none">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-mac-mainLight dark:bg-mac-mainDark select-none">
       {/* 1. Search Header Bar */}
       <div className="p-4 px-6 border-b border-mac-borderLight dark:border-mac-borderDark bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -200,7 +199,10 @@ export const SearchView: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setViewMode('notes')}
+            onClick={() => {
+              setViewMode('notes');
+              navigate('/notes');
+            }}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
           >
             <X size={16} />

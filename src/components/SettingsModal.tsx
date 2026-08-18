@@ -5,7 +5,8 @@ import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import type { AppTheme } from '@/utils/theme';
 import { IntegrationsSettingsTab } from '@/components/settings/IntegrationsSettingsTab';
-import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot } from 'lucide-react';
+import { GitSyncSettingsTab } from '@/components/settings/GitSyncSettingsTab';
+import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot, GitBranch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ThemeOption {
@@ -66,7 +67,7 @@ export const SettingsModal: React.FC = () => {
   const { isSettingsModalOpen, setSettingsModalOpen, theme, setTheme, language, setLanguage } = useUiStore();
   const { vaultPath, switchVault } = useNoteStore();
   const [isSwitching, setIsSwitching] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'integrations'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'git'>('general');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -93,7 +94,7 @@ export const SettingsModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       {/* Modal Container */}
       <div 
-        className="w-full max-w-xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all"
+        className="w-full max-w-2xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Tabs */}
@@ -125,6 +126,19 @@ export const SettingsModal: React.FC = () => {
               <Bot size={13} />
               <span>Entegrasyonlar & AI</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('git')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
+                activeTab === 'git'
+                  ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-xs"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              )}
+            >
+              <GitBranch size={13} />
+              <span>Git & Senkronizasyon</span>
+            </button>
           </div>
 
           <button
@@ -137,7 +151,9 @@ export const SettingsModal: React.FC = () => {
 
         {/* Content Body */}
         <div className="p-6 flex flex-col gap-6 overflow-y-auto max-h-[75vh]">
-          {activeTab === 'integrations' ? (
+          {activeTab === 'git' ? (
+            <GitSyncSettingsTab />
+          ) : activeTab === 'integrations' ? (
             <IntegrationsSettingsTab />
           ) : (
             <>

@@ -55,8 +55,11 @@ export class WikilinkWidget extends WidgetType {
 
       if (targetNote) {
         selectNote(targetNote.id);
+        window.location.hash = `/notes/${encodeURIComponent(targetNote.id)}`;
       } else {
-        createNote(cleanTitle);
+        createNote(cleanTitle).then((newId) => {
+          window.location.hash = `/notes/${encodeURIComponent(newId)}`;
+        });
       }
       useUiStore.getState().setViewMode('notes');
     };
@@ -98,6 +101,30 @@ export class WebLinkWidget extends WidgetType {
       <span>${this.label || this.url}</span>
     `;
 
+    a.onmouseenter = () => {
+      const rect = a.getBoundingClientRect();
+      window.dispatchEvent(
+        new CustomEvent('show-link-preview', {
+          detail: {
+            url: this.url,
+            label: this.label,
+            rect: {
+              top: rect.top,
+              bottom: rect.bottom,
+              left: rect.left,
+              right: rect.right,
+              width: rect.width,
+              height: rect.height,
+            },
+          },
+        })
+      );
+    };
+
+    a.onmouseleave = () => {
+      window.dispatchEvent(new CustomEvent('hide-link-preview'));
+    };
+
     a.onmousedown = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -106,7 +133,7 @@ export class WebLinkWidget extends WidgetType {
     a.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      window.open(this.url, '_blank');
+      window.open(this.url, '_blank', 'noopener,noreferrer');
     };
 
     return a;

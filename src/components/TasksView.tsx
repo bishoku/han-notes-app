@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTaskStore } from '@/store/taskStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
@@ -9,6 +10,7 @@ import { TasksGanttView } from './tasks/TasksGanttView';
 import { TasksSidebarList } from './tasks/TasksSidebarList';
 
 export const TasksView: React.FC = () => {
+  const navigate = useNavigate();
   const { tasks, registry, loadTasks, toggleTask, updateTaskMetadata } = useTaskStore();
   const selectNote = useNoteStore(state => state.selectNote);
   const { setViewMode, rightPanelOpen, toggleRightPanel } = useUiStore();
@@ -50,6 +52,7 @@ export const TasksView: React.FC = () => {
   const handleSelectNote = (noteId: string) => {
     selectNote(noteId);
     setViewMode('notes');
+    navigate(`/notes/${encodeURIComponent(noteId)}`);
   };
 
   return (

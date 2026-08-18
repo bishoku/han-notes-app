@@ -67,7 +67,7 @@ export function useNoteContent() {
   const localContentRef = useRef<string>(localContent);
 
 
-  // Sync state ONLY when active note changes or on initial load
+  // Sync state when active note changes or on initial load
   useEffect(() => {
     if (currentNoteId !== loadedNoteIdRef.current) {
       // Flush previous note if switching notes
@@ -85,6 +85,36 @@ export function useNoteContent() {
       localContentRef.current = currentNoteContent || '';
     }
   }, [currentNoteId, currentNoteContent, updateNote]);
+
+  // Listen for explicit note content reloads (e.g. from Git Revert / History Restore)
+  useEffect(() => {
+    const handleReload = (e: CustomEvent<{ noteId: string; content: string }>) => {
+      if (e.detail?.noteId === currentNoteId) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        clearLivePreviewCaches();
+        setLocalContent(e.detail.content || '');
+        localContentRef.current = e.detail.content || '';
+      }
+    };
+
+    const handleFlushSave = () => {
+      if (saveTimerRef.current && localContentRef.current !== undefined) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        updateNote(localContentRef.current);
+      }
+    };
+
+    window.addEventListener('han-note-content-reloaded' as any, handleReload);
+    window.addEventListener('han-flush-note-save' as any, handleFlushSave);
+    return () => {
+      window.removeEventListener('han-note-content-reloaded' as any, handleReload);
+      window.removeEventListener('han-flush-note-save' as any, handleFlushSave);
+    };
+  }, [currentNoteId, updateNote]);
 
   // Handle content updates with immediate local state and debounced disk persist
   const handleUpdate = useCallback((val: string) => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -42,6 +43,7 @@ const isMatchingNote = (taskNoteId: string, currentId: string | null) => {
 
 export const RightPanel: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   // Individual Zustand selectors — only subscribe to fields we actually use
   const rightPanelOpen = useUiStore(s => s.rightPanelOpen);
   const setViewMode = useUiStore(s => s.setViewMode);
@@ -105,7 +107,7 @@ export const RightPanel: React.FC = () => {
   }
 
   return (
-    <aside className="w-[25%] min-w-[250px] h-screen bg-mac-sidebarLight dark:bg-mac-sidebarDark border-l border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease">
+    <aside className="w-[25%] min-w-[250px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-l border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease">
       {/* Tabs */}
       <div className="flex items-center p-2 border-b border-mac-borderLight dark:border-mac-borderDark gap-1 shrink-0">
         <button 
@@ -159,6 +161,7 @@ export const RightPanel: React.FC = () => {
                     onClick={() => {
                       selectNote(link.source_note_id);
                       setViewMode('notes');
+                      navigate(`/notes/${encodeURIComponent(link.source_note_id)}`);
                     }}
                     className="group text-left p-3 rounded-lg bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/80 shadow-sm hover:border-mac-accent/50 hover:shadow-md transition-all"
                   >
