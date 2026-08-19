@@ -19,7 +19,7 @@ export class LlmClient {
   public async testConnection(settings: AiSettings): Promise<{ success: boolean; message: string }> {
     try {
       let testOutput = '';
-      await this.streamChat(
+      const result = await this.streamChat(
         settings,
         [{ role: 'user', content: 'Cevap olarak sadece "HAN_OK" yaz.' }],
         (chunk) => {
@@ -27,7 +27,8 @@ export class LlmClient {
         }
       );
 
-      if (testOutput.trim()) {
+      const finalResponse = (result?.content || testOutput || result?.reasoning || '').trim();
+      if (finalResponse) {
         return { success: true, message: `Bağlantı başarılı! Model: ${settings.model}` };
       }
       return { success: false, message: 'Modelden yanıt alınamadı.' };

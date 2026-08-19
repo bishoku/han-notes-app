@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS: AiSettings = {
   temperature: 0.7,
   maxTokens: 2048,
   systemPrompt: 'Sen HAN not defteri yapay zeka asistanısın. Notları dikkatle analiz et ve doğrudan notlardaki gerçeklere dayanarak zengin ve düzenli Markdown formatında (alt başlıklar, madde işaretleri, kalın vurgular, tablolar) net, profesyonel yanıtlar ver.',
-  embeddingModel: 'Xenova/all-MiniLM-L6-v2',
+  embeddingModel: 'Xenova/multilingual-e5-small',
 };
 
 interface AiState {
@@ -178,6 +178,28 @@ export const useAiStore = create<AiState>((set, get) => ({
       if (progress >= 100) {
         setTimeout(() => set({ modelDownloadProgress: null }), 1500);
       }
+    });
+
+    // 4. Embedding model migration: when the worker resolves the actual model,
+    //    check if it differs from the last-used model and re-index if needed.
+    //    This handles both upgrades (MiniLM → e5) and fallbacks (e5 unavailable → MiniLM).
+    const EMBEDDING_MODEL_KEY = 'han_ai_last_embedding_model';
+    embeddingService.setModelResolvedCallback((actualModel: string) => {
+      const lastUsedModel = localStorage.getItem(EMBEDDING_MODEL_KEY);
+
+      if (lastUsedModel && lastUsedModel !== actualModel) {
+        console.info(
+          `[AI Migration] Embedding model changed: "${lastUsedModel}" → "${actualModel}". Purging vectors and re-indexing...`
+        );
+        indexingCoordinator.purgeAll().then(() => {
+          const notes = useNoteStore.getState().notes;
+          if (notes.length > 0) {
+            indexingCoordinator.startVaultIndexing(notes);
+          }
+        });
+      }
+
+      localStorage.setItem(EMBEDDING_MODEL_KEY, actualModel);
     });
 
     await get().refreshStats();
@@ -474,6 +496,37 @@ export const useAiStore = create<AiState>((set, get) => ({
         }
       }
 
+      let accumulatedContent = '';
+      let accumulatedReasoning = '';
+      let isThinking = false;
+      let rafId: number | null = null;
+
+      const scheduleFlush = () => {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          set((state) => {
+            const currentSessions = state.sessions.map((s) => {
+              if (s.id === targetSession!.id) {
+                const msgs = s.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        content: accumulatedContent,
+                        reasoning: accumulatedReasoning,
+                        isThinking,
+                      }
+                    : m
+                );
+                return { ...s, messages: msgs };
+              }
+              return s;
+            });
+            return { sessions: currentSessions };
+          });
+        });
+      };
+
       const { response, reasoning, thinkingTimeMs, citations } = await ragService.query(
         text.trim(),
         settings,
@@ -481,39 +534,22 @@ export const useAiStore = create<AiState>((set, get) => ({
         activeNoteContext,
         extraNotesContext,
         (contentChunk) => {
-          set((state) => {
-            const currentSessions = state.sessions.map((s) => {
-              if (s.id === targetSession!.id) {
-                const msgs = s.messages.map((m) =>
-                  m.id === assistantMessageId
-                    ? { ...m, content: m.content + contentChunk, isThinking: false }
-                    : m
-                );
-                return { ...s, messages: msgs };
-              }
-              return s;
-            });
-            return { sessions: currentSessions };
-          });
+          accumulatedContent += contentChunk;
+          isThinking = false;
+          scheduleFlush();
         },
         (reasoningChunk) => {
-          set((state) => {
-            const currentSessions = state.sessions.map((s) => {
-              if (s.id === targetSession!.id) {
-                const msgs = s.messages.map((m) =>
-                  m.id === assistantMessageId
-                    ? { ...m, reasoning: (m.reasoning || '') + reasoningChunk, isThinking: true }
-                    : m
-                );
-                return { ...s, messages: msgs };
-              }
-              return s;
-            });
-            return { sessions: currentSessions };
-          });
+          accumulatedReasoning += reasoningChunk;
+          isThinking = true;
+          scheduleFlush();
         },
         controller.signal
       );
+
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
 
       // Final update with citations & reasoning metadata
       set((state) => {
@@ -524,7 +560,7 @@ export const useAiStore = create<AiState>((set, get) => ({
                 ? {
                     ...m,
                     content: response,
-                    reasoning: reasoning || m.reasoning,
+                    reasoning: reasoning || accumulatedReasoning,
                     thinkingTimeMs,
                     isThinking: false,
                     citations,

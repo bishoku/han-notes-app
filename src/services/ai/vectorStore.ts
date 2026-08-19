@@ -1,5 +1,6 @@
 /**
- * vectorStore.ts — IndexedDB persistent vector database with client-side Cosine Similarity search.
+ * vectorStore.ts — IndexedDB persistent vector database with in-memory caching
+ * and client-side Cosine Similarity search.
  */
 import type { VectorChunk, SearchResult } from './types';
 
@@ -22,8 +23,7 @@ function openVectorDb(): Promise<IDBDatabase> {
 }
 
 /**
- * Computes Cosine Similarity between two L2-normalized vectors.
- * Because embeddings from Transformers.js are L2-normalized, cosine similarity is equal to their dot product.
+ * Computes Cosine Similarity between two L2-normalized vectors (dot product).
  */
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) return 0;
@@ -35,10 +35,14 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export class VectorStore {
+  // In-memory cache of vector chunks to prevent repeated IndexedDB deserialization
+  private cachedChunks: VectorChunk[] | null = null;
+
   public async saveChunks(chunks: VectorChunk[]): Promise<void> {
     if (chunks.length === 0) return;
     const db = await openVectorDb();
-    return new Promise((resolve, reject) => {
+
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
 
@@ -49,9 +53,22 @@ export class VectorStore {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+
+    // Invalidate / update memory cache
+    if (this.cachedChunks) {
+      const chunkMap = new Map(this.cachedChunks.map((c) => [c.id, c]));
+      for (const c of chunks) {
+        chunkMap.set(c.id, c);
+      }
+      this.cachedChunks = Array.from(chunkMap.values());
+    }
   }
 
   public async getNoteChunks(noteId: string): Promise<VectorChunk[]> {
+    if (this.cachedChunks) {
+      return this.cachedChunks.filter((c) => c.noteId === noteId);
+    }
+
     const db = await openVectorDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
@@ -65,11 +82,11 @@ export class VectorStore {
   }
 
   public async deleteNoteChunks(noteId: string): Promise<void> {
-    const db = await openVectorDb();
     const existing = await this.getNoteChunks(noteId);
     if (existing.length === 0) return;
 
-    return new Promise((resolve, reject) => {
+    const db = await openVectorDb();
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
 
@@ -80,6 +97,10 @@ export class VectorStore {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+
+    if (this.cachedChunks) {
+      this.cachedChunks = this.cachedChunks.filter((c) => c.noteId !== noteId);
+    }
   }
 
   public async deleteNoteChunksByPrefix(prefix: string): Promise<void> {
@@ -90,7 +111,7 @@ export class VectorStore {
     if (toDelete.length === 0) return;
 
     const db = await openVectorDb();
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
 
@@ -101,11 +122,21 @@ export class VectorStore {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+
+    if (this.cachedChunks) {
+      this.cachedChunks = this.cachedChunks.filter(
+        (c) => c.noteId !== prefix && !c.noteId.startsWith(prefix + '/')
+      );
+    }
   }
 
   public async getAllChunks(): Promise<VectorChunk[]> {
+    if (this.cachedChunks) {
+      return this.cachedChunks;
+    }
+
     const db = await openVectorDb();
-    return new Promise((resolve, reject) => {
+    const chunks = await new Promise<VectorChunk[]>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
@@ -113,11 +144,14 @@ export class VectorStore {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
+
+    this.cachedChunks = chunks;
+    return chunks;
   }
 
   public async purgeAllVectors(): Promise<void> {
     const db = await openVectorDb();
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const req = store.clear();
@@ -125,6 +159,8 @@ export class VectorStore {
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
+
+    this.cachedChunks = [];
   }
 
   public async getStats(): Promise<{ totalChunks: number; totalNotes: number }> {
@@ -144,7 +180,8 @@ export class VectorStore {
     const allChunks = await this.getAllChunks();
     const scored: SearchResult[] = [];
 
-    for (const chunk of allChunks) {
+    for (let i = 0; i < allChunks.length; i++) {
+      const chunk = allChunks[i];
       if (chunk.vector && chunk.vector.length > 0) {
         const similarity = cosineSimilarity(queryVector, chunk.vector);
         if (similarity >= minSimilarity) {

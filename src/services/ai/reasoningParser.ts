@@ -113,6 +113,27 @@ function findCloseMatch(str: string): { index: number; length: number } | null {
   return earliestIdx !== -1 ? { index: earliestIdx, length: matchedLength } : null;
 }
 
+const POTENTIAL_HEADER_PREFIXES = [
+  /^here'?s/i,
+  /^here is/i,
+  /^(?:\*|_){0,2}thinking process/i,
+  /^(?:\*|_){0,2}thought process/i,
+  /^(?:\*|_){0,2}reasoning process/i,
+  /^<think/i,
+  /^<thought/i,
+  /^<thinking/i,
+  /^<\|thought/i,
+  /^<\|im_start/i,
+  /^```(?:thought|thinking)/i,
+  /^#{1,3}\s*(?:thinking|thought|reasoning)/i,
+];
+
+function isPotentialHeaderStart(str: string): boolean {
+  const trimmed = str.trimStart();
+  if (trimmed.length === 0) return true;
+  return POTENTIAL_HEADER_PREFIXES.some((re) => re.test(trimmed));
+}
+
 /**
  * Stateful streaming parser for LLM output.
  * Call `feed(chunk, isExplicitReasoningField)` on each token received.
@@ -180,7 +201,7 @@ export class ReasoningStreamParser {
         this.pendingBuffer = this.pendingBuffer.slice(openMatch.index + openMatch.length);
       } else {
         const trimmed = this.pendingBuffer.trimStart();
-        if (this.pendingBuffer.length < 80 && (trimmed.length === 0 || /^(?:H|T|R|<|\*|#|`)/i.test(trimmed))) {
+        if (this.pendingBuffer.length < 80 && isPotentialHeaderStart(trimmed)) {
           // Buffer until full header arrives or non-header confirmed
           return { reasoningDelta: '', contentDelta: '', isThinking: false };
         }

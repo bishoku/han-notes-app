@@ -4,15 +4,55 @@ import { useGraphStore } from '@/store/graphStore';
 import { useAiStore } from '@/store/aiStore';
 import { useGitStore } from '@/store/gitStore';
 import { indexingCoordinator } from '@/services/ai/indexingCoordinator';
+import { eventBus } from '@/lib/eventBus';
+import {
+  normalizeNoteId,
+  extractTitleFromId,
+  extractFolderFromId,
+} from '@/utils/pathUtils';
 import type { FileNode, NoteInfo, TagCount, BacklinkInfo } from '@/services/storage';
 
 // Re-export types for backward compatibility with existing component imports
 export type { FileNode, NoteInfo, TagCount, BacklinkInfo };
 
-// Module-level debounce timers for updateNote side effects
-let _backlinkTimer: ReturnType<typeof setTimeout> | null = null;
-let _storeContentTimer: ReturnType<typeof setTimeout> | null = null;
-let _gitStatusTimer: ReturnType<typeof setTimeout> | null = null;
+// Debounce timer registry for noteStore operations
+const debounceTimers = {
+  backlink: null as ReturnType<typeof setTimeout> | null,
+  storeContent: null as ReturnType<typeof setTimeout> | null,
+  gitStatus: null as ReturnType<typeof setTimeout> | null,
+};
+
+function clearDebounceTimers() {
+  if (debounceTimers.backlink) {
+    clearTimeout(debounceTimers.backlink);
+    debounceTimers.backlink = null;
+  }
+  if (debounceTimers.storeContent) {
+    clearTimeout(debounceTimers.storeContent);
+    debounceTimers.storeContent = null;
+  }
+  if (debounceTimers.gitStatus) {
+    clearTimeout(debounceTimers.gitStatus);
+    debounceTimers.gitStatus = null;
+  }
+}
+
+/**
+ * Derives sorted tag counts directly from an existing NoteInfo array without extra I/O.
+ */
+function deriveVaultTags(notes: NoteInfo[]): TagCount[] {
+  const counts = new Map<string, number>();
+  for (const note of notes) {
+    if (note.tags) {
+      for (const tag of note.tags) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
 
 interface NoteState {
   notes: NoteInfo[];
@@ -24,7 +64,7 @@ interface NoteState {
   vaultTags: TagCount[];
   activeTagFilter: string | null;
   vaultPath: string | null;
-  
+
   loadVault: () => Promise<void>;
   loadVaultTree: () => Promise<void>;
   loadVaultTags: () => Promise<void>;
@@ -58,28 +98,38 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   loadVault: async () => {
     try {
-      const notes = await storage.getVaultFiles();
-      const vaultPath = await storage.getVaultPath().catch(() => null);
-      set({ notes, vaultPath });
+      // 1. Fetch vault files and path in parallel
+      const [notes, vaultPath] = await Promise.all([
+        storage.getVaultFiles(),
+        storage.getVaultPath().catch(() => null),
+      ]);
+
+      // 2. Derive tags directly from notes without duplicate disk scans
+      const vaultTags = deriveVaultTags(notes);
+
+      set({ notes, vaultPath, vaultTags });
+
+      // 3. Load file tree
       await get().loadVaultTree();
-      await get().loadVaultTags();
-      
-      // Sync with graph store non-blockingly
+
+      // 4. Non-blocking graph store sync
       useGraphStore.getState().buildFullGraph(notes);
 
+      // 5. Select first note if nothing is selected
       if (notes.length > 0 && !get().currentNoteId) {
         await get().selectNote(notes[0].id);
       }
 
-      // Sync Git status with vault
+      // 6. Non-blocking Git status refresh
       useGitStore.getState().refreshStatus().catch(() => {});
     } catch (e) {
-      console.error("Failed to load vault:", e);
+      console.error('Failed to load vault:', e);
     }
   },
 
   switchVault: async () => {
     try {
+      clearDebounceTimers();
       const selected = await storage.selectVaultFolder();
       if (selected) {
         set({
@@ -97,7 +147,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }
       return false;
     } catch (e) {
-      console.error("Failed to switch vault:", e);
+      console.error('Failed to switch vault:', e);
       return false;
     }
   },
@@ -107,7 +157,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       const fileTree = await storage.getVaultTree();
       set({ fileTree });
     } catch (e) {
-      console.error("Failed to load vault tree:", e);
+      console.error('Failed to load vault tree:', e);
     }
   },
 
@@ -117,28 +167,28 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   selectNote: async (id: string) => {
     try {
-      const cleanId = id.replace(/\.md$/, '');
+      const cleanId = normalizeNoteId(id);
       const prevId = get().currentNoteId;
       const prevContent = get().currentNoteContent;
 
       if (prevId === cleanId && get().currentNoteContent) return;
 
-      // 1. Immediately read note and update UI state without blocking
+      // 1. Read note and update UI state immediately
       const content = await storage.readNote(cleanId);
-      const parts = cleanId.split('/');
-      const parentDir = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
-      
+      const parentDir = extractFolderFromId(cleanId);
+
       set({ currentNoteId: cleanId, currentNoteContent: content, activeFolderPath: parentDir });
       get().loadBacklinks(cleanId);
 
-      // Synchronize note-scoped AI chat session
+      // 2. Synchronize note-scoped AI chat session
       useAiStore.getState().syncActiveNoteSession(cleanId);
 
-      // 2. Non-blocking snapshot of previous note in background
+      // 3. Non-blocking snapshot of previous note in background
       if (prevId && prevId !== cleanId) {
+        eventBus.emit('note:flush-save');
         window.dispatchEvent(new CustomEvent('han-flush-note-save'));
         const prevNote = get().notes.find((n) => n.id === prevId);
-        const prevTitle = prevNote?.title || prevId.split('/').pop() || prevId;
+        const prevTitle = prevNote?.title || extractTitleFromId(prevId);
         setTimeout(async () => {
           try {
             await useGitStore.getState().createSnapshot(`Not kaydedildi: ${prevTitle}`);
@@ -148,14 +198,14 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         }, 100);
       }
 
-      // If AI is enabled and had an active note, flush any pending edits for previous note
+      // 4. Flush pending AI edits for previous note if AI is enabled
       if (useAiStore.getState().settings.enabled && prevId && prevContent) {
         const prevNote = get().notes.find((n) => n.id === prevId);
-        const prevTitle = prevNote?.title || prevId.split('/').pop() || prevId;
+        const prevTitle = prevNote?.title || extractTitleFromId(prevId);
         indexingCoordinator.flushImmediate(prevId, prevTitle, prevContent);
       }
     } catch (e) {
-      console.error("Failed to read note:", e);
+      console.error('Failed to read note:', e);
     }
   },
 
@@ -165,6 +215,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       const content = await storage.readNote(currentNoteId);
       set({ currentNoteContent: content });
+      eventBus.emit('note:reloaded', { noteId: currentNoteId, content });
       window.dispatchEvent(
         new CustomEvent('han-note-content-reloaded', {
           detail: { noteId: currentNoteId, content },
@@ -172,7 +223,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       );
       get().loadBacklinks(currentNoteId);
     } catch (e) {
-      console.error("Failed to refresh current note:", e);
+      console.error('Failed to refresh current note:', e);
     }
   },
 
@@ -184,16 +235,16 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       const backlinks = await storage.getBacklinks(noteId);
       set({ backlinks });
     } catch (e) {
-      console.error("Failed to load backlinks:", e);
+      console.error('Failed to load backlinks:', e);
     }
   },
 
   loadVaultTags: async () => {
     try {
-      const vaultTags = await storage.getVaultTags();
+      const vaultTags = deriveVaultTags(get().notes);
       set({ vaultTags });
     } catch (e) {
-      console.error("Failed to load vault tags:", e);
+      console.error('Failed to load vault tags:', e);
     }
   },
 
@@ -210,79 +261,80 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         set({ currentNoteContent: content });
       }
     } catch (e) {
-      console.error("Failed to update note tags:", e);
+      console.error('Failed to update note tags:', e);
     }
   },
 
   updateNote: async (content: string) => {
     const { currentNoteId } = get();
     if (!currentNoteId) return;
-    
+
     try {
       await storage.writeNote(currentNoteId, content);
 
       // Debounced store state sync (2s) — keeps currentNoteContent fresh for
       // imperative consumers (ChatDrawer, aiStore) without triggering reactive
-      // subscribers (RightPanel headings, etc.) on every 400ms save cycle
-      if (_storeContentTimer) clearTimeout(_storeContentTimer);
-      _storeContentTimer = setTimeout(() => {
-        // Only update if still on the same note
+      // subscribers on every 400ms save cycle
+      if (debounceTimers.storeContent) clearTimeout(debounceTimers.storeContent);
+      debounceTimers.storeContent = setTimeout(() => {
         if (get().currentNoteId === currentNoteId) {
           set({ currentNoteContent: content });
         }
-        _storeContentTimer = null;
+        debounceTimers.storeContent = null;
       }, 2000);
 
-      // Debounced backlink refresh (2s) — backlinks don't need real-time updates
-      if (_backlinkTimer) clearTimeout(_backlinkTimer);
-      _backlinkTimer = setTimeout(() => {
+      // Debounced backlink refresh (2s)
+      if (debounceTimers.backlink) clearTimeout(debounceTimers.backlink);
+      debounceTimers.backlink = setTimeout(() => {
         if (get().currentNoteId === currentNoteId) {
           get().loadBacklinks(currentNoteId);
         }
-        _backlinkTimer = null;
+        debounceTimers.backlink = null;
       }, 2000);
 
-      // Debounced Git Status refresh (600ms) — updates modified changes counter in status bar
-      if (_gitStatusTimer) clearTimeout(_gitStatusTimer);
-      _gitStatusTimer = setTimeout(() => {
+      // Debounced Git Status refresh (600ms)
+      if (debounceTimers.gitStatus) clearTimeout(debounceTimers.gitStatus);
+      debounceTimers.gitStatus = setTimeout(() => {
         useGitStore.getState().refreshStatus().catch(() => {});
-        _gitStatusTimer = null;
+        debounceTimers.gitStatus = null;
       }, 600);
 
       // Non-blocking graph index update
       useGraphStore.getState().updateNoteContent(currentNoteId, content);
 
-      // Non-blocking AI vector indexing queue (25s idle debounced)
+      // Non-blocking AI vector indexing queue
       if (useAiStore.getState().settings.enabled) {
         const note = get().notes.find((n) => n.id === currentNoteId);
-        const title = note?.title || currentNoteId.split('/').pop() || currentNoteId;
+        const title = note?.title || extractTitleFromId(currentNoteId);
         indexingCoordinator.queueNoteUpdate(currentNoteId, title, content);
       }
     } catch (e) {
-      console.error("Failed to write note:", e);
-    }
-  },
-  
-  createNote: async (title: string, parentPath = ""): Promise<string> => {
-    try {
-      await storage.createNoteInFolder(parentPath, title);
-      await get().loadVault();
-      const newId = parentPath ? `${parentPath}/${title}` : title;
-      await get().selectNote(newId);
-      return newId;
-    } catch (e) {
-      console.error("Failed to create note:", e);
-      return parentPath ? `${parentPath}/${title}` : title;
+      console.error('Failed to write note:', e);
     }
   },
 
-  createFolder: async (folderName: string, parentPath = "") => {
+  createNote: async (title: string, parentPath = ''): Promise<string> => {
+    try {
+      await storage.createNoteInFolder(parentPath, title);
+      await get().loadVault();
+      const rawId = parentPath ? `${parentPath}/${title}` : title;
+      const newId = normalizeNoteId(rawId);
+      await get().selectNote(newId);
+      return newId;
+    } catch (e) {
+      console.error('Failed to create note:', e);
+      const rawId = parentPath ? `${parentPath}/${title}` : title;
+      return normalizeNoteId(rawId);
+    }
+  },
+
+  createFolder: async (folderName: string, parentPath = '') => {
     try {
       await storage.createFolder(parentPath, folderName);
       await get().loadVaultTree();
       set({ activeFolderPath: parentPath ? `${parentPath}/${folderName}` : folderName });
     } catch (e) {
-      console.error("Failed to create folder:", e);
+      console.error('Failed to create folder:', e);
     }
   },
 
@@ -293,10 +345,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
     try {
       await storage.moveNode(srcRelPath, destDirRelPath);
-      
+
       const { currentNoteId } = get();
-      const cleanSrc = srcRelPath.replace(/\.md$/, '');
-      const cleanDest = destPath.replace(/\.md$/, '');
+      const cleanSrc = normalizeNoteId(srcRelPath);
+      const cleanDest = normalizeNoteId(destPath);
 
       if (currentNoteId === srcRelPath || currentNoteId === cleanSrc) {
         set({ currentNoteId: cleanDest });
@@ -305,7 +357,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       await get().loadVault();
       useGitStore.getState().createSnapshot(`Taşındı: ${srcRelPath} -> ${destPath}`);
     } catch (e) {
-      console.error("Failed to move item:", e);
+      console.error('Failed to move item:', e);
     }
   },
 
@@ -324,7 +376,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       await get().loadVault();
       useGitStore.getState().createSnapshot(`Silindi: ${relPath}`);
     } catch (e) {
-      console.error("Failed to delete item:", e);
+      console.error('Failed to delete item:', e);
     }
   },
 
@@ -344,7 +396,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       const foundNode = findNodeInTree(get().fileTree, relPath);
       const isFile = foundNode
         ? !foundNode.is_dir
-        : (relPath.endsWith('.md') || get().notes.some((n) => n.id === relPath || n.id === relPath.replace(/\.md$/, '')));
+        : (relPath.endsWith('.md') || get().notes.some((n) => n.id === relPath || n.id === normalizeNoteId(relPath)));
 
       const parts = relPath.split('/').filter(Boolean);
       parts.pop();
@@ -359,8 +411,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       // Update current active note ID if it was affected
       const currentId = get().currentNoteId;
       if (isFile) {
-        const oldNoteId = relPath.replace(/\.md$/, '');
-        const newNoteId = newPath.replace(/\.md$/, '');
+        const oldNoteId = normalizeNoteId(relPath);
+        const newNoteId = normalizeNoteId(newPath);
         if (currentId === oldNoteId || currentId === relPath) {
           set({ currentNoteId: newNoteId });
         }
@@ -370,15 +422,15 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         // Refresh vector index immediately for the renamed note
         try {
           const content = await storage.readNote(newNoteId);
-          const newTitle = finalName.replace(/\.md$/, '');
+          const newTitle = extractTitleFromId(finalName);
           await indexingCoordinator.renameNote(oldNoteId, newNoteId, newTitle, content);
         } catch (err) {
           console.warn('Failed to re-index renamed note:', err);
         }
       } else {
         // Folder rename
-        const oldFolderId = relPath.replace(/\.md$/, '');
-        const newFolderId = newPath.replace(/\.md$/, '');
+        const oldFolderId = normalizeNoteId(relPath);
+        const newFolderId = normalizeNoteId(newPath);
         if (currentId && (currentId === oldFolderId || currentId.startsWith(oldFolderId + '/'))) {
           const updatedCurrentId = newFolderId + currentId.slice(oldFolderId.length);
           set({ currentNoteId: updatedCurrentId });
@@ -405,7 +457,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
       useGitStore.getState().createSnapshot(`Yeniden adlandırıldı: ${relPath} -> ${newName}`);
     } catch (e) {
-      console.error("Failed to rename item:", e);
+      console.error('Failed to rename item:', e);
     }
   },
 }));

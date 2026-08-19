@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNoteStore, type NoteInfo } from '@/store/noteStore';
 import { extractTagsFromFrontmatter } from '@/utils/lineParser';
 import { clearLivePreviewCaches } from '@/editor/LivePreviewPlugin';
+import { eventBus } from '@/lib/eventBus';
+import { normalizeNoteId, isNoteIdMatch } from '@/utils/pathUtils';
 
 /**
  * Custom hook to manage active note content, debounced saving to storage,
@@ -10,31 +12,30 @@ import { clearLivePreviewCaches } from '@/editor/LivePreviewPlugin';
 export function useNoteContent() {
   // Individual Zustand selectors — subscribe only to fields we use, preventing
   // re-renders from unrelated store changes (fileTree, backlinks, etc.)
-  const currentNoteId = useNoteStore(s => s.currentNoteId);
-  const currentNoteContent = useNoteStore(s => s.currentNoteContent);
-  const updateNote = useNoteStore(s => s.updateNote);
-  const notes = useNoteStore(s => s.notes);
-  const vaultTags = useNoteStore(s => s.vaultTags);
-  const updateNoteTags = useNoteStore(s => s.updateNoteTags);
+  const currentNoteId = useNoteStore((s) => s.currentNoteId);
+  const currentNoteContent = useNoteStore((s) => s.currentNoteContent);
+  const updateNote = useNoteStore((s) => s.updateNote);
+  const notes = useNoteStore((s) => s.notes);
+  const vaultTags = useNoteStore((s) => s.vaultTags);
+  const updateNoteTags = useNoteStore((s) => s.updateNoteTags);
   const [localContent, setLocalContent] = useState('');
   const [showTagPopover, setShowTagPopover] = useState(false);
 
-  // Debounce timer refs — prevent disk writes and heavy parsing on every keystroke
+  // Debounce timer refs
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tagParseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const cleanId = currentNoteId ? currentNoteId.replace(/\.md$/, '') : '';
-  const currentNote = notes.find((n: NoteInfo) =>
-    n.id === currentNoteId ||
-    n.id === cleanId ||
-    n.id.endsWith(`/${cleanId}`) ||
-    (currentNoteId && n.path.endsWith(currentNoteId))
-  );
+  const cleanId = useMemo(() => (currentNoteId ? normalizeNoteId(currentNoteId) : ''), [currentNoteId]);
+
+  const currentNote = useMemo(() => {
+    if (!cleanId) return undefined;
+    return notes.find((n: NoteInfo) => isNoteIdMatch(n.id, cleanId));
+  }, [notes, cleanId]);
 
   const noteStoreTags = currentNote?.tags;
 
-  // Debounced frontmatter tag extraction — parse only after typing pauses
+  // Debounced frontmatter tag extraction
   const [debouncedFrontmatterTags, setDebouncedFrontmatterTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -54,18 +55,13 @@ export function useNoteContent() {
 
   // All other notes in vault (excluding currently active note)
   const otherNotes = useMemo(() => {
-    return notes.filter((n: NoteInfo) =>
-      n.id !== currentNoteId &&
-      n.id !== cleanId &&
-      !n.id.endsWith(`/${cleanId}`) &&
-      (!currentNoteId || !n.path.endsWith(currentNoteId))
-    );
-  }, [notes, currentNoteId, cleanId]);
+    if (!cleanId) return notes;
+    return notes.filter((n: NoteInfo) => !isNoteIdMatch(n.id, cleanId));
+  }, [notes, cleanId]);
 
   // Track actively loaded note ID and local content ref
   const loadedNoteIdRef = useRef<string | null>(null);
   const localContentRef = useRef<string>(localContent);
-
 
   // Sync state when active note changes or on initial load
   useEffect(() => {
@@ -86,10 +82,31 @@ export function useNoteContent() {
     }
   }, [currentNoteId, currentNoteContent, updateNote]);
 
-  // Listen for explicit note content reloads (e.g. from Git Revert / History Restore)
+  // Listen for explicit note content reloads and flush requests
   useEffect(() => {
-    const handleReload = (e: CustomEvent<{ noteId: string; content: string }>) => {
-      if (e.detail?.noteId === currentNoteId) {
+    const unbindReload = eventBus.on('note:reloaded', (payload) => {
+      if (isNoteIdMatch(payload.noteId, currentNoteId)) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        clearLivePreviewCaches();
+        setLocalContent(payload.content || '');
+        localContentRef.current = payload.content || '';
+      }
+    });
+
+    const unbindFlush = eventBus.on('note:flush-save', () => {
+      if (saveTimerRef.current && localContentRef.current !== undefined) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        updateNote(localContentRef.current);
+      }
+    });
+
+    // Window event listeners for backward compatibility
+    const handleWinReload = (e: CustomEvent<{ noteId: string; content: string }>) => {
+      if (isNoteIdMatch(e.detail?.noteId, currentNoteId)) {
         if (saveTimerRef.current) {
           clearTimeout(saveTimerRef.current);
           saveTimerRef.current = null;
@@ -100,7 +117,7 @@ export function useNoteContent() {
       }
     };
 
-    const handleFlushSave = () => {
+    const handleWinFlush = () => {
       if (saveTimerRef.current && localContentRef.current !== undefined) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
@@ -108,32 +125,39 @@ export function useNoteContent() {
       }
     };
 
-    window.addEventListener('han-note-content-reloaded' as any, handleReload);
-    window.addEventListener('han-flush-note-save' as any, handleFlushSave);
+    window.addEventListener('han-note-content-reloaded' as any, handleWinReload);
+    window.addEventListener('han-flush-note-save' as any, handleWinFlush);
+
     return () => {
-      window.removeEventListener('han-note-content-reloaded' as any, handleReload);
-      window.removeEventListener('han-flush-note-save' as any, handleFlushSave);
+      unbindReload();
+      unbindFlush();
+      window.removeEventListener('han-note-content-reloaded' as any, handleWinReload);
+      window.removeEventListener('han-flush-note-save' as any, handleWinFlush);
     };
   }, [currentNoteId, updateNote]);
 
   // Handle content updates with immediate local state and debounced disk persist
-  const handleUpdate = useCallback((val: string) => {
-    setLocalContent(val);
-    localContentRef.current = val;
+  const handleUpdate = useCallback(
+    (val: string) => {
+      setLocalContent(val);
+      localContentRef.current = val;
 
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      updateNote(val);
-      saveTimerRef.current = null;
-    }, 400);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        updateNote(val);
+        saveTimerRef.current = null;
+      }, 400);
 
-    // Debounced outline event for RightPanel heading extraction (1.5s)
-    if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current);
-    outlineTimerRef.current = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('outline-content-update', { detail: val }));
-      outlineTimerRef.current = null;
-    }, 1500);
-  }, [updateNote]);
+      // Debounced outline event for RightPanel heading extraction (1.5s)
+      if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current);
+      outlineTimerRef.current = setTimeout(() => {
+        eventBus.emit('editor:outline-update', val);
+        window.dispatchEvent(new CustomEvent('outline-content-update', { detail: val }));
+        outlineTimerRef.current = null;
+      }, 1500);
+    },
+    [updateNote]
+  );
 
   // Cleanup timers & flush pending save on unmount
   useEffect(() => {

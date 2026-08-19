@@ -18,6 +18,7 @@ import type {
   DecisionInfo,
   DecisionRegistry,
 } from './types';
+import { normalizeNoteId, toNoteFilePath } from '@/utils/pathUtils';
 import initWasm, {
   wasm_parse_yaml_frontmatter,
   wasm_inject_yaml_frontmatter,
@@ -46,6 +47,13 @@ const HANDLE_STORE = 'handles';
 
 // In-memory cache for fast, synchronous-like image preview without disk churn
 const imageCache = new Map<string, string>();
+// In-memory text cache to prevent duplicate disk reads across multiple store operations
+const fileTextCache = new Map<string, string>();
+
+export function clearFileTextCache(path?: string) {
+  if (path) fileTextCache.delete(path);
+  else fileTextCache.clear();
+}
 
 export function clearImageCache(path?: string) {
   if (path) imageCache.delete(path);
@@ -161,10 +169,15 @@ async function readFileText(
   dir: FileSystemDirectoryHandle,
   path: string,
 ): Promise<string> {
+  if (fileTextCache.has(path)) {
+    return fileTextCache.get(path)!;
+  }
   const handle = await getOrCreateFile(dir, path);
   if (!handle) return '';
   const file = await handle.getFile();
-  return file.text();
+  const text = await file.text();
+  fileTextCache.set(path, text);
+  return text;
 }
 
 async function writeFileText(
@@ -177,6 +190,7 @@ async function writeFileText(
   const writable = await handle.createWritable();
   await writable.write(content);
   await writable.close();
+  fileTextCache.set(path, content);
 }
 
 async function buildFileTree(
@@ -214,10 +228,6 @@ async function buildFileTree(
   });
 
   return nodes;
-}
-
-function pathToNoteId(relPath: string): string {
-  return relPath.replace(/\.md$/, '');
 }
 
 // ─── BrowserStorage Implementation ──────────────────────────────────────
@@ -312,16 +322,17 @@ export class BrowserStorage implements IStorageService {
     await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
-    const notes: NoteInfo[] = [];
 
-    for (const f of files) {
-      const content = await readFileText(dir, f.relativePath);
-      const parsed = wasm_parse_yaml_frontmatter(content);
-      const tags: string[] = parsed?.[0]?.tags || [];
-      const noteId = pathToNoteId(f.relativePath);
-      const title = f.name.replace(/\.md$/, '');
-      notes.push({ id: noteId, title, path: f.relativePath, tags });
-    }
+    const notes = await Promise.all(
+      files.map(async (f) => {
+        const content = await readFileText(dir, f.relativePath);
+        const parsed = wasm_parse_yaml_frontmatter(content);
+        const tags: string[] = parsed?.[0]?.tags || [];
+        const noteId = normalizeNoteId(f.relativePath);
+        const title = f.name.replace(/\.md$/, '');
+        return { id: noteId, title, path: f.relativePath, tags };
+      })
+    );
 
     notes.sort((a, b) => a.title.localeCompare(b.title));
     return notes;
@@ -337,6 +348,7 @@ export class BrowserStorage implements IStorageService {
 
   async selectVaultFolder(): Promise<string | null> {
     await this.pickDirectory();
+    clearFileTextCache();
     return this.dirHandle?.name ? `/${this.dirHandle.name}` : null;
   }
 
@@ -358,12 +370,12 @@ export class BrowserStorage implements IStorageService {
   // ── Note CRUD ──
 
   async readNote(id: string): Promise<string> {
-    const path = id.endsWith('.md') ? id : `${id}.md`;
+    const path = toNoteFilePath(id);
     return readFileText(this.getDir(), path);
   }
 
   async writeNote(id: string, content: string): Promise<void> {
-    const path = id.endsWith('.md') ? id : `${id}.md`;
+    const path = toNoteFilePath(id);
     await writeFileText(this.getDir(), path, content);
   }
 
@@ -511,16 +523,17 @@ export class BrowserStorage implements IStorageService {
     await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
-    const tasks: TaskInfo[] = [];
 
-    for (const f of files) {
-      const content = await readFileText(dir, f.relativePath);
-      const noteId = pathToNoteId(f.relativePath);
-      const fileTasks: TaskInfo[] = wasm_parse_tasks_from_content(content, noteId) || [];
-      tasks.push(...fileTasks);
-    }
+    const taskArrays = await Promise.all(
+      files.map(async (f) => {
+        const content = await readFileText(dir, f.relativePath);
+        const noteId = normalizeNoteId(f.relativePath);
+        const fileTasks: TaskInfo[] = wasm_parse_tasks_from_content(content, noteId) || [];
+        return fileTasks;
+      })
+    );
 
-    return tasks;
+    return taskArrays.flat();
   }
 
   async getTaskRegistry(): Promise<TaskRegistry> {
@@ -598,16 +611,17 @@ export class BrowserStorage implements IStorageService {
     await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
-    const decisions: DecisionInfo[] = [];
 
-    for (const f of files) {
-      const content = await readFileText(dir, f.relativePath);
-      const noteId = pathToNoteId(f.relativePath);
-      const fileDecisions: DecisionInfo[] = wasm_parse_decisions_from_content(content, noteId) || [];
-      decisions.push(...fileDecisions);
-    }
+    const decisionArrays = await Promise.all(
+      files.map(async (f) => {
+        const content = await readFileText(dir, f.relativePath);
+        const noteId = normalizeNoteId(f.relativePath);
+        const fileDecisions: DecisionInfo[] = wasm_parse_decisions_from_content(content, noteId) || [];
+        return fileDecisions;
+      })
+    );
 
-    return decisions;
+    return decisionArrays.flat();
   }
 
   async getDecisionRegistry(): Promise<DecisionRegistry> {
@@ -658,18 +672,19 @@ export class BrowserStorage implements IStorageService {
     await ensureWasmLoaded();
     const dir = this.getDir();
     const files = await listAllMdFiles(dir);
-    const backlinks: BacklinkInfo[] = [];
 
-    for (const f of files) {
-      const noteId = pathToNoteId(f.relativePath);
-      if (noteId.toLowerCase() === targetNoteId.toLowerCase()) continue;
+    const backlinkArrays = await Promise.all(
+      files.map(async (f) => {
+        const noteId = normalizeNoteId(f.relativePath);
+        if (noteId.toLowerCase() === targetNoteId.toLowerCase()) return [];
 
-      const content = await readFileText(dir, f.relativePath);
-      const links: BacklinkInfo[] = wasm_find_backlinks(content, noteId, targetNoteId) || [];
-      backlinks.push(...links);
-    }
+        const content = await readFileText(dir, f.relativePath);
+        const links: BacklinkInfo[] = wasm_find_backlinks(content, noteId, targetNoteId) || [];
+        return links;
+      })
+    );
 
-    return backlinks;
+    return backlinkArrays.flat();
   }
 
   // ── Assets / Images ──
@@ -847,6 +862,10 @@ export class BrowserStorage implements IStorageService {
   }
 
   private async deleteFileByPath(dir: FileSystemDirectoryHandle, path: string): Promise<void> {
+    clearFileTextCache(path);
+    clearFileTextCache(toNoteFilePath(path));
+    clearFileTextCache(normalizeNoteId(path));
+
     const parts = path.split('/').filter(Boolean);
     const targetName = parts.pop();
     if (!targetName) return;
