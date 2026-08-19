@@ -1,7 +1,7 @@
 /**
  * hybridSearchService.ts — Unified Hybrid & Semantic Search Engine for HAN Notes.
- * Combines full-text keyword matching, heading breadcrumbs, tag matching,
- * task/decision records, and local ONNX Vector Cosine Similarity search.
+ * Combines instant in-memory full-text keyword matching with debounced
+ * ONNX vector semantic search and LRU query caching.
  */
 import { useNoteStore } from '@/store/noteStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -28,19 +28,20 @@ export interface SearchMatchItem {
   score: number;
 }
 
+// In-memory query result cache to make backspaces and repeated searches instantaneous
+const queryCache = new Map<string, { results: SearchMatchItem[]; isSemanticDone: boolean }>();
+const MAX_CACHE_ENTRIES = 40;
+
 export class HybridSearchService {
   /**
-   * Performs hybrid search combining fulltext matching and AI vector search.
+   * Fast, synchronous-like in-memory keyword & title match (0ms latency).
    */
-  public async search(
+  public searchKeywordOnly(
     query: string,
-    filter: SearchFilterType = 'all',
-    signal?: AbortSignal
-  ): Promise<{ results: SearchMatchItem[]; isSemanticDone: boolean }> {
+    filter: SearchFilterType = 'all'
+  ): SearchMatchItem[] {
     const trimmed = query.trim();
-    if (!trimmed) {
-      return { results: [], isSemanticDone: true };
-    }
+    if (!trimmed) return [];
 
     const { notes } = useNoteStore.getState();
     const { tasks } = useTaskStore.getState();
@@ -173,9 +174,40 @@ export class HybridSearchService {
       }
     }
 
-    // ── 4. AI Semantic Vector Search ──
+    matches.sort((a, b) => b.score - a.score);
+    return matches;
+  }
+
+  /**
+   * Performs hybrid search combining fulltext matching and AI vector search.
+   */
+  public async search(
+    query: string,
+    filter: SearchFilterType = 'all',
+    signal?: AbortSignal
+  ): Promise<{ results: SearchMatchItem[]; isSemanticDone: boolean }> {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return { results: [], isSemanticDone: true };
+    }
+
+    const cacheKey = `${filter}:${trimmed.toLowerCase()}`;
+    if (queryCache.has(cacheKey)) {
+      return queryCache.get(cacheKey)!;
+    }
+
+    // 1. Instant keyword matches first
+    const matches = this.searchKeywordOnly(trimmed, filter);
+    const { notes } = useNoteStore.getState();
+    const queryLower = trimmed.toLowerCase();
+    const tokens = queryLower.split(/\s+/).filter((t) => t.length > 0);
+
+    // 2. AI Semantic Vector Search (only if query length >= 3 chars and filter permits)
     let isSemanticDone = false;
-    if (filter === 'all' || filter === 'semantic' || filter === 'notes') {
+    const shouldRunSemantic =
+      trimmed.length >= 3 && (filter === 'all' || filter === 'semantic' || filter === 'notes');
+
+    if (shouldRunSemantic) {
       try {
         if (!signal?.aborted) {
           const queryVector = await embeddingService.embedQuery(trimmed);
@@ -192,15 +224,21 @@ export class HybridSearchService {
               }
 
               const key = `sem_${chunk.id}`;
-              const noteTitle = foundNote.title || chunk.title || chunk.noteId.split('/').pop() || chunk.noteId;
+              const noteTitle =
+                foundNote.title || chunk.title || chunk.noteId.split('/').pop() || chunk.noteId;
 
               // Check if we already have this note's chunk
-              const existingIdx = matches.findIndex((m) => m.noteId === chunk.noteId && m.heading === chunk.heading);
+              const existingIdx = matches.findIndex(
+                (m) => m.noteId === chunk.noteId && m.heading === chunk.heading
+              );
 
               if (existingIdx !== -1) {
                 // Enrich existing keyword match with semantic score
                 matches[existingIdx].similarityScore = similarity;
-                matches[existingIdx].score = Math.max(matches[existingIdx].score, similarity * 100 + 10);
+                matches[existingIdx].score = Math.max(
+                  matches[existingIdx].score,
+                  similarity * 100 + 10
+                );
                 if (!matches[existingIdx].heading && chunk.heading) {
                   matches[existingIdx].heading = chunk.heading;
                 }
@@ -234,7 +272,20 @@ export class HybridSearchService {
     // Sort by descending score
     matches.sort((a, b) => b.score - a.score);
 
-    return { results: matches, isSemanticDone };
+    const result = { results: matches, isSemanticDone };
+
+    // Update LRU cache
+    if (queryCache.size >= MAX_CACHE_ENTRIES) {
+      const firstKey = queryCache.keys().next().value;
+      if (firstKey) queryCache.delete(firstKey);
+    }
+    queryCache.set(cacheKey, result);
+
+    return result;
+  }
+
+  public clearCache() {
+    queryCache.clear();
   }
 }
 

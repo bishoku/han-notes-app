@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAiStore } from '@/store/aiStore';
 import { llmClient } from '@/services/ai/llmClient';
+import { embeddingService } from '@/services/ai/embeddingService';
 import {
   PROVIDER_PRESETS,
   type AiProvider,
@@ -273,7 +274,7 @@ export const IntegrationsSettingsTab: React.FC = () => {
           <div className="h-px bg-gray-100 dark:bg-zinc-800 my-1" />
 
           {/* 6. Vector Database & Indexing Status */}
-          <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-800 flex flex-col gap-3">
+          <div className="p-4 rounded-2xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-800 flex flex-col gap-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Database size={15} className="text-mac-accent" />
@@ -292,6 +293,35 @@ export const IntegrationsSettingsTab: React.FC = () => {
                   {t('aiIndexedStats', { chunks: vectorStats.totalChunks, notes: vectorStats.totalNotes })}
                 </span>
               )}
+            </div>
+
+            {/* Embedding Model & Source Details */}
+            <div className="p-3 rounded-xl bg-white dark:bg-zinc-900/70 border border-gray-200/80 dark:border-zinc-800 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                  <Cpu size={13} className="text-purple-500 shrink-0" />
+                  <span className="font-medium">{t('aiEmbeddingModel')}:</span>
+                </div>
+                <span className="font-mono font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200/60 dark:border-purple-800/40">
+                  {embeddingService.getLoadedModel() || 'Xenova/multilingual-e5-small'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                  <Globe size={13} className="text-blue-500 shrink-0" />
+                  <span className="font-medium">{t('aiEmbeddingSource')}:</span>
+                </div>
+                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  {embeddingService.getLoadedModel() === 'Xenova/all-MiniLM-L6-v2'
+                    ? t('aiEmbeddingOffline')
+                    : t('aiEmbeddingMultilingual')}
+                </span>
+              </div>
+
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-relaxed pt-1 border-t border-gray-100 dark:border-zinc-800/80">
+                💡 {t('aiEmbeddingStrategy')}
+              </p>
             </div>
 
             <div className="flex items-center gap-2">

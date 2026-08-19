@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,7 +9,6 @@ import {
   ShieldCheck,
   Tag,
   Folder,
-  ArrowRight,
   SlidersHorizontal,
   X,
   ExternalLink,
@@ -17,33 +16,38 @@ import {
 } from 'lucide-react';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
-import { storage } from '@/services/storage';
 import {
   hybridSearchService,
   type SearchMatchItem,
   type SearchFilterType,
 } from '@/services/search/hybridSearchService';
-import { MarkdownMessage } from '@/components/ai/MarkdownMessage';
+import { NotePreviewPane } from './NotePreviewPane';
 
 export const SearchView: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { searchQuery, setSearchQuery, setViewMode } = useUiStore();
-  const { selectNote, notes } = useNoteStore();
+
+  // Granular Zustand selectors
+  const searchQuery = useUiStore((s) => s.searchQuery);
+  const setSearchQuery = useUiStore((s) => s.setSearchQuery);
+  const setViewMode = useUiStore((s) => s.setViewMode);
+
+  const selectNote = useNoteStore((s) => s.selectNote);
+  const notes = useNoteStore((s) => s.notes);
 
   const [inputQuery, setInputQuery] = useState(searchQuery || '');
   const [filterType, setFilterType] = useState<SearchFilterType>('all');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
   const [results, setResults] = useState<SearchMatchItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<SearchMatchItem | null>(null);
-  const [previewContent, setPreviewContent] = useState<string>('');
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
   const [isSemanticLoading, setIsSemanticLoading] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const globalSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Extract unique folders and tags for faceted filtering
+  // Extract unique folders and tags for faceted filtering (memoized)
   const allFolders = useMemo(() => {
     const folders = new Set<string>();
     for (const n of notes) {
@@ -69,7 +73,17 @@ export const SearchView: React.FC = () => {
       .slice(0, 15);
   }, [notes]);
 
-  // Execute hybrid search
+  // Debounced sync of local input to global UI search query
+  const handleInputChange = (val: string) => {
+    setInputQuery(val);
+    if (globalSyncTimerRef.current) clearTimeout(globalSyncTimerRef.current);
+    globalSyncTimerRef.current = setTimeout(() => {
+      setSearchQuery(val);
+      globalSyncTimerRef.current = null;
+    }, 300);
+  };
+
+  // Progressive Two-Stage Hybrid Search
   useEffect(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -77,7 +91,6 @@ export const SearchView: React.FC = () => {
 
     const trimmed = inputQuery.trim();
     if (!trimmed) {
-      // Default: list all notes
       const initialMatches: SearchMatchItem[] = notes.map((n) => ({
         id: `init_${n.id}`,
         noteId: n.id,
@@ -90,7 +103,24 @@ export const SearchView: React.FC = () => {
         score: 10,
       }));
       setResults(initialMatches);
-      if (initialMatches.length > 0) setSelectedItem(initialMatches[0]);
+      setSelectedResultId((prev) => {
+        if (prev && initialMatches.some((m) => m.id === prev)) return prev;
+        return initialMatches[0]?.id || null;
+      });
+      setIsSemanticLoading(false);
+      return;
+    }
+
+    // Stage 1: Instant in-memory search
+    const instantHits = hybridSearchService.searchKeywordOnly(trimmed, filterType);
+    setResults(instantHits);
+    setSelectedResultId((prev) => {
+      if (prev && instantHits.some((m) => m.id === prev)) return prev;
+      return instantHits[0]?.id || null;
+    });
+
+    // Stage 2: Debounced vector search (only if query >= 3 chars)
+    if (trimmed.length < 3 || filterType === 'tasks' || filterType === 'decisions' || filterType === 'tags') {
       setIsSemanticLoading(false);
       return;
     }
@@ -98,9 +128,8 @@ export const SearchView: React.FC = () => {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    setIsSemanticLoading(true);
-
     const timer = setTimeout(async () => {
+      setIsSemanticLoading(true);
       try {
         const { results: searchHits, isSemanticDone } = await hybridSearchService.search(
           trimmed,
@@ -109,19 +138,22 @@ export const SearchView: React.FC = () => {
         );
         if (!abortController.signal.aborted) {
           setResults(searchHits);
-          if (searchHits.length > 0) {
-            setSelectedItem(searchHits[0]);
-          } else {
-            setSelectedItem(null);
-          }
+          setSelectedResultId((prev) => {
+            if (prev && searchHits.some((m) => m.id === prev)) return prev;
+            return searchHits[0]?.id || null;
+          });
           setIsSemanticLoading(!isSemanticDone);
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           console.error('Search error in SearchView:', err);
         }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsSemanticLoading(false);
+        }
       }
-    }, 150);
+    }, 220);
 
     return () => {
       clearTimeout(timer);
@@ -129,37 +161,7 @@ export const SearchView: React.FC = () => {
     };
   }, [inputQuery, filterType, notes]);
 
-  // Load preview content when selected item changes
-  useEffect(() => {
-    if (!selectedItem) {
-      setPreviewContent('');
-      return;
-    }
-
-    let isMounted = true;
-    setIsLoadingPreview(true);
-
-    storage
-      .readNote(selectedItem.noteId)
-      .then((content) => {
-        if (isMounted) {
-          setPreviewContent(content);
-          setIsLoadingPreview(false);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          setPreviewContent(`Not içeriği yüklenemedi: ${err.message}`);
-          setIsLoadingPreview(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedItem]);
-
-  // Apply folder & tag facet filters
+  // Apply folder & tag facet filters (memoized)
   const filteredResults = useMemo(() => {
     return results.filter((item) => {
       if (selectedFolder && !item.path.startsWith(selectedFolder)) {
@@ -173,11 +175,17 @@ export const SearchView: React.FC = () => {
     });
   }, [results, selectedFolder, selectedTag]);
 
-  const handleOpenNote = (item: SearchMatchItem) => {
-    selectNote(item.noteId);
+  // Derive active selected item
+  const selectedItem = useMemo(() => {
+    if (!selectedResultId) return filteredResults[0] || null;
+    return filteredResults.find((r) => r.id === selectedResultId) || filteredResults[0] || null;
+  }, [filteredResults, selectedResultId]);
+
+  const handleOpenNote = useCallback((noteId: string) => {
+    selectNote(noteId);
     setViewMode('notes');
-    navigate(`/notes/${encodeURIComponent(item.noteId)}`);
-  };
+    navigate(`/notes/${encodeURIComponent(noteId)}`);
+  }, [selectNote, setViewMode, navigate]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-mac-mainLight dark:bg-mac-mainDark select-none">
@@ -222,10 +230,7 @@ export const SearchView: React.FC = () => {
           <input
             type="text"
             value={inputQuery}
-            onChange={(e) => {
-              setInputQuery(e.target.value);
-              setSearchQuery(e.target.value);
-            }}
+            onChange={(e) => handleInputChange(e.target.value)}
             placeholder={t('searchPlaceholder')}
             className="w-full bg-transparent outline-none text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 py-0.5"
             autoFocus
@@ -234,8 +239,7 @@ export const SearchView: React.FC = () => {
           {inputQuery && (
             <button
               onClick={() => {
-                setInputQuery('');
-                setSearchQuery('');
+                handleInputChange('');
               }}
               className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer"
             >
@@ -272,7 +276,7 @@ export const SearchView: React.FC = () => {
       {/* 2. Workspace Body: Filters Sidebar + Results List + Live Preview */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Facet Filters Sidebar */}
-        <div className="w-56 p-4 border-r border-mac-borderLight dark:border-mac-borderDark overflow-y-auto hidden md:flex flex-col gap-4 text-xs">
+        <div className="w-56 p-4 border-r border-mac-borderLight dark:border-mac-borderDark overflow-y-auto hidden md:flex flex-col gap-4 text-xs shrink-0">
           <div className="flex items-center justify-between font-bold text-gray-500 uppercase tracking-wider text-[10px]">
             <span className="flex items-center gap-1.5">
               <SlidersHorizontal size={11} />
@@ -368,8 +372,8 @@ export const SearchView: React.FC = () => {
               return (
                 <div
                   key={item.id}
-                  onClick={() => setSelectedItem(item)}
-                  onDoubleClick={() => handleOpenNote(item)}
+                  onClick={() => setSelectedResultId(item.id)}
+                  onDoubleClick={() => handleOpenNote(item.noteId)}
                   className={`p-3.5 rounded-2xl transition-all cursor-pointer flex flex-col gap-1.5 border ${
                     isSelected
                       ? 'bg-purple-500/10 dark:bg-purple-500/15 border-purple-500/40 shadow-xs'
@@ -434,7 +438,7 @@ export const SearchView: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOpenNote(item);
+                          handleOpenNote(item.noteId);
                         }}
                         className="p-1.5 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-mac-accent hover:text-white text-gray-500 transition-colors cursor-pointer"
                         title={t('searchHintOpen')}
@@ -477,46 +481,18 @@ export const SearchView: React.FC = () => {
           )}
         </div>
 
-        {/* Right Live Preview Panel */}
+        {/* Right Live Preview Panel (Memoized, auto-scrolling section previewer) */}
         <div className="w-[45%] p-4 overflow-y-auto hidden lg:flex flex-col gap-3 bg-white/40 dark:bg-zinc-950/40 select-text">
-          {selectedItem ? (
-            <>
-              <div className="flex items-center justify-between pb-3 border-b border-mac-borderLight dark:border-mac-borderDark">
-                <div className="flex flex-col min-w-0">
-                  <h3 className="font-bold text-sm text-gray-900 dark:text-gray-100 truncate">
-                    {selectedItem.title}
-                  </h3>
-                  <span className="text-[10px] text-gray-400 font-mono truncate">
-                    {selectedItem.path}
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => handleOpenNote(selectedItem)}
-                  className="px-3 py-1.5 rounded-xl bg-mac-accent hover:opacity-90 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
-                >
-                  <span>{t('searchHintOpen')}</span>
-                  <ArrowRight size={13} />
-                </button>
-              </div>
-
-              {/* Note Rendered Preview */}
-              <div className="flex-1 overflow-y-auto pr-1">
-                {isLoadingPreview ? (
-                  <div className="py-12 flex justify-center text-gray-400">
-                    <span className="text-xs">Yükleniyor...</span>
-                  </div>
-                ) : (
-                  <MarkdownMessage content={previewContent} />
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-400">
-              <FileText size={24} className="mb-2 opacity-50" />
-              <p className="text-xs">{t('searchPreviewPrompt')}</p>
-            </div>
-          )}
+          <NotePreviewPane
+            noteId={selectedItem?.noteId || null}
+            title={selectedItem?.title}
+            path={selectedItem?.path}
+            targetHeading={selectedItem?.heading}
+            targetSnippet={selectedItem?.snippet}
+            matchedKeywords={selectedItem?.matchedKeywords}
+            lineNumber={selectedItem?.lineNumber}
+            onOpenNote={handleOpenNote}
+          />
         </div>
       </div>
     </div>
