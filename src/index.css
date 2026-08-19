@@ -562,11 +562,40 @@
   color: #fbbf24;
 }
 
-/* ─── Raw Mode: Strict plain text without visual formatting ─── */
-.cm-raw-mode .cm-editor .cm-line span {
-  font-weight: 400 !important;
-  font-style: normal !important;
-  text-decoration: none !important;
+/* ─── Raw Source Code Editor Styling ─── */
+.cm-raw-editor .cm-editor {
+  background-color: transparent !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+
+.cm-raw-editor .cm-gutters {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #9ca3af !important;
+  font-family: inherit;
+  font-size: 11px;
+}
+.dark .cm-raw-editor .cm-gutters {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #6b7280 !important;
+}
+
+.cm-raw-editor .cm-activeLine {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+.dark .cm-raw-editor .cm-activeLine {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.cm-raw-editor .cm-activeLineGutter {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  color: #3b82f6 !important;
+  font-weight: 600;
+}
+.dark .cm-raw-editor .cm-activeLineGutter {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #60a5fa !important;
 }
 
 /* ─── Live Preview Mode: Text Decorators ─── */

@@ -1,37 +1,26 @@
+/**
+ * MainEditor.tsx — Primary Note Editor Coordinator.
+ * Manages active note state, tag updates, modal dialogs, and switches
+ * between LivePreviewEditor (WYSIWYG) and RawSourceEditor (Plain-text code editor).
+ */
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { EditorView } from '@codemirror/view';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { languages } from '@codemirror/language-data';
-import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
-import { hanHighlightStyle, hanHighlightStyleDark } from '@/editor/hanHighlightStyle';
 import { useTranslation } from 'react-i18next';
 import { storage } from '@/services/storage';
 import { useUiStore } from '@/store/uiStore';
-import { cn } from '@/lib/utils';
-
-// Editor Plugins & Formatter Utilities
-import { livePreviewPlugin, clearLivePreviewCaches } from '@/editor/LivePreviewPlugin';
-import { previewAutocomplete, rawAutocomplete } from '@/editor/WikilinkCompletion';
-import { smartPastePlugin } from '@/editor/pastePlugin';
-import { buildSlashCommands } from '@/editor/slashCommands';
-import { applyTextFormat } from '@/editor/formatters';
+import { clearLivePreviewCaches } from '@/editor/LivePreviewPlugin';
 import { prepareSafeDocumentInsertion } from '@/utils/markdownSanitizer';
 
 // Custom Hooks
 import { useNoteContent } from '@/hooks/useNoteContent';
-import { useEditorFloatingUI } from '@/hooks/useEditorFloatingUI';
 import { useDiagramManager } from '@/hooks/useDiagramManager';
 import { useTaskDecisionModals } from '@/hooks/useTaskDecisionModals';
 
-// Sub-Components & Menus
+// Core Editor Engines
+import { LivePreviewEditor } from '@/components/editor/LivePreviewEditor';
+import { RawSourceEditor } from '@/components/editor/RawSourceEditor';
+
+// Sub-Components & Header
 import { EditorHeader } from '@/components/EditorHeader';
-import { EditorFooter } from '@/components/EditorFooter';
-import { FloatingBlockMenu } from '@/components/FloatingBlockMenu';
-import { SelectionBubbleMenu, type FormatType } from '@/components/SelectionBubbleMenu';
-import { SlashCommandMenu } from '@/components/SlashCommandMenu';
-import { EmojiPickerPopover } from '@/components/ui/EmojiPickerPopover';
-import { InlineAiComposer } from '@/components/ai/InlineAiComposer';
 
 // Modals
 import { TaskEditModal } from '@/components/TaskEditModal';
@@ -44,19 +33,17 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { MediaFullscreenModal, type FullscreenMediaData } from '@/components/ui/MediaFullscreenModal';
 import { LinkPreviewPopover, type LinkPreviewData } from '@/components/ui/LinkPreviewPopover';
 import { WebLinkFullscreenModal, type WebLinkFullscreenData } from '@/components/ui/WebLinkFullscreenModal';
+import { InlineAiComposer } from '@/components/ai/InlineAiComposer';
 
 export const MainEditor: React.FC = () => {
   const { t } = useTranslation();
-  // Individual Zustand selectors — only re-render when the specific field changes
   const theme = useUiStore(s => s.theme);
   const fontSize = useUiStore(s => s.fontSize);
   const editorMode = useUiStore(s => s.editorMode);
-  const setEditorMode = useUiStore(s => s.setEditorMode);
   const rightPanelOpen = useUiStore(s => s.rightPanelOpen);
   const toggleRightPanel = useUiStore(s => s.toggleRightPanel);
 
   const editorRef = useRef<any>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 1. Note Content & Persistence Hook
@@ -72,62 +59,20 @@ export const MainEditor: React.FC = () => {
     updateNoteTags,
   } = useNoteContent();
 
-  // 2. Floating UI Hook (Block actions, task/decision hover, selection bubble, slash command state)
-  const {
-    menuPos,
-    showOptions,
-    setShowOptions,
-    showNotePicker,
-    setShowNotePicker,
-    taskEditBtn,
-    decisionEditBtn,
-    selectionBubble,
-    slashMenuState,
-    setSlashMenuState,
-    slashStateRef,
-    handleEditorUpdate,
-  } = useEditorFloatingUI(wrapperRef, editorMode);
-
-  // Stable ref for menuPos — avoids recreating insertText on every cursor movement
-  const menuPosRef = useRef(menuPos);
-  menuPosRef.current = menuPos;
-
-  // Helper to insert text at current menu or cursor position
+  // Stable insertText helper for diagram hooks
   const insertText = useCallback((text: string) => {
     if (editorRef.current) {
       const view = editorRef.current;
-      const targetPos = menuPosRef.current.lineFrom !== undefined ? menuPosRef.current.lineFrom : view.state.selection.main.head;
+      const targetPos = view.state.selection?.main?.head || view.state.doc.length;
       view.dispatch({
         changes: { from: targetPos, insert: text },
         selection: { anchor: targetPos + text.length },
       });
       view.focus();
-      setShowOptions(false);
-      setShowNotePicker(false);
     }
-  }, [setShowOptions, setShowNotePicker]);
-
-  // Scroll-to-heading: listen for clicks on outline items in RightPanel
-  useEffect(() => {
-    const handler = (e: CustomEvent<{ line: number }>) => {
-      const view = editorRef.current;
-      if (!view) return;
-      const lineNum = e.detail.line + 1; // outline uses 0-indexed, CodeMirror doc uses 1-indexed
-      const doc = view.state.doc;
-      if (lineNum < 1 || lineNum > doc.lines) return;
-      const line = doc.line(lineNum);
-      // Move cursor to the heading line and scroll it into view
-      view.dispatch({
-        selection: { anchor: line.from },
-        effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 80 }),
-      });
-      view.focus();
-    };
-    window.addEventListener('scroll-to-heading', handler as EventListener);
-    return () => window.removeEventListener('scroll-to-heading', handler as EventListener);
   }, []);
 
-  // 3. Diagrams & Sketches Hook (YADA & Excalidraw)
+  // 2. Diagrams & Sketches Hook (YADA & Excalidraw)
   const {
     diagramModalOpen,
     setDiagramModalOpen,
@@ -141,7 +86,7 @@ export const MainEditor: React.FC = () => {
     handleSaveSketch,
   } = useDiagramManager(currentNoteId, insertText);
 
-  // 4. Task & Decision Modals Hook
+  // 3. Task & Decision Modals Hook
   const {
     taskModalData,
     setTaskModalData,
@@ -153,7 +98,7 @@ export const MainEditor: React.FC = () => {
     handleSaveDecisionModal,
   } = useTaskDecisionModals(currentNoteId);
 
-  // 5. Fullscreen Media, Delete Modals & Mermaid State
+  // 4. Modals State: Fullscreen Media, Delete Modals, Mermaid & Code Modals
   const [fullscreenMedia, setFullscreenMedia] = useState<FullscreenMediaData | null>(null);
   const [confirmDeleteData, setConfirmDeleteData] = useState<{
     from: number;
@@ -188,19 +133,68 @@ export const MainEditor: React.FC = () => {
     to: number;
   } | null>(null);
 
-  // Link Hover Preview & Fullscreen Iframe Modal State
+  // 5. Link Hover Preview & Fullscreen Web Modal State
   const [linkPreviewData, setLinkPreviewData] = useState<LinkPreviewData | null>(null);
   const [webLinkFullscreenData, setWebLinkFullscreenData] = useState<WebLinkFullscreenData | null>(null);
   const linkHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 6. Inline AI State
+  const [inlineAiState, setInlineAiState] = useState<{
+    isOpen: boolean;
+    top: number;
+    lineFrom?: number;
+  }>({ isOpen: false, top: 0 });
+
+  const otherNotesRef = useRef(otherNotes);
+  otherNotesRef.current = otherNotes;
+
+  const inlineAiContext = useMemo(() => {
+    if (!editorRef.current || !currentNoteId || !inlineAiState.isOpen) return undefined;
+    const view = editorRef.current;
+    const doc = view.state.doc;
+    const lineFrom = inlineAiState.lineFrom || 0;
+    const beforeText = doc.sliceString(Math.max(0, lineFrom - 1500), lineFrom);
+    const afterText = doc.sliceString(lineFrom, Math.min(doc.length, lineFrom + 1500));
+    const foundNote = otherNotesRef.current.find((n) => n.id === currentNoteId);
+    const noteTitle = foundNote?.title || currentNoteId.split('/').pop() || currentNoteId;
+
+    return {
+      noteId: currentNoteId,
+      noteTitle,
+      beforeText,
+      afterText,
+    };
+  }, [currentNoteId, inlineAiState.isOpen, inlineAiState.lineFrom]);
+
+  const handleInsertInlineAiMarkdown = useCallback((text: string) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const doc = view.state.doc;
+    const targetPos = inlineAiState.lineFrom || 0;
+
+    const { safeFrom, safeInsertText } = prepareSafeDocumentInsertion(
+      doc.toString(),
+      targetPos,
+      text
+    );
+
+    if (safeInsertText) {
+      clearLivePreviewCaches();
+      view.dispatch({
+        changes: { from: safeFrom, insert: safeInsertText },
+        selection: { anchor: safeFrom + safeInsertText.length },
+        scrollIntoView: true,
+      });
+      view.focus();
+    }
+    setInlineAiState((prev) => ({ ...prev, isOpen: false }));
+  }, [inlineAiState.lineFrom]);
+
+  // Window Event Listeners for Editor Actions
   useEffect(() => {
-    const handleFullscreenRequest = (e: CustomEvent<FullscreenMediaData>) => {
-      setFullscreenMedia(e.detail);
-    };
-    const handleDeleteRequest = (e: CustomEvent<{ from: number; to: number; isDiagram: boolean; relPath: string }>) => {
-      setConfirmDeleteData(e.detail);
-    };
-    const handleEditMermaid = (e: CustomEvent<{ code: string; width?: number | null; from: number; to: number }>) => {
+    const handleFullscreenRequest = (e: CustomEvent<FullscreenMediaData>) => setFullscreenMedia(e.detail);
+    const handleDeleteRequest = (e: CustomEvent<any>) => setConfirmDeleteData(e.detail);
+    const handleEditMermaid = (e: CustomEvent<any>) => {
       setMermaidModalData({
         isOpen: true,
         initialCode: e.detail.code,
@@ -209,10 +203,8 @@ export const MainEditor: React.FC = () => {
         to: e.detail.to,
       });
     };
-    const handleDeleteMermaidRequest = (e: CustomEvent<{ from: number; to: number }>) => {
-      setConfirmDeleteMermaidData(e.detail);
-    };
-    const handleEditCodeBlock = (e: CustomEvent<{ code: string; lang: string; from: number; to: number }>) => {
+    const handleDeleteMermaidRequest = (e: CustomEvent<any>) => setConfirmDeleteMermaidData(e.detail);
+    const handleEditCodeBlock = (e: CustomEvent<any>) => {
       setCodeModalData({
         isOpen: true,
         initialCode: e.detail.code,
@@ -221,9 +213,7 @@ export const MainEditor: React.FC = () => {
         to: e.detail.to,
       });
     };
-    const handleDeleteCodeBlockRequest = (e: CustomEvent<{ from: number; to: number }>) => {
-      setConfirmDeleteCodeBlockData(e.detail);
-    };
+    const handleDeleteCodeBlockRequest = (e: CustomEvent<any>) => setConfirmDeleteCodeBlockData(e.detail);
     const handleShowLinkPreview = (e: CustomEvent<LinkPreviewData>) => {
       if (linkHideTimerRef.current) {
         clearTimeout(linkHideTimerRef.current);
@@ -280,16 +270,14 @@ export const MainEditor: React.FC = () => {
     if (!confirmDeleteMermaidData || !editorRef.current) return;
     const { from, to } = confirmDeleteMermaidData;
     const doc = editorRef.current.state.doc;
-    let delFrom = from;
-    let delTo = to;
-    if (delTo < doc.length) {
-      delTo += 1;
-    } else if (delFrom > 0) {
-      delFrom -= 1;
+    const line = doc.lineAt(from);
+    let endPos = to;
+    if (doc.lines >= line.number && endPos < doc.length && doc.sliceString(endPos, endPos + 1) === '\n') {
+      endPos += 1;
     }
     clearLivePreviewCaches();
     editorRef.current.dispatch({
-      changes: { from: delFrom, to: delTo, insert: '' },
+      changes: { from: line.from, to: endPos, insert: '' },
     });
     setConfirmDeleteMermaidData(null);
   }, [confirmDeleteMermaidData]);
@@ -298,185 +286,94 @@ export const MainEditor: React.FC = () => {
     if (!confirmDeleteCodeBlockData || !editorRef.current) return;
     const { from, to } = confirmDeleteCodeBlockData;
     const doc = editorRef.current.state.doc;
-    let delFrom = from;
-    let delTo = to;
-    if (delTo < doc.length) {
-      delTo += 1;
-    } else if (delFrom > 0) {
-      delFrom -= 1;
+    const line = doc.lineAt(from);
+    let endPos = to;
+    if (doc.lines >= line.number && endPos < doc.length && doc.sliceString(endPos, endPos + 1) === '\n') {
+      endPos += 1;
     }
     clearLivePreviewCaches();
     editorRef.current.dispatch({
-      changes: { from: delFrom, to: delTo, insert: '' },
+      changes: { from: line.from, to: endPos, insert: '' },
     });
     setConfirmDeleteCodeBlockData(null);
   }, [confirmDeleteCodeBlockData]);
 
-  const handleSaveMermaid = useCallback((payload: MermaidSavePayload) => {
+  const handleSaveMermaidModal = useCallback((payload: MermaidSavePayload) => {
     if (!editorRef.current) return;
     const view = editorRef.current;
-    const widthParam = payload.width ? `|${payload.width}` : '';
-    const formatted = `\`\`\`mermaid${widthParam}\n${payload.code.trim()}\n\`\`\``;
     clearLivePreviewCaches();
+
     if (payload.from !== undefined && payload.to !== undefined) {
+      let widthParam = payload.width ? `|width=${payload.width}` : '';
+      let insertText = '```mermaid' + widthParam + '\n' + payload.code + '\n```';
+      const doc = view.state.doc;
+      const line = doc.lineAt(payload.from);
+      let toPos = payload.to;
+      if (toPos < doc.length && doc.sliceString(toPos, toPos + 1) === '\n') {
+        toPos += 1;
+        insertText += '\n';
+      }
       view.dispatch({
-        changes: { from: payload.from, to: payload.to, insert: formatted },
-        selection: { anchor: payload.from + formatted.length },
+        changes: { from: line.from, to: toPos, insert: insertText },
       });
     } else {
-      insertText(`\n${formatted}\n`);
+      let widthParam = payload.width ? `|width=${payload.width}` : '';
+      let insertText = '\n```mermaid' + widthParam + '\n' + payload.code + '\n```\n';
+      const head = view.state.selection.main.head;
+      view.dispatch({
+        changes: { from: head, insert: insertText },
+        selection: { anchor: head + insertText.length },
+      });
     }
-    view.focus();
-  }, [insertText]);
+    setMermaidModalData({ isOpen: false });
+  }, []);
 
   const handleSaveCodeBlock = useCallback((payload: CodeSavePayload) => {
     if (!editorRef.current) return;
     const view = editorRef.current;
-    const lang = payload.lang ? payload.lang.trim() : '';
-    const formatted = `\`\`\`${lang}\n${payload.code}\n\`\`\``;
     clearLivePreviewCaches();
+
     if (payload.from !== undefined && payload.to !== undefined) {
+      let insertText = '```' + (payload.lang || '') + '\n' + payload.code + '\n```';
+      const doc = view.state.doc;
+      const line = doc.lineAt(payload.from);
+      let toPos = payload.to;
+      if (toPos < doc.length && doc.sliceString(toPos, toPos + 1) === '\n') {
+        toPos += 1;
+        insertText += '\n';
+      }
       view.dispatch({
-        changes: { from: payload.from, to: payload.to, insert: formatted },
-        selection: { anchor: payload.from + formatted.length },
+        changes: { from: line.from, to: toPos, insert: insertText },
       });
     } else {
-      insertText(`\n${formatted}\n`);
+      let insertText = '\n```' + (payload.lang || '') + '\n' + payload.code + '\n```\n';
+      const head = view.state.selection.main.head;
+      view.dispatch({
+        changes: { from: head, insert: insertText },
+        selection: { anchor: head + insertText.length },
+      });
     }
-    view.focus();
-  }, [insertText]);
+    setCodeModalData({ isOpen: false });
+  }, []);
 
-  // 6. Image Upload Handler
-  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image Upload Handler
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !currentNoteId) return;
+    if (!file || !currentNoteId || !editorRef.current) return;
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const relPath = await storage.saveImageBytes(currentNoteId, file.name, bytes);
-      insertText(`![${file.name}|400](${relPath})\n`);
+      const buffer = await file.arrayBuffer();
+      const relativePath = await storage.saveImageBytes(currentNoteId, file.name, new Uint8Array(buffer));
+      const markdownImage = `![${file.name}](${relativePath})\n`;
+      insertText(markdownImage);
     } catch (err) {
-      console.error("Failed to upload image:", err);
+      console.error('Failed to save image attachment:', err);
     } finally {
-      if (e.target) e.target.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
-  }, [currentNoteId, insertText]);
-
-  // 7. Slash Commands Execution & Menu
-  const executeSlashCommand = useCallback((insertStr: string, opts?: { cursorOffset?: number; openTagModal?: boolean }) => {
-    const state = slashStateRef.current;
-    if (editorRef.current && state.show) {
-      const view = editorRef.current;
-      const { slashFrom, slashTo } = state;
-      const cursorPos = slashFrom + (opts?.cursorOffset ?? insertStr.length);
-
-      view.dispatch({
-        changes: { from: slashFrom, to: slashTo, insert: insertStr },
-        selection: { anchor: cursorPos },
-        scrollIntoView: true,
-      });
-      requestAnimationFrame(() => view.focus());
-    }
-    setSlashMenuState((prev) => ({ ...prev, show: false }));
-    if (opts?.openTagModal) {
-      setTimeout(() => setShowTagPopover(true), 50);
-    }
-  }, [slashStateRef, setSlashMenuState, setShowTagPopover]);
-
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
-  const [inlineAiState, setInlineAiState] = useState<{ isOpen: boolean; top: number; lineFrom: number }>({
-    isOpen: false,
-    top: 0,
-    lineFrom: 0,
-  });
-
-  // Stable ref for otherNotes — prevents inlineAiContext from recomputing when note list changes while AI composer is closed
-  const otherNotesRef = useRef(otherNotes);
-  otherNotesRef.current = otherNotes;
-
-  const inlineAiContext = useMemo(() => {
-    if (!editorRef.current || !currentNoteId || !inlineAiState.isOpen) return undefined;
-    const view = editorRef.current;
-    const doc = view.state.doc;
-    const lineFrom = inlineAiState.lineFrom;
-    const beforeText = doc.sliceString(Math.max(0, lineFrom - 1500), lineFrom);
-    const afterText = doc.sliceString(lineFrom, Math.min(doc.length, lineFrom + 1500));
-    const foundNote = otherNotesRef.current.find((n) => n.id === currentNoteId);
-    const noteTitle = foundNote?.title || currentNoteId.split('/').pop() || currentNoteId;
-
-    return {
-      noteId: currentNoteId,
-      noteTitle,
-      beforeText,
-      afterText,
-    };
-  }, [currentNoteId, inlineAiState.isOpen, inlineAiState.lineFrom]);
-
-  const handleInsertInlineAiMarkdown = useCallback((text: string) => {
-    if (!editorRef.current) return;
-    const view = editorRef.current;
-    const doc = view.state.doc;
-    const targetPos = inlineAiState.lineFrom;
-
-    const { safeFrom, safeInsertText } = prepareSafeDocumentInsertion(
-      doc.toString(),
-      targetPos,
-      text
-    );
-
-    if (safeInsertText) {
-      clearLivePreviewCaches();
-      view.dispatch({
-        changes: { from: safeFrom, insert: safeInsertText },
-        selection: { anchor: safeFrom + safeInsertText.length },
-        scrollIntoView: true,
-      });
-      view.focus();
-    }
-    setInlineAiState((prev) => ({ ...prev, isOpen: false }));
-  }, [inlineAiState.lineFrom]);
-
-  const slashCommands = useMemo(
-    () =>
-      buildSlashCommands(
-        executeSlashCommand,
-        () => fileInputRef.current?.click(),
-        openDiagramEditor,
-        openExcalidrawEditor,
-        () => setEmojiPickerOpen(true),
-        () => setMermaidModalData({ isOpen: true }),
-        (lang) => setCodeModalData({ isOpen: true, initialLang: lang || 'typescript', initialCode: '' }),
-        t
-      ),
-    [executeSlashCommand, openDiagramEditor, openExcalidrawEditor, t]
-  );
-
-  // 8. Text Formatting Handler (delegates to pure formatter utility)
-  const handleFormat = useCallback((type: FormatType, payload?: string) => {
-    if (!editorRef.current) return;
-    applyTextFormat(editorRef.current, selectionBubble, type, payload);
-  }, [selectionBubble]);
-
-  // 9. CodeMirror Extensions Memo
-  const isDarkTheme = ['dark', 'dracula', 'synthwave'].includes(theme);
-  const editorExtensions = useMemo(() => {
-    const activeHighlightStyle = isDarkTheme ? hanHighlightStyleDark : hanHighlightStyle;
-    const exts = [
-      EditorView.lineWrapping,
-      markdown({ base: markdownLanguage, codeLanguages: languages }),
-      syntaxHighlighting(activeHighlightStyle),
-      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      smartPastePlugin,
-    ];
-    if (editorMode === 'preview') {
-      exts.push(previewAutocomplete);
-      exts.push(livePreviewPlugin);
-    } else {
-      exts.push(rawAutocomplete);
-    }
-    return exts;
-  }, [editorMode, isDarkTheme]);
+  };
 
   if (!currentNoteId) {
     return (
@@ -488,7 +385,7 @@ export const MainEditor: React.FC = () => {
 
   return (
     <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 ease-mac-ease flex-1 min-h-0 overflow-hidden">
-      {/* Hidden File Input for Image & GIF Upload */}
+      {/* Hidden File Input for Image Upload */}
       <input
         type="file"
         ref={fileInputRef}
@@ -511,105 +408,62 @@ export const MainEditor: React.FC = () => {
         onUpdateTags={(newTags) => { if (currentNoteId) updateNoteTags(currentNoteId, newTags); }}
       />
 
-      {/* CodeMirror Workspace Area */}
-      <div className="flex-1 overflow-y-auto bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain">
-        <div
-          ref={wrapperRef}
-          className={cn(
-            "py-12 relative pr-8 md:pr-12",
-            editorMode === 'preview' ? "pl-14 cm-preview-mode" : "pl-8 md:pl-12 cm-raw-mode"
-          )}
-        >
-          {editorMode === 'preview' && (
-            <>
-              <FloatingBlockMenu
-                menuPos={menuPos}
-                showOptions={showOptions}
-                showNotePicker={showNotePicker}
-                taskEditBtn={taskEditBtn}
-                decisionEditBtn={decisionEditBtn}
-                notes={otherNotes}
-                onToggleOptions={() => { setShowOptions(!showOptions); setShowNotePicker(false); }}
-                onToggleNotePicker={() => setShowNotePicker(!showNotePicker)}
-                onInsertText={insertText}
-                onOpenTaskModal={() => handleOpenTaskModal(taskEditBtn)}
-                onOpenDecisionModal={() => handleOpenDecisionModal(decisionEditBtn)}
-                onOpenImagePicker={() => fileInputRef.current?.click()}
-                onOpenDiagramEditor={openDiagramEditor}
-                onOpenExcalidrawEditor={openExcalidrawEditor}
-                onOpenInlineAi={() => setInlineAiState({ isOpen: true, top: menuPos.top, lineFrom: menuPos.lineFrom })}
-              />
+      {/* Primary Editor Engine Switcher */}
+      {editorMode === 'preview' ? (
+        <LivePreviewEditor
+          value={localContent}
+          onChange={handleUpdate}
+          editorRef={editorRef}
+          theme={theme}
+          fontSize={fontSize}
+          currentNoteId={currentNoteId}
+          otherNotes={otherNotes}
+          onOpenDiagramEditor={openDiagramEditor}
+          onOpenExcalidrawEditor={openExcalidrawEditor}
+          onOpenImagePicker={() => fileInputRef.current?.click()}
+          onOpenTaskModal={handleOpenTaskModal}
+          onOpenDecisionModal={handleOpenDecisionModal}
+          onOpenMermaidModal={() => setMermaidModalData({ isOpen: true })}
+          onOpenCodeModal={(lang) => setCodeModalData({ isOpen: true, initialLang: lang || 'typescript', initialCode: '' })}
+          onOpenInlineAi={(top, lineFrom) => setInlineAiState({ isOpen: true, top, lineFrom })}
+        />
+      ) : (
+        <RawSourceEditor
+          value={localContent}
+          onChange={handleUpdate}
+          editorRef={editorRef}
+          theme={theme}
+          fontSize={fontSize}
+        />
+      )}
 
-              <SelectionBubbleMenu
-                bubbleState={selectionBubble}
-                onFormat={handleFormat}
-              />
-            </>
-          )}
-
-          <CodeMirror
-            value={localContent}
-            onChange={handleUpdate}
-            onCreateEditor={(view) => { editorRef.current = view; }}
-            onUpdate={handleEditorUpdate}
-            theme={theme === 'dark' ? 'dark' : 'light'}
-            extensions={editorExtensions}
-            className={cn(
-              "text-gray-800 dark:text-gray-200 cm-theme-han",
-              fontSize === 'sm' && "cm-fontsize-sm",
-              fontSize === 'md' && "cm-fontsize-md",
-              fontSize === 'lg' && "cm-fontsize-lg"
-            )}
-            basicSetup={{
-              lineNumbers: false,
-              foldGutter: false,
-              dropCursor: false,
-              allowMultipleSelections: false,
-              indentOnInput: false,
-              highlightActiveLine: false,
-              highlightActiveLineGutter: false,
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Mode Switcher Footer (Preview / Raw) */}
-      <EditorFooter
-        editorMode={editorMode}
-        onSetEditorMode={setEditorMode}
-      />
-
-      {/* Task & Decision Edit Modals */}
+      {/* Shared Modals */}
       {taskModalData && (
         <TaskEditModal
           task={taskModalData}
-          onSave={handleSaveTaskModal}
           onClose={() => setTaskModalData(null)}
+          onSave={handleSaveTaskModal}
         />
       )}
       {decisionModalData && (
         <DecisionEditModal
           decision={decisionModalData}
-          onSave={handleSaveDecisionModal}
           onClose={() => setDecisionModalData(null)}
+          onSave={handleSaveDecisionModal}
         />
       )}
-
-      {/* YADA Diagram & Excalidraw Modals */}
       <DiagramEditorModal
         isOpen={diagramModalOpen}
-        initialMetadata={diagramInitialMetadata}
         onClose={() => setDiagramModalOpen(false)}
         onSave={handleSaveDiagram}
+        initialMetadata={diagramInitialMetadata}
       />
       <ExcalidrawEditorModal
         isOpen={excalidrawModalOpen}
-        initialData={sketchInitialData}
         onClose={() => setExcalidrawModalOpen(false)}
         onSave={handleSaveSketch}
+        initialData={sketchInitialData}
       />
-
-      {/* Mermaid Editor Modal */}
       <MermaidEditorModal
         isOpen={mermaidModalData.isOpen}
         initialCode={mermaidModalData.initialCode}
@@ -617,10 +471,8 @@ export const MainEditor: React.FC = () => {
         from={mermaidModalData.from}
         to={mermaidModalData.to}
         onClose={() => setMermaidModalData({ isOpen: false })}
-        onSave={handleSaveMermaid}
+        onSave={handleSaveMermaidModal}
       />
-
-      {/* Code Block Editor Modal */}
       <CodeEditorModal
         isOpen={codeModalData.isOpen}
         initialCode={codeModalData.initialCode}
@@ -630,8 +482,6 @@ export const MainEditor: React.FC = () => {
         onClose={() => setCodeModalData({ isOpen: false })}
         onSave={handleSaveCodeBlock}
       />
-
-      {/* Confirm Delete & Fullscreen Media Modals */}
       <ConfirmModal
         isOpen={!!confirmDeleteData}
         title={t('confirmDeleteTitle')}
@@ -664,34 +514,7 @@ export const MainEditor: React.FC = () => {
         onClose={() => setFullscreenMedia(null)}
       />
 
-      {/* Floating Slash Command Menu (Preview mode only) */}
-      {editorMode === 'preview' && slashMenuState.show && (
-        <SlashCommandMenu
-          query={slashMenuState.query}
-          anchorRect={slashMenuState.anchorRect}
-          commands={slashCommands}
-          onClose={() => setSlashMenuState((prev) => ({ ...prev, show: false }))}
-        />
-      )}
-
-      {/* Visual Emoji Picker Popover (Preview mode only) */}
-      {editorMode === 'preview' && (
-        <EmojiPickerPopover
-          isOpen={emojiPickerOpen}
-          onClose={() => setEmojiPickerOpen(false)}
-          onSelectEmoji={(emoji) => insertText(emoji + ' ')}
-        />
-      )}
-
-      {/* Inline AI Paragraph & Content Generator Modal */}
-      <InlineAiComposer
-        isOpen={inlineAiState.isOpen}
-        onClose={() => setInlineAiState((prev) => ({ ...prev, isOpen: false }))}
-        onInsertMarkdown={handleInsertInlineAiMarkdown}
-        surroundingContext={inlineAiContext}
-      />
-
-      {/* Link Hover Preview Popover (WhatsApp / Slack style) */}
+      {/* Link Hover Preview Popover */}
       <LinkPreviewPopover
         data={linkPreviewData}
         onOpenFullscreen={(url, title) => setWebLinkFullscreenData({ url, title })}
@@ -715,6 +538,14 @@ export const MainEditor: React.FC = () => {
       <WebLinkFullscreenModal
         data={webLinkFullscreenData}
         onClose={() => setWebLinkFullscreenData(null)}
+      />
+
+      {/* Inline AI Paragraph Generator Modal */}
+      <InlineAiComposer
+        isOpen={inlineAiState.isOpen}
+        onClose={() => setInlineAiState((prev) => ({ ...prev, isOpen: false }))}
+        onInsertMarkdown={handleInsertInlineAiMarkdown}
+        surroundingContext={inlineAiContext}
       />
     </main>
   );

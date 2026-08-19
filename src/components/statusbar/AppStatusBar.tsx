@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGitStore } from '@/store/gitStore';
 import { useAiStore } from '@/store/aiStore';
 import { useNoteStore } from '@/store/noteStore';
+import { useUiStore } from '@/store/uiStore';
 import {
   GitBranch,
   GitCommit,
@@ -13,6 +14,8 @@ import {
   Clock,
   History,
   AlertTriangle,
+  Eye,
+  FileCode,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +37,9 @@ export const AppStatusBar: React.FC = () => {
   const { currentNoteId, currentNoteContent, vaultPath } = useNoteStore();
 
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  const editorMode = useUiStore((s) => s.editorMode);
+  const setEditorMode = useUiStore((s) => s.setEditorMode);
 
   // Automatically refresh git status on mount and when vault / note / focus changes
   useEffect(() => {
@@ -210,6 +216,22 @@ export const AppStatusBar: React.FC = () => {
             <span className="text-gray-300 dark:text-zinc-700 hidden sm:inline">|</span>
           </>
         )}
+
+        {/* Editor Mode Quick Switcher */}
+        <button
+          onClick={() => setEditorMode(editorMode === 'preview' ? 'raw' : 'preview')}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-700 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
+          title={`Editör Modu: ${editorMode === 'preview' ? 'Canlı Önizleme' : 'Ham Metin'} (Değiştirmek için tıklayın)`}
+        >
+          {editorMode === 'preview' ? (
+            <Eye className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+          ) : (
+            <FileCode className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+          )}
+          <span>{editorMode === 'preview' ? 'Önizleme' : 'Ham Metin'}</span>
+        </button>
+
+        <span className="text-gray-300 dark:text-zinc-700 hidden sm:inline">|</span>
 
         {/* Encoding / Format Badge */}
         <div className="hidden sm:flex items-center gap-1 text-[10px] font-mono opacity-75">

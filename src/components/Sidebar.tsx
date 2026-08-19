@@ -5,7 +5,23 @@ import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
 import { FileTreeNode } from '@/components/FileTreeNode';
-import { Search, Settings, CheckCircle, FolderPlus, FilePlus, FileCheck, Tag, ChevronDown, ChevronUp, X, Network, Sparkles } from 'lucide-react';
+import {
+  Search,
+  Settings,
+  CheckCircle,
+  FolderPlus,
+  FilePlus,
+  FileCheck,
+  Tag,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Network,
+  Sparkles,
+  PanelLeftClose,
+  PanelLeftOpen,
+  FolderTree,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const Sidebar: React.FC = () => {
@@ -15,6 +31,7 @@ export const Sidebar: React.FC = () => {
 
   // Individual Zustand selectors — prevent re-renders from unrelated store changes
   const sidebarOpen = useUiStore(s => s.sidebarOpen);
+  const setSidebarOpen = useUiStore(s => s.setSidebarOpen);
   const setSettingsModalOpen = useUiStore(s => s.setSettingsModalOpen);
   const isSearchModalOpen = useUiStore(s => s.isSearchModalOpen);
   const setSearchModalOpen = useUiStore(s => s.setSearchModalOpen);
@@ -42,9 +59,8 @@ export const Sidebar: React.FC = () => {
     onConfirm: (val: string) => void;
   } | null>(null);
 
-  if (!sidebarOpen) return null;
-
   const pathname = location.pathname;
+  const isNotesActive = pathname === '/' || pathname.startsWith('/notes');
   const isTasksActive = pathname.startsWith('/tasks');
   const isDecisionsActive = pathname.startsWith('/decisions');
   const isMindmapActive = pathname.startsWith('/mindmap');
@@ -94,8 +110,200 @@ export const Sidebar: React.FC = () => {
     });
   };
 
+  if (!sidebarOpen) {
+    return (
+      <aside className="w-13 min-w-[52px] max-w-[52px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col items-center justify-between py-3 select-none transition-all duration-200 ease-mac-ease relative z-20 shrink-0">
+        {/* Top Icon Group: Expand, Explorer, Search, New Note */}
+        <div className="flex flex-col items-center gap-2 w-full px-1.5">
+          {/* Expand Sidebar */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            title="Kenar Çubuğunu Genişlet"
+          >
+            <PanelLeftOpen size={18} />
+          </button>
+
+          {/* Explorer (Notes & Folders) - Expands the sidebar when clicked */}
+          <button
+            onClick={() => {
+              setSidebarOpen(true);
+              setViewMode('notes');
+            }}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              isNotesActive
+                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold"
+                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+            )}
+            title="Not Gezgini (Explorer) - Genişletmek için tıklayın"
+          >
+            <FolderTree size={18} />
+          </button>
+
+          {/* Quick Search */}
+          <button
+            onClick={() => setSearchModalOpen(true)}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              isSearchModalOpen || pathname.startsWith('/search')
+                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold"
+                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+            )}
+            title="Hızlı Arama & Komut Paleti (Cmd+K)"
+          >
+            <Search size={18} />
+          </button>
+
+          {/* Quick New Note */}
+          <button
+            onClick={() => {
+              setSidebarOpen(true);
+              openNewNoteDialog();
+            }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            title="Yeni Not Oluştur"
+          >
+            <FilePlus size={18} />
+          </button>
+        </div>
+
+        {/* Bottom Icon Group: Tasks, Decisions, Mindmap, AI, Settings */}
+        <div className="flex flex-col items-center gap-2 w-full px-1.5 border-t border-mac-borderLight dark:border-mac-borderDark pt-2">
+          {/* Tasks */}
+          <button
+            onClick={() => {
+              setViewMode('tasks');
+              navigate('/tasks');
+            }}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              isTasksActive
+                ? "bg-mac-accent text-white shadow-xs"
+                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+            )}
+            title={t('tasks')}
+          >
+            <CheckCircle size={18} />
+          </button>
+
+          {/* Decisions */}
+          <button
+            onClick={() => {
+              setViewMode('decisions');
+              navigate('/decisions');
+            }}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              isDecisionsActive
+                ? "bg-purple-600 text-white shadow-xs"
+                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+            )}
+            title="Karar Kayıtları (Decisions)"
+          >
+            <FileCheck size={18} />
+          </button>
+
+          {/* Mindmap */}
+          <button
+            onClick={() => {
+              setViewMode('mindmap');
+              navigate('/mindmap');
+            }}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              isMindmapActive
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+            )}
+            title="Zihin Haritası (Mindmap)"
+          >
+            <Network size={18} />
+          </button>
+
+          {/* AI Assistant */}
+          <button
+            onClick={() => {
+              if (aiSettings.enabled) {
+                setChatDrawerOpen(!isChatDrawerOpen);
+              } else {
+                setSettingsModalOpen(true);
+              }
+            }}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative",
+              isChatDrawerOpen
+                ? "bg-gradient-to-r from-purple-600 to-mac-accent text-white shadow-xs"
+                : aiSettings.enabled
+                ? "text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+            )}
+            title="AI Asistan"
+          >
+            <Sparkles size={18} className={aiSettings.enabled ? "text-purple-500 animate-pulse" : ""} />
+            {aiSettings.enabled && (
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-900" />
+            )}
+          </button>
+
+          {/* Settings */}
+          <button
+            onClick={() => setSettingsModalOpen(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            title={t('settings')}
+          >
+            <Settings size={18} />
+          </button>
+        </div>
+
+        {/* Modal Dialog for Create/Rename */}
+        {inputDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
+            <div className="w-80 bg-white dark:bg-zinc-900 border border-mac-borderLight dark:border-mac-borderDark rounded-2xl shadow-2xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {inputDialog.title}
+              </h3>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const input = form.elements.namedItem('dialogInput') as HTMLInputElement;
+                  inputDialog.onConfirm(input.value);
+                  setInputDialog(null);
+                }}
+              >
+                <input
+                  autoFocus
+                  name="dialogInput"
+                  defaultValue={inputDialog.defaultValue || ''}
+                  placeholder={inputDialog.placeholder}
+                  className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-zinc-800 border border-mac-borderLight dark:border-mac-borderDark rounded-lg focus:outline-none focus:ring-2 focus:ring-mac-accent mb-3 text-gray-900 dark:text-gray-100"
+                />
+                <div className="flex justify-end gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setInputDialog(null)}
+                    className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors cursor-pointer"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
+                  >
+                    Tamam
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </aside>
+    );
+  }
+
   return (
-    <aside className="w-[20%] min-w-[220px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease relative select-none">
+    <aside className="w-[20%] min-w-[220px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease relative select-none shrink-0">
       {/* Vault Header & Quick Actions */}
       <div className="p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -103,17 +311,24 @@ export const Sidebar: React.FC = () => {
           <div className="flex items-center gap-1">
             <button
               onClick={() => openNewNoteDialog()}
-              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
               title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Not` : 'Yeni Not'}
             >
-              <FilePlus size={16} />
+              <FilePlus size={15} />
             </button>
             <button
               onClick={() => openNewFolderDialog()}
-              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
               title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Klasör` : 'Yeni Klasör'}
             >
-              <FolderPlus size={16} />
+              <FolderPlus size={15} />
+            </button>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer ml-0.5"
+              title="Kenar Çubuğunu Daralt"
+            >
+              <PanelLeftClose size={15} />
             </button>
           </div>
         </div>

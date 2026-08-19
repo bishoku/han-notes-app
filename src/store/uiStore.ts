@@ -47,6 +47,7 @@ interface UiState {
   editorMode: 'preview' | 'raw';
   
   toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
   setSettingsModalOpen: (open: boolean) => void;
   setSearchModalOpen: (open: boolean) => void;
@@ -77,6 +78,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   editorMode: 'preview',
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
   setSettingsModalOpen: (open) => set({ isSettingsModalOpen: open }),
   setSearchModalOpen: (open) => set({ isSearchModalOpen: open }),
