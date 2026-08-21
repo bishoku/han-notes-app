@@ -4,6 +4,7 @@
  */
 import type { AiSettings } from './types';
 import { ReasoningStreamParser } from './reasoningParser';
+import { StreamingJsonStringDecoder } from './streamingJsonDecoder';
 
 export interface StreamChatResult {
   content: string;
@@ -11,6 +12,24 @@ export interface StreamChatResult {
   hasReasoning: boolean;
   thinkingTimeMs?: number;
 }
+
+export const SUBMIT_FINAL_RESPONSE_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'submit_final_response',
+    description: 'Call this function to provide your final, complete, and formatted markdown response to the user after reasoning.',
+    parameters: {
+      type: 'object',
+      properties: {
+        response: {
+          type: 'string',
+          description: 'The complete markdown response formatted for the user.',
+        },
+      },
+      required: ['response'],
+    },
+  },
+};
 
 export class LlmClient {
   /**
@@ -93,17 +112,44 @@ export class LlmClient {
       headers['X-Title'] = 'HAN Notes';
     }
 
-    const response = await fetch(url, {
+    const payloadWithTools = {
+      model,
+      messages,
+      temperature: temperature ?? 0.7,
+      stream: true,
+      tools: [SUBMIT_FINAL_RESPONSE_TOOL],
+      tool_choice: 'auto',
+    };
+
+    let response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: temperature ?? 0.7,
-        stream: true,
-      }),
+      body: JSON.stringify(payloadWithTools),
       signal,
     });
+
+    // Graceful fallback: If model/endpoint rejects tool schema (400 Bad Request), retry without tools
+    if (!response.ok && response.status === 400) {
+      try {
+        const cloned = response.clone();
+        const errText = await cloned.text();
+        if (/tool|function/i.test(errText)) {
+          response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              model,
+              messages,
+              temperature: temperature ?? 0.7,
+              stream: true,
+            }),
+            signal,
+          });
+        }
+      } catch {
+        // Continue with original response
+      }
+    }
 
     if (!response.ok) {
       const errText = await response.text();
@@ -114,6 +160,7 @@ export class LlmClient {
     if (!reader) throw new Error('Response stream reader could not be created.');
 
     const decoder = new TextDecoder();
+    const toolDecoder = new StreamingJsonStringDecoder('response');
     let buffer = '';
 
     while (true) {
@@ -142,7 +189,26 @@ export class LlmClient {
               }
             }
 
-            // 2. Main content (may contain inline <think> tags from Qwen/Ollama)
+            // 2. Tool Calls Stream (e.g. submit_final_response arguments)
+            if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+              for (const tc of delta.tool_calls) {
+                const argChunk = tc.function?.arguments || '';
+                if (argChunk) {
+                  const unescaped = toolDecoder.feed(argChunk);
+                  if (unescaped) {
+                    const { reasoningDelta, contentDelta } = parser.feedToolArgumentChunk(unescaped);
+                    if (reasoningDelta && onReasoningChunk) {
+                      onReasoningChunk(reasoningDelta);
+                    }
+                    if (contentDelta) {
+                      onChunk(contentDelta);
+                    }
+                  }
+                }
+              }
+            }
+
+            // 3. Main content (when tool call isn't used, or pre-tool CoT content)
             const contentChunk = delta.content || '';
             if (contentChunk) {
               const { reasoningDelta, contentDelta } = parser.feed(contentChunk, false);
@@ -235,6 +301,15 @@ export class LlmClient {
                 const { reasoningDelta } = parser.feed(part.thought, true);
                 if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
               }
+              if (part.functionCall) {
+                const args = part.functionCall.args;
+                const responseVal = args?.response || args?.answer || '';
+                if (responseVal) {
+                  const { reasoningDelta, contentDelta } = parser.feedToolArgumentChunk(responseVal);
+                  if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+                  if (contentDelta) onChunk(contentDelta);
+                }
+              }
               if (part.text) {
                 const { reasoningDelta, contentDelta } = parser.feed(part.text, false);
                 if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
@@ -302,6 +377,7 @@ export class LlmClient {
     if (!reader) throw new Error('Response stream reader could not be created.');
 
     const decoder = new TextDecoder();
+    const toolDecoder = new StreamingJsonStringDecoder('response');
     let buffer = '';
 
     while (true) {
@@ -322,6 +398,13 @@ export class LlmClient {
             if (delta?.type === 'thinking_delta' && delta.thinking) {
               const { reasoningDelta } = parser.feed(delta.thinking, true);
               if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+            } else if (delta?.type === 'input_json_delta' && delta.partial_json) {
+              const unescaped = toolDecoder.feed(delta.partial_json);
+              if (unescaped) {
+                const { reasoningDelta, contentDelta } = parser.feedToolArgumentChunk(unescaped);
+                if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+                if (contentDelta) onChunk(contentDelta);
+              }
             } else if (delta?.text) {
               const { reasoningDelta, contentDelta } = parser.feed(delta.text, false);
               if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
@@ -351,7 +434,7 @@ export class LlmClient {
   ): Promise<StreamChatResult> {
     const url = `${baseUrl.replace(/\/+$/, '')}/api/chat`;
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -360,10 +443,36 @@ export class LlmClient {
         options: {
           temperature: temperature ?? 0.7,
         },
+        tools: [SUBMIT_FINAL_RESPONSE_TOOL],
         stream: true,
       }),
       signal,
     });
+
+    // Fallback if older Ollama doesn't support tools flag
+    if (!response.ok && (response.status === 400 || response.status === 404)) {
+      try {
+        const cloned = response.clone();
+        const errText = await cloned.text();
+        if (/tool/i.test(errText)) {
+          response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model,
+              messages,
+              options: {
+                temperature: temperature ?? 0.7,
+              },
+              stream: true,
+            }),
+            signal,
+          });
+        }
+      } catch {
+        // Continue with original response
+      }
+    }
 
     if (!response.ok) {
       const errText = await response.text();
@@ -374,6 +483,7 @@ export class LlmClient {
     if (!reader) throw new Error('Response stream reader could not be created.');
 
     const decoder = new TextDecoder();
+    const toolDecoder = new StreamingJsonStringDecoder('response');
     let buffer = '';
 
     while (true) {
@@ -389,12 +499,37 @@ export class LlmClient {
         if (!trimmed) continue;
         try {
           const data = JSON.parse(trimmed);
+
+          // 1. Explicit reasoning from Ollama (e.g. DeepSeek-R1 / Qwen thinking on Ollama 0.5+)
           const explicitReasoning = data.message?.reasoning || '';
           if (explicitReasoning) {
             const { reasoningDelta } = parser.feed(explicitReasoning, true);
             if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
           }
 
+          // 2. Tool calls from Ollama
+          if (data.message?.tool_calls && Array.isArray(data.message.tool_calls)) {
+            for (const tc of data.message.tool_calls) {
+              const args = tc.function?.arguments;
+              if (typeof args === 'string') {
+                const unescaped = toolDecoder.feed(args);
+                if (unescaped) {
+                  const { reasoningDelta, contentDelta } = parser.feedToolArgumentChunk(unescaped);
+                  if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+                  if (contentDelta) onChunk(contentDelta);
+                }
+              } else if (typeof args === 'object' && args !== null) {
+                const responseVal = args.response || args.answer || args.text || '';
+                if (responseVal) {
+                  const { reasoningDelta, contentDelta } = parser.feedToolArgumentChunk(responseVal);
+                  if (reasoningDelta && onReasoningChunk) onReasoningChunk(reasoningDelta);
+                  if (contentDelta) onChunk(contentDelta);
+                }
+              }
+            }
+          }
+
+          // 3. Main content chunk
           const contentChunk = data.message?.content || '';
           if (contentChunk) {
             const { reasoningDelta, contentDelta } = parser.feed(contentChunk, false);

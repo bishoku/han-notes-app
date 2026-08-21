@@ -124,6 +124,7 @@ export class ReasoningStreamParser {
   private inThinkingMode = false;
   private inTransitionMode = false;
   private inExplicitReasoningMode = false;
+  private inToolResponseMode = false;
   private headerResolved = false;
   private thinkingStartTime: number | null = null;
   private thinkingEndTime: number | null = null;
@@ -263,6 +264,48 @@ export class ReasoningStreamParser {
     };
   }
 
+  /**
+   * Feeds unescaped string chunks directly extracted from a tool call (e.g. submit_final_response arguments).
+   * Automatically ends thinking mode and captures any previous content as thinking reasoning.
+   */
+  public feedToolArgumentChunk(unescapedChunk: string): {
+    reasoningDelta: string;
+    contentDelta: string;
+    isThinking: boolean;
+  } {
+    if (!unescapedChunk) {
+      return { reasoningDelta: '', contentDelta: '', isThinking: false };
+    }
+
+    let newlyPromotedReasoningDelta = '';
+
+    if (!this.inToolResponseMode) {
+      this.inToolResponseMode = true;
+      this.inThinkingMode = false;
+      this.inTransitionMode = false;
+      this.inExplicitReasoningMode = false;
+      this.thinkingEndTime = this.thinkingEndTime || Date.now();
+
+      // If there was any prior accumulated content or pending buffer before tool execution,
+      // it is treated as CoT / reasoning scratchpad!
+      const priorText = (this.contentAccumulated + this.pendingBuffer).trim();
+      this.pendingBuffer = '';
+      this.contentAccumulated = '';
+
+      if (priorText && !this.reasoningAccumulated) {
+        this.reasoningAccumulated = priorText;
+        newlyPromotedReasoningDelta = priorText;
+      }
+    }
+
+    this.contentAccumulated += unescapedChunk;
+    return {
+      reasoningDelta: newlyPromotedReasoningDelta,
+      contentDelta: unescapedChunk,
+      isThinking: false,
+    };
+  }
+
   private flush() {
     if (this.pendingBuffer) {
       if (this.inThinkingMode) {
@@ -286,9 +329,13 @@ export class ReasoningStreamParser {
         ? (this.thinkingEndTime || Date.now()) - this.thinkingStartTime
         : undefined;
 
+    const finalContent = this.inToolResponseMode
+      ? this.contentAccumulated.trim()
+      : stripReasoning(this.contentAccumulated).trim();
+
     return {
       reasoning: this.reasoningAccumulated.trim(),
-      content: stripReasoning(this.contentAccumulated).trim(),
+      content: finalContent,
       hasReasoning: this.reasoningAccumulated.trim().length > 0,
       isThinking: false,
       thinkingTimeMs,
@@ -303,6 +350,7 @@ export class ReasoningStreamParser {
     this.inThinkingMode = false;
     this.inTransitionMode = false;
     this.inExplicitReasoningMode = false;
+    this.inToolResponseMode = false;
     this.headerResolved = false;
     this.thinkingStartTime = null;
     this.thinkingEndTime = null;
