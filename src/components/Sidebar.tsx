@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
 import { FileTreeNode } from '@/components/FileTreeNode';
+import { normalizeNoteId } from '@/utils/pathUtils';
 import {
   Search,
   Settings,
@@ -24,40 +25,94 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+interface InputDialogState {
+  title: string;
+  placeholder: string;
+  defaultValue?: string;
+  onConfirm: (val: string) => void;
+}
+
+const InputDialogModal: React.FC<{
+  dialog: InputDialogState | null;
+  onClose: () => void;
+}> = ({ dialog, onClose }) => {
+  if (!dialog) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
+      <div className="w-80 bg-white dark:bg-zinc-900 border border-mac-borderLight dark:border-mac-borderDark rounded-2xl shadow-2xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {dialog.title}
+        </h3>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const input = form.elements.namedItem('dialogInput') as HTMLInputElement;
+            dialog.onConfirm(input.value);
+            onClose();
+          }}
+        >
+          <input
+            autoFocus
+            name="dialogInput"
+            defaultValue={dialog.defaultValue || ''}
+            placeholder={dialog.placeholder}
+            className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-zinc-800 border border-mac-borderLight dark:border-mac-borderDark rounded-lg focus:outline-none focus:ring-2 focus:ring-mac-accent mb-3 text-gray-900 dark:text-gray-100"
+          />
+          <div className="flex justify-end gap-2 text-xs">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors cursor-pointer"
+            >
+              İptal
+            </button>
+            <button
+              type="submit"
+              className="px-3 py-1.5 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
+            >
+              Tamam
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Individual Zustand selectors — prevent re-renders from unrelated store changes
-  const sidebarOpen = useUiStore(s => s.sidebarOpen);
-  const setSidebarOpen = useUiStore(s => s.setSidebarOpen);
-  const setSettingsModalOpen = useUiStore(s => s.setSettingsModalOpen);
-  const isSearchModalOpen = useUiStore(s => s.isSearchModalOpen);
-  const setSearchModalOpen = useUiStore(s => s.setSearchModalOpen);
-  const setViewMode = useUiStore(s => s.setViewMode);
-  const fileTree = useNoteStore(s => s.fileTree);
-  const notes = useNoteStore(s => s.notes);
-  const activeFolderPath = useNoteStore(s => s.activeFolderPath);
-  const createNote = useNoteStore(s => s.createNote);
-  const createFolder = useNoteStore(s => s.createFolder);
-  const moveNode = useNoteStore(s => s.moveNode);
-  const vaultTags = useNoteStore(s => s.vaultTags);
-  const activeTagFilter = useNoteStore(s => s.activeTagFilter);
-  const setActiveTagFilter = useNoteStore(s => s.setActiveTagFilter);
-  const vaultPath = useNoteStore(s => s.vaultPath);
-  const { settings: aiSettings, isChatDrawerOpen, setChatDrawerOpen } = useAiStore();
-  
+  // Fine-grained Zustand selectors — prevent re-renders from unrelated store mutations
+  const sidebarOpen = useUiStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
+  const setSettingsModalOpen = useUiStore((s) => s.setSettingsModalOpen);
+  const isSearchModalOpen = useUiStore((s) => s.isSearchModalOpen);
+  const setSearchModalOpen = useUiStore((s) => s.setSearchModalOpen);
+  const setViewMode = useUiStore((s) => s.setViewMode);
+
+  const fileTree = useNoteStore((s) => s.fileTree);
+  const notes = useNoteStore((s) => s.notes);
+  const activeFolderPath = useNoteStore((s) => s.activeFolderPath);
+  const createNote = useNoteStore((s) => s.createNote);
+  const createFolder = useNoteStore((s) => s.createFolder);
+  const moveNode = useNoteStore((s) => s.moveNode);
+  const vaultTags = useNoteStore((s) => s.vaultTags);
+  const activeTagFilter = useNoteStore((s) => s.activeTagFilter);
+  const setActiveTagFilter = useNoteStore((s) => s.setActiveTagFilter);
+  const vaultPath = useNoteStore((s) => s.vaultPath);
+
+  const isAiEnabled = useAiStore((s) => s.settings.enabled);
+  const isChatDrawerOpen = useAiStore((s) => s.isChatDrawerOpen);
+  const setChatDrawerOpen = useAiStore((s) => s.setChatDrawerOpen);
+
   const [isRootDragOver, setIsRootDragOver] = useState(false);
   const [rootContextMenu, setRootContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showAllTags, setShowAllTags] = useState(false);
-  
-  const [inputDialog, setInputDialog] = useState<{
-    title: string;
-    placeholder: string;
-    defaultValue?: string;
-    onConfirm: (val: string) => void;
-  } | null>(null);
+  const [inputDialog, setInputDialog] = useState<InputDialogState | null>(null);
 
   const pathname = location.pathname;
   const isNotesActive = pathname === '/' || pathname.startsWith('/notes');
@@ -81,8 +136,7 @@ export const Sidebar: React.FC = () => {
     setIsRootDragOver(false);
     const srcPath = e.dataTransfer.getData('text/plain');
     if (!srcPath) return;
-    
-    // Move to root
+
     await moveNode(srcPath, '');
   };
 
@@ -110,12 +164,39 @@ export const Sidebar: React.FC = () => {
     });
   };
 
+  // Memoized file tree based on active tag filter
+  const displayedTree = useMemo(() => {
+    if (!activeTagFilter) return fileTree;
+
+    const taggedNoteIds = new Set(
+      notes
+        .filter((n) => n.tags && n.tags.includes(activeTagFilter))
+        .map((n) => normalizeNoteId(n.id))
+    );
+
+    const filterNode = (node: any): any => {
+      if (node.is_dir) {
+        const filteredChildren = (node.children || [])
+          .map(filterNode)
+          .filter((c: any) => c !== null);
+        if (filteredChildren.length > 0) {
+          return { ...node, children: filteredChildren };
+        }
+        return null;
+      } else {
+        const id = normalizeNoteId(node.relative_path);
+        return taggedNoteIds.has(id) ? node : null;
+      }
+    };
+
+    return fileTree.map(filterNode).filter((c) => c !== null);
+  }, [fileTree, notes, activeTagFilter]);
+
   if (!sidebarOpen) {
     return (
       <aside className="w-13 min-w-[52px] max-w-[52px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col items-center justify-between py-3 select-none transition-all duration-200 ease-mac-ease relative z-20 shrink-0">
         {/* Top Icon Group: Expand, Explorer, Search, New Note */}
         <div className="flex flex-col items-center gap-2 w-full px-1.5">
-          {/* Expand Sidebar */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
@@ -124,38 +205,35 @@ export const Sidebar: React.FC = () => {
             <PanelLeftOpen size={18} />
           </button>
 
-          {/* Explorer (Notes & Folders) - Expands the sidebar when clicked */}
           <button
             onClick={() => {
               setSidebarOpen(true);
               setViewMode('notes');
             }}
             className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              'w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer',
               isNotesActive
-                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold"
-                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+                ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold'
+                : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
-            title="Not Gezgini (Explorer) - Genişletmek için tıklayın"
+            title="Not Gezgini (Explorer)"
           >
             <FolderTree size={18} />
           </button>
 
-          {/* Quick Search */}
           <button
             onClick={() => setSearchModalOpen(true)}
             className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              'w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer',
               isSearchModalOpen || pathname.startsWith('/search')
-                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold"
-                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+                ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold'
+                : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
             title="Hızlı Arama & Komut Paleti (Cmd+K)"
           >
             <Search size={18} />
           </button>
 
-          {/* Quick New Note */}
           <button
             onClick={() => {
               setSidebarOpen(true);
@@ -170,83 +248,78 @@ export const Sidebar: React.FC = () => {
 
         {/* Bottom Icon Group: Tasks, Decisions, Mindmap, AI, Settings */}
         <div className="flex flex-col items-center gap-2 w-full px-1.5 border-t border-mac-borderLight dark:border-mac-borderDark pt-2">
-          {/* Tasks */}
           <button
             onClick={() => {
               setViewMode('tasks');
               navigate('/tasks');
             }}
             className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              'w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer',
               isTasksActive
-                ? "bg-mac-accent text-white shadow-xs"
-                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+                ? 'bg-mac-accent text-white shadow-xs'
+                : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
             title={t('tasks')}
           >
             <CheckCircle size={18} />
           </button>
 
-          {/* Decisions */}
           <button
             onClick={() => {
               setViewMode('decisions');
               navigate('/decisions');
             }}
             className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              'w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer',
               isDecisionsActive
-                ? "bg-purple-600 text-white shadow-xs"
-                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
             title="Karar Kayıtları (Decisions)"
           >
             <FileCheck size={18} />
           </button>
 
-          {/* Mindmap */}
           <button
             onClick={() => {
               setViewMode('mindmap');
               navigate('/mindmap');
             }}
             className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
+              'w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer',
               isMindmapActive
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
             title="Zihin Haritası (Mindmap)"
           >
             <Network size={18} />
           </button>
 
-          {/* AI Assistant */}
           <button
             onClick={() => {
-              if (aiSettings.enabled) {
+              if (isAiEnabled) {
                 setChatDrawerOpen(!isChatDrawerOpen);
               } else {
                 setSettingsModalOpen(true);
               }
             }}
             className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative",
+              'w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative',
               isChatDrawerOpen
-                ? "bg-gradient-to-r from-purple-600 to-mac-accent text-white shadow-xs"
-                : aiSettings.enabled
-                ? "text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
-                : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5"
+                ? 'bg-gradient-to-r from-purple-600 to-mac-accent text-white shadow-xs'
+                : isAiEnabled
+                ? 'text-purple-600 dark:text-purple-400 hover:bg-purple-500/10'
+                : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
             title="AI Asistan"
           >
-            <Sparkles size={18} className={aiSettings.enabled ? "text-purple-500 animate-pulse" : ""} />
-            {aiSettings.enabled && (
+            <Sparkles size={18} className={isAiEnabled ? 'text-purple-500 animate-pulse' : ''} />
+            {isAiEnabled && (
               <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-900" />
             )}
           </button>
 
-          {/* Settings */}
           <button
             onClick={() => setSettingsModalOpen(true)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
@@ -256,48 +329,7 @@ export const Sidebar: React.FC = () => {
           </button>
         </div>
 
-        {/* Modal Dialog for Create/Rename */}
-        {inputDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-            <div className="w-80 bg-white dark:bg-zinc-900 border border-mac-borderLight dark:border-mac-borderDark rounded-2xl shadow-2xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {inputDialog.title}
-              </h3>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const form = e.currentTarget;
-                  const input = form.elements.namedItem('dialogInput') as HTMLInputElement;
-                  inputDialog.onConfirm(input.value);
-                  setInputDialog(null);
-                }}
-              >
-                <input
-                  autoFocus
-                  name="dialogInput"
-                  defaultValue={inputDialog.defaultValue || ''}
-                  placeholder={inputDialog.placeholder}
-                  className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-zinc-800 border border-mac-borderLight dark:border-mac-borderDark rounded-lg focus:outline-none focus:ring-2 focus:ring-mac-accent mb-3 text-gray-900 dark:text-gray-100"
-                />
-                <div className="flex justify-end gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setInputDialog(null)}
-                    className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors cursor-pointer"
-                  >
-                    İptal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
-                  >
-                    Tamam
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <InputDialogModal dialog={inputDialog} onClose={() => setInputDialog(null)} />
       </aside>
     );
   }
@@ -354,7 +386,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* File Tree & Root Drop Zone */}
-      <div 
+      <div
         onDragOver={handleRootDragOver}
         onDragLeave={handleRootDragLeave}
         onDrop={handleRootDrop}
@@ -382,67 +414,36 @@ export const Sidebar: React.FC = () => {
             {activeTagFilter && (
               <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[9px] font-mono capitalize shrink-0">
                 #{activeTagFilter}
-                <X 
-                  size={10} 
-                  className="cursor-pointer hover:text-red-500" 
+                <X
+                  size={10}
+                  className="cursor-pointer hover:text-red-500"
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveTagFilter(null);
-                  }} 
+                  }}
                 />
               </span>
             )}
           </div>
           {activeFolderPath && (
-            <span className="text-[9px] text-mac-accent lowercase font-mono truncate max-w-[80px] shrink-0" title={`Klasör: /${activeFolderPath}`}>
+            <span
+              className="text-[9px] text-mac-accent lowercase font-mono truncate max-w-[80px] shrink-0"
+              title={`Klasör: /${activeFolderPath}`}
+            >
               /{activeFolderPath}
             </span>
           )}
         </div>
-        
-        {fileTree.length === 0 ? (
-          <div className="text-xs text-gray-400 italic px-2 py-4">Vault is empty (Right-click to create)</div>
+
+        {displayedTree.length === 0 ? (
+          <div className="text-xs text-gray-400 italic px-2 py-4 text-center">
+            {activeTagFilter ? `"#${activeTagFilter}" etiketli not bulunamadı` : 'Vault is empty'}
+          </div>
         ) : (
           <div className="flex flex-col gap-0.5">
-            {(() => {
-              let displayedTree = fileTree;
-              if (activeTagFilter) {
-                const taggedNoteIds = new Set(
-                  notes
-                    .filter((n) => n.tags && n.tags.includes(activeTagFilter))
-                    .map((n) => n.id)
-                );
-                const filterNode = (node: any): any => {
-                  if (node.is_dir) {
-                    const filteredChildren = (node.children || [])
-                      .map(filterNode)
-                      .filter((c: any) => c !== null);
-                    if (filteredChildren.length > 0) {
-                      return { ...node, children: filteredChildren };
-                    }
-                    return null;
-                  } else {
-                    const id = node.relative_path.endsWith('.md')
-                      ? node.relative_path.slice(0, -3)
-                      : node.relative_path;
-                    return taggedNoteIds.has(id) ? node : null;
-                  }
-                };
-                displayedTree = fileTree.map(filterNode).filter((c) => c !== null);
-              }
-
-              if (displayedTree.length === 0 && activeTagFilter) {
-                return (
-                  <div className="text-xs text-gray-400 italic px-2 py-4 text-center">
-                    "#{activeTagFilter}" etiketli not bulunamadı
-                  </div>
-                );
-              }
-
-              return displayedTree.map((node) => (
-                <FileTreeNode key={node.relative_path} node={node} openInputDialog={setInputDialog} />
-              ));
-            })()}
+            {displayedTree.map((node) => (
+              <FileTreeNode key={node.relative_path} node={node} openInputDialog={setInputDialog} />
+            ))}
           </div>
         )}
       </div>
@@ -465,9 +466,9 @@ export const Sidebar: React.FC = () => {
               </button>
             )}
           </div>
-          
+
           <div className="flex flex-wrap gap-1 overflow-y-auto pr-1">
-            {(showAllTags ? vaultTags : vaultTags.slice(0, 8)).map(tagObj => {
+            {(showAllTags ? vaultTags : vaultTags.slice(0, 8)).map((tagObj) => {
               const isActive = activeTagFilter === tagObj.tag;
               return (
                 <button
@@ -482,25 +483,31 @@ export const Sidebar: React.FC = () => {
                   title={`${tagObj.count} notta geçiyor`}
                 >
                   <span>#{tagObj.tag}</span>
-                  <span className={cn(
-                    'text-[9px] px-1 py-0.2 rounded-full',
-                    isActive ? 'bg-white/20 text-white' : 'bg-black/5 dark:bg-white/5 text-gray-400'
-                  )}>
+                  <span
+                    className={cn(
+                      'text-[9px] px-1 py-0.2 rounded-full',
+                      isActive ? 'bg-white/20 text-white' : 'bg-black/5 dark:bg-white/5 text-gray-400'
+                    )}
+                  >
                     {tagObj.count}
                   </span>
                 </button>
               );
             })}
-            
+
             {vaultTags.length > 8 && (
               <button
                 onClick={() => setShowAllTags(!showAllTags)}
                 className="text-[10px] px-1.5 py-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-0.5 cursor-pointer"
               >
                 {showAllTags ? (
-                  <><ChevronUp size={11} /> Daha Az</>
+                  <>
+                    <ChevronUp size={11} /> Daha Az
+                  </>
                 ) : (
-                  <><ChevronDown size={11} /> +{vaultTags.length - 8} Diğer</>
+                  <>
+                    <ChevronDown size={11} /> +{vaultTags.length - 8} Diğer
+                  </>
                 )}
               </button>
             )}
@@ -511,7 +518,14 @@ export const Sidebar: React.FC = () => {
       {/* Root Context Menu Portal/Dropdown */}
       {rootContextMenu && (
         <>
-          <div className="fixed inset-0 z-50" onClick={closeRootContextMenu} onContextMenu={(e) => { e.preventDefault(); closeRootContextMenu(); }} />
+          <div
+            className="fixed inset-0 z-50"
+            onClick={closeRootContextMenu}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              closeRootContextMenu();
+            }}
+          />
           <div
             className="fixed z-50 min-w-[160px] bg-white dark:bg-zinc-900 border border-mac-borderLight dark:border-mac-borderDark rounded-xl shadow-xl p-1 text-xs text-gray-700 dark:text-gray-300 animate-in fade-in zoom-in-95 duration-100"
             style={{ top: rootContextMenu.y, left: rootContextMenu.x }}
@@ -540,93 +554,56 @@ export const Sidebar: React.FC = () => {
         </>
       )}
 
-      {/* Modal Dialog for Create/Rename */}
-      {inputDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-          <div className="w-80 bg-white dark:bg-zinc-900 border border-mac-borderLight dark:border-mac-borderDark rounded-2xl shadow-2xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {inputDialog.title}
-            </h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const input = form.elements.namedItem('dialogInput') as HTMLInputElement;
-                inputDialog.onConfirm(input.value);
-                setInputDialog(null);
-              }}
-            >
-              <input
-                autoFocus
-                name="dialogInput"
-                defaultValue={inputDialog.defaultValue || ''}
-                placeholder={inputDialog.placeholder}
-                className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-zinc-800 border border-mac-borderLight dark:border-mac-borderDark rounded-lg focus:outline-none focus:ring-2 focus:ring-mac-accent mb-3 text-gray-900 dark:text-gray-100"
-              />
-              <div className="flex justify-end gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setInputDialog(null)}
-                  className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors cursor-pointer"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
-                >
-                  Tamam
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Fixed Bottom Actions */}
       <div className="p-2 border-t border-mac-borderLight dark:border-mac-borderDark flex flex-col gap-1">
-        <button 
+        <button
           onClick={() => {
             setViewMode('tasks');
             navigate('/tasks');
           }}
           className={cn(
             'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
-            isTasksActive ? 'bg-mac-accent text-white font-medium shadow-xs' : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
+            isTasksActive
+              ? 'bg-mac-accent text-white font-medium shadow-xs'
+              : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <CheckCircle size={16} />
           {t('tasks')}
         </button>
-        <button 
+        <button
           onClick={() => {
             setViewMode('decisions');
             navigate('/decisions');
           }}
           className={cn(
             'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
-            isDecisionsActive ? 'bg-purple-600 text-white font-medium shadow-xs' : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
+            isDecisionsActive
+              ? 'bg-purple-600 text-white font-medium shadow-xs'
+              : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <FileCheck size={16} />
           Karar Kayıtları (Decisions)
         </button>
-        <button 
+        <button
           onClick={() => {
             setViewMode('mindmap');
             navigate('/mindmap');
           }}
           className={cn(
             'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
-            isMindmapActive ? 'bg-emerald-600 text-white font-medium shadow-xs' : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
+            isMindmapActive
+              ? 'bg-emerald-600 text-white font-medium shadow-xs'
+              : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <Network size={16} />
           Zihin Haritası (Mindmap)
         </button>
-        <button 
+        <button
           onClick={() => {
-            if (aiSettings.enabled) {
+            if (isAiEnabled) {
               setChatDrawerOpen(!isChatDrawerOpen);
             } else {
               setSettingsModalOpen(true);
@@ -636,21 +613,19 @@ export const Sidebar: React.FC = () => {
             'flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
             isChatDrawerOpen
               ? 'bg-gradient-to-r from-purple-600 to-mac-accent text-white font-semibold shadow-xs'
-              : aiSettings.enabled
+              : isAiEnabled
               ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold hover:bg-purple-500/20'
               : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
           )}
         >
           <div className="flex items-center gap-2">
-            <Sparkles size={16} className={aiSettings.enabled ? 'text-purple-500 animate-pulse' : ''} />
+            <Sparkles size={16} className={isAiEnabled ? 'text-purple-500 animate-pulse' : ''} />
             <span>AI Asistan</span>
           </div>
-          {aiSettings.enabled && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          )}
+          {isAiEnabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
         </button>
 
-        <button 
+        <button
           onClick={() => setSettingsModalOpen(true)}
           className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"
         >
@@ -658,6 +633,8 @@ export const Sidebar: React.FC = () => {
           {t('settings')}
         </button>
       </div>
+
+      <InputDialogModal dialog={inputDialog} onClose={() => setInputDialog(null)} />
     </aside>
   );
 };

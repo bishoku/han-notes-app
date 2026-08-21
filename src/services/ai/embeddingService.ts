@@ -1,5 +1,8 @@
 /**
  * embeddingService.ts — Main thread bridge to the embedding Web Worker.
+ *
+ * Tracks which model was actually loaded by the worker (preferred vs fallback)
+ * so the rest of the system can react to model changes (e.g. re-index vectors).
  */
 
 class EmbeddingService {
@@ -8,8 +11,26 @@ class EmbeddingService {
   private isReady = false;
   private onProgressCallback: ((progress: number, file?: string) => void) | null = null;
 
+  /** The model name actually loaded by the worker (may differ from requested if fallback was used) */
+  private _loadedModel: string | null = null;
+  private onModelResolvedCallback: ((modelName: string) => void) | null = null;
+
   public setProgressCallback(cb: (progress: number, file?: string) => void) {
     this.onProgressCallback = cb;
+  }
+
+  /**
+   * Register a callback to be notified when the worker resolves which model was actually loaded.
+   * This fires once after the first embedding operation or INIT, and reports the actual model name
+   * (which may be the fallback if the preferred model's CDN was unreachable).
+   */
+  public setModelResolvedCallback(cb: (modelName: string) => void) {
+    this.onModelResolvedCallback = cb;
+  }
+
+  /** Returns the model name that was actually loaded by the worker, or null if not yet loaded. */
+  public getLoadedModel(): string | null {
+    return this._loadedModel;
   }
 
   private initWorker(): Worker {
@@ -20,7 +41,15 @@ class EmbeddingService {
       );
 
       this.worker.onmessage = (e: MessageEvent) => {
-        const { type, id, vectors, vector, error, progress, file } = e.data;
+        const { type, id, vectors, vector, error, progress, file, loadedModel } = e.data;
+
+        // Track which model was actually loaded (preferred or fallback)
+        if (loadedModel && loadedModel !== this._loadedModel) {
+          this._loadedModel = loadedModel;
+          if (this.onModelResolvedCallback) {
+            this.onModelResolvedCallback(loadedModel);
+          }
+        }
 
         if (type === 'MODEL_DOWNLOAD_PROGRESS' && this.onProgressCallback) {
           this.onProgressCallback(progress, file);
@@ -83,6 +112,7 @@ class EmbeddingService {
       this.worker.terminate();
       this.worker = null;
       this.isReady = false;
+      this._loadedModel = null;
       this.pendingRequests.clear();
     }
   }

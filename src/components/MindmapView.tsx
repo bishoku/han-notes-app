@@ -35,23 +35,24 @@ export const MindmapView: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
-  const { theme, setViewMode } = useUiStore();
-  const { selectNote, createNote } = useNoteStore();
-  const {
-    nodes,
-    edges,
-    selectedNodeId,
-    searchQuery,
-    layoutMode,
-    showOrphans,
-    groupByFolder,
-    colorBy,
-    localGraphOnly,
-    isLoading,
-    buildFullGraph,
-    setSelectedNodeId,
-    setHoveredNodeId,
-  } = useGraphStore();
+  const theme = useUiStore((s) => s.theme);
+  const setViewMode = useUiStore((s) => s.setViewMode);
+  const selectNote = useNoteStore((s) => s.selectNote);
+  const createNote = useNoteStore((s) => s.createNote);
+
+  const nodes = useGraphStore((s) => s.nodes);
+  const edges = useGraphStore((s) => s.edges);
+  const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const searchQuery = useGraphStore((s) => s.searchQuery);
+  const layoutMode = useGraphStore((s) => s.layoutMode);
+  const showOrphans = useGraphStore((s) => s.showOrphans);
+  const groupByFolder = useGraphStore((s) => s.groupByFolder);
+  const colorBy = useGraphStore((s) => s.colorBy);
+  const localGraphOnly = useGraphStore((s) => s.localGraphOnly);
+  const isLoading = useGraphStore((s) => s.isLoading);
+  const buildFullGraph = useGraphStore((s) => s.buildFullGraph);
+  const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
+  const setHoveredNodeId = useGraphStore((s) => s.setHoveredNodeId);
 
   const isDark = theme !== 'light';
 
@@ -115,7 +116,7 @@ export const MindmapView: React.FC = () => {
     }
 
     const cyNodes = filteredNodes.map((node) => {
-      let nodeColor = '#3b82f6'; // Default mac accent
+      let nodeColor = '#3b82f6';
       if (node.isGhost) {
         nodeColor = '#f59e0b';
       } else if (colorBy === 'folder') {
@@ -136,12 +137,12 @@ export const MindmapView: React.FC = () => {
           node.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
           node.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
 
-      // Base size: 24 to 56 based on connection degree
       const size = Math.min(56, Math.max(26, 24 + node.connectionCount * 4));
 
-      const parentId = (groupByFolder && !node.isGhost && node.folder && validFolders.has(node.folder))
-        ? `folder:${node.folder}`
-        : undefined;
+      const parentId =
+        groupByFolder && !node.isGhost && node.folder && validFolders.has(node.folder)
+          ? `folder:${node.folder}`
+          : undefined;
 
       return {
         data: {
@@ -177,7 +178,6 @@ export const MindmapView: React.FC = () => {
     const edgeArrowColor = isDark ? 'rgba(161, 161, 170, 0.5)' : 'rgba(148, 163, 184, 0.7)';
 
     return [
-      // Compound / Folder Group Containers
       {
         selector: ':parent',
         style: {
@@ -199,7 +199,6 @@ export const MindmapView: React.FC = () => {
           'text-background-opacity': 0,
         },
       },
-      // Regular Note Nodes (Children and Free-floating)
       {
         selector: 'node[!isFolderGroup]',
         style: {
@@ -295,85 +294,94 @@ export const MindmapView: React.FC = () => {
     ];
   }, [isDark]);
 
-  // 4. Initialize & Update Cytoscape instance
+  // 4. Initialize Cytoscape Instance
   useEffect(() => {
     if (!containerRef.current) return;
 
-    if (!cyRef.current) {
-      const cy = cytoscape({
-        container: containerRef.current,
-        elements: visibleElements,
-        style: getCytoscapeStyle() as any,
-        minZoom: 0.15,
-        maxZoom: 3.5,
-      });
+    const cy = cytoscape({
+      container: containerRef.current,
+      elements: visibleElements,
+      style: getCytoscapeStyle() as any,
+      minZoom: 0.15,
+      maxZoom: 3.5,
+    });
 
-      // Events
-      cy.on('tap', 'node', (evt: EventObject) => {
-        if (evt.target.isParent()) return;
+    cy.on('tap', 'node', (evt: EventObject) => {
+      if (evt.target.isParent()) return;
+      const id = evt.target.id();
+      setSelectedNodeId(id);
+    });
+
+    cy.on('tap', (evt: EventObject) => {
+      if (evt.target === cy) {
+        setSelectedNodeId(null);
+      }
+    });
+
+    let lastTap = 0;
+    cy.on('tap', 'node', (evt: EventObject) => {
+      if (evt.target.isParent()) return;
+      const now = Date.now();
+      if (now - lastTap < 300) {
         const id = evt.target.id();
-        setSelectedNodeId(id);
-      });
-
-      cy.on('tap', (evt: EventObject) => {
-        if (evt.target === cy) {
-          setSelectedNodeId(null);
-        }
-      });
-
-      // Double-click to open note in editor
-      let lastTap = 0;
-      cy.on('tap', 'node', (evt: EventObject) => {
-        if (evt.target.isParent()) return;
-        const now = Date.now();
-        if (now - lastTap < 300) {
-          const id = evt.target.id();
-          const targetNode = nodes.find((n) => n.id === id);
-          if (targetNode?.isGhost) {
-            createNote(targetNode.title).then((newId) => {
-              setViewMode('notes');
-              navigate(`/notes/${encodeURIComponent(newId)}`);
-            });
-          } else {
-            selectNote(id);
+        const targetNode = useGraphStore.getState().nodes.find((n) => n.id === id);
+        if (targetNode?.isGhost) {
+          createNote(targetNode.title).then((newId) => {
             setViewMode('notes');
-            navigate(`/notes/${encodeURIComponent(id)}`);
-          }
+            navigate(`/notes/${encodeURIComponent(newId)}`);
+          });
+        } else {
+          selectNote(id);
+          setViewMode('notes');
+          navigate(`/notes/${encodeURIComponent(id)}`);
         }
-        lastTap = now;
-      });
+      }
+      lastTap = now;
+    });
 
-      // Hover highlighting
-      cy.on('mouseover', 'node', (evt: EventObject) => {
-        const node = evt.target;
-        if (node.isParent()) return;
-        setHoveredNodeId(node.id());
+    cy.on('mouseover', 'node', (evt: EventObject) => {
+      const node = evt.target;
+      if (node.isParent()) return;
+      setHoveredNodeId(node.id());
 
-        const connectedEdges = node.connectedEdges();
-        const connectedNodes = connectedEdges.connectedNodes();
+      const connectedEdges = node.connectedEdges();
+      const connectedNodes = connectedEdges.connectedNodes();
 
-        cy.elements().addClass('dimmed');
-        node.removeClass('dimmed').addClass('node-highlighted');
-        connectedNodes.removeClass('dimmed').addClass('node-highlighted');
-        connectedEdges.removeClass('dimmed').addClass('highlighted');
-      });
+      cy.elements().addClass('dimmed');
+      node.removeClass('dimmed').addClass('node-highlighted');
+      connectedNodes.removeClass('dimmed').addClass('node-highlighted');
+      connectedEdges.removeClass('dimmed').addClass('highlighted');
+    });
 
-      cy.on('mouseout', 'node', () => {
-        setHoveredNodeId(null);
-        cy.elements().removeClass('dimmed highlighted node-highlighted');
-      });
+    cy.on('mouseout', 'node', () => {
+      setHoveredNodeId(null);
+      cy.elements().removeClass('dimmed highlighted node-highlighted');
+    });
 
-      cyRef.current = cy;
-    } else {
-      // Update elements and styles
-      const cy = cyRef.current;
-      cy.json({ elements: visibleElements });
-      cy.style(getCytoscapeStyle() as any);
-    }
+    cyRef.current = cy;
 
-    // Run Layout
+    return () => {
+      cy.destroy();
+      cyRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 5. Update Elements and Run Layout when structural configuration changes
+  const prevTopologyKeyRef = useRef<string>('');
+  const topologyKey = useMemo(() => {
+    return `${nodes.length}_${edges.length}_${showOrphans}_${groupByFolder}_${localGraphOnly ? selectedNodeId : 'all'}_${layoutMode}`;
+  }, [nodes.length, edges.length, showOrphans, groupByFolder, localGraphOnly, selectedNodeId, layoutMode]);
+
+  useEffect(() => {
     const cy = cyRef.current;
-    if (cy && visibleElements.length > 0) {
+    if (!cy) return;
+
+    cy.json({ elements: visibleElements });
+    cy.style(getCytoscapeStyle() as any);
+
+    if (prevTopologyKeyRef.current !== topologyKey && visibleElements.length > 0) {
+      prevTopologyKeyRef.current = topologyKey;
+
       let layoutConfig: any = {
         name: 'fcose',
         quality: 'default',
@@ -383,7 +391,7 @@ export const MindmapView: React.FC = () => {
         nestingFactor: 0.1,
         gravityCompound: 1.2,
         gravityRangeCompound: 2.0,
-        nodeRepulsion: (node: any) => node.isParent() ? 30000 : 5000,
+        nodeRepulsion: (node: any) => (node.isParent() ? 30000 : 5000),
       };
 
       if (layoutMode === 'breadthfirst') {
@@ -410,17 +418,7 @@ export const MindmapView: React.FC = () => {
 
       cy.layout(layoutConfig).run();
     }
-  }, [visibleElements, getCytoscapeStyle, layoutMode, selectedNodeId, nodes, selectNote, createNote, setViewMode, navigate, setSelectedNodeId, setHoveredNodeId]);
-
-  // Clean up
-  useEffect(() => {
-    return () => {
-      if (cyRef.current) {
-        cyRef.current.destroy();
-        cyRef.current = null;
-      }
-    };
-  }, []);
+  }, [visibleElements, getCytoscapeStyle, topologyKey, layoutMode, selectedNodeId]);
 
   // Toolbar Handlers
   const handleZoomIn = () => {
@@ -469,7 +467,7 @@ export const MindmapView: React.FC = () => {
   return (
     <div className="relative flex-1 h-full w-full overflow-hidden bg-mac-mainLight dark:bg-mac-mainDark select-none">
       {/* Background Dot Matrix Pattern */}
-      <div 
+      <div
         className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
         style={{
           backgroundImage: `radial-gradient(${isDark ? '#ffffff' : '#000000'} 1.2px, transparent 1.2px)`,

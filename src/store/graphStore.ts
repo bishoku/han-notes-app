@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import { storage } from '@/services/storage';
+import { normalizeNoteId, extractTitleFromId, extractFolderFromId } from '@/utils/pathUtils';
 import type { NoteInfo } from '@/store/noteStore';
 
 export interface GraphNode {
@@ -70,9 +71,8 @@ export function extractWikilinks(content: string): string[] {
   while ((match = regex.exec(content)) !== null) {
     const rawTarget = match[1].trim();
     if (rawTarget) {
-      // Normalize: remove .md if present
-      const clean = rawTarget.replace(/\.md$/, '');
-      if (!links.includes(clean)) {
+      const clean = normalizeNoteId(rawTarget);
+      if (clean && !links.includes(clean)) {
         links.push(clean);
       }
     }
@@ -84,8 +84,8 @@ export function extractWikilinks(content: string): string[] {
 /**
  * Resolves a raw target string (e.g. "toplanti" or "sub/toplanti") to an existing note ID.
  */
-function resolveTargetNoteId(rawTarget: string, availableNotes: NoteInfo[]): string {
-  const cleanTarget = rawTarget.trim().toLowerCase();
+function resolveTargetNoteId(rawTarget: string, availableNotes: Array<{ id: string; title: string }>): string {
+  const cleanTarget = normalizeNoteId(rawTarget).toLowerCase();
 
   // 1. Exact match with note ID
   const exact = availableNotes.find((n) => n.id.toLowerCase() === cleanTarget);
@@ -97,12 +97,12 @@ function resolveTargetNoteId(rawTarget: string, availableNotes: NoteInfo[]): str
 
   // 3. Match with basename (e.g. "alpha" matches "projects/alpha")
   const byBasename = availableNotes.find((n) => {
-    const base = n.id.split('/').pop()?.toLowerCase();
+    const base = extractTitleFromId(n.id).toLowerCase();
     return base === cleanTarget;
   });
   if (byBasename) return byBasename.id;
 
-  return rawTarget; // Ghost note
+  return normalizeNoteId(rawTarget); // Ghost note
 }
 
 export const useGraphStore = create<GraphState>((set, get) => ({
@@ -138,7 +138,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         })
       );
 
-      // 2. Build adjacency maps
+      // 2. Build fast lookup maps
       const outgoingMap = new Map<string, string[]>();
       const incomingMap = new Map<string, string[]>();
 
@@ -156,7 +156,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
         for (const raw of rawLinks) {
           const resolvedId = resolveTargetNoteId(raw, notes);
-          
+
           // Self loop check
           if (resolvedId === note.id) {
             continue;
@@ -181,7 +181,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
             if (!ghostNodesMap.has(resolvedId)) {
               ghostNodesMap.set(resolvedId, {
                 id: resolvedId,
-                title: resolvedId.split('/').pop() || resolvedId,
+                title: extractTitleFromId(resolvedId),
                 path: resolvedId,
                 folder: 'Oluşturulmamış',
                 tags: ['ghost'],
@@ -214,14 +214,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
       // 3. Construct GraphNodes
       const nodes: GraphNode[] = notes.map((n) => {
-        const folder = n.id.includes('/') ? n.id.split('/').slice(0, -1).join('/') : 'Kök (Root)';
+        const folder = extractFolderFromId(n.id) || 'Kök (Root)';
         const outLinks = outgoingMap.get(n.id) || [];
         const inLinks = incomingMap.get(n.id) || [];
         const connectionCount = outLinks.length + inLinks.length;
 
         return {
           id: n.id,
-          title: n.title || n.id.split('/').pop() || n.id,
+          title: n.title || extractTitleFromId(n.id),
           path: n.path,
           folder,
           tags: n.tags || [],
@@ -250,53 +250,70 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   updateNoteContent: (noteId: string, content: string) => {
+    const cleanId = normalizeNoteId(noteId);
     const cache = new Map(get().noteContentsCache);
-    cache.set(noteId, content);
-    set({ noteContentsCache: cache });
+    cache.set(cleanId, content);
 
     const { nodes, edges } = get();
     const currentNodes: GraphNode[] = [...nodes];
-    
-    // If target note is not in nodes yet, add it
-    if (!currentNodes.some((n) => n.id === noteId)) {
-      const folder = noteId.includes('/') ? noteId.split('/').slice(0, -1).join('/') : 'Kök (Root)';
-      const title = noteId.split('/').pop() || noteId;
-      currentNodes.push({
-        id: noteId,
+
+    // Ensure target node exists in list
+    let targetNodeIndex = currentNodes.findIndex((n) => n.id === cleanId);
+    if (targetNodeIndex === -1) {
+      const folder = extractFolderFromId(cleanId) || 'Kök (Root)';
+      const title = extractTitleFromId(cleanId);
+      const newNode: GraphNode = {
+        id: cleanId,
         title,
-        path: noteId,
+        path: cleanId,
         folder,
         tags: [],
         outgoingLinks: [],
         incomingLinks: [],
         connectionCount: 0,
         isOrphan: true,
-      });
+      };
+      currentNodes.push(newNode);
+      targetNodeIndex = currentNodes.length - 1;
     }
 
-    const newOutgoing = extractWikilinks(content);
-    // Filter existing edges for this source
-    const otherEdges = edges.filter((e) => e.source !== noteId);
-    const newEdges: GraphEdge[] = [...otherEdges];
+    const rawOutgoing = extractWikilinks(content);
+    const resolvedOutgoingSet = new Set<string>();
 
-    for (const raw of newOutgoing) {
-      const resolvedId = resolveTargetNoteId(raw, currentNodes as any);
-      if (resolvedId !== noteId) {
-        const edgeId = `${noteId}->${resolvedId}`;
-        if (!newEdges.some((e) => e.id === edgeId)) {
-          newEdges.push({
-            id: edgeId,
-            source: noteId,
-            target: resolvedId,
-          });
-        }
+    for (const raw of rawOutgoing) {
+      const resolvedId = resolveTargetNoteId(raw, currentNodes);
+      if (resolvedId && resolvedId !== cleanId) {
+        resolvedOutgoingSet.add(resolvedId);
       }
     }
 
-    // Recompute connection counts and links
+    // Filter out previous outgoing edges from this source
+    const preservedEdges = edges.filter((e) => e.source !== cleanId);
+    const newEdges: GraphEdge[] = [...preservedEdges];
+
+    for (const targetId of resolvedOutgoingSet) {
+      newEdges.push({
+        id: `${cleanId}->${targetId}`,
+        source: cleanId,
+        target: targetId,
+      });
+    }
+
+    // High-performance $O(E + N)$ adjacency rebuild using Map lookups instead of $O(N \cdot E)$
+    const outMap = new Map<string, string[]>();
+    const inMap = new Map<string, string[]>();
+
+    for (const edge of newEdges) {
+      if (!outMap.has(edge.source)) outMap.set(edge.source, []);
+      outMap.get(edge.source)!.push(edge.target);
+
+      if (!inMap.has(edge.target)) inMap.set(edge.target, []);
+      inMap.get(edge.target)!.push(edge.source);
+    }
+
     const updatedNodes = currentNodes.map((node) => {
-      const outList = newEdges.filter((e) => e.source === node.id).map((e) => e.target);
-      const inList = newEdges.filter((e) => e.target === node.id).map((e) => e.source);
+      const outList = outMap.get(node.id) || [];
+      const inList = inMap.get(node.id) || [];
       const connectionCount = outList.length + inList.length;
       return {
         ...node,
@@ -307,27 +324,32 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       };
     });
 
-    set({ nodes: updatedNodes, edges: newEdges });
+    set({
+      nodes: updatedNodes,
+      edges: newEdges,
+      noteContentsCache: cache,
+    });
   },
 
   removeNoteFromGraph: (noteId: string) => {
+    const cleanId = normalizeNoteId(noteId);
     const { nodes, edges } = get();
     const cache = new Map(get().noteContentsCache);
-    cache.delete(noteId);
+    cache.delete(cleanId);
 
-    const filteredNodes = nodes.filter((n) => n.id !== noteId);
-    const filteredEdges = edges.filter((e) => e.source !== noteId && e.target !== noteId);
+    const filteredNodes = nodes.filter((n) => n.id !== cleanId);
+    const filteredEdges = edges.filter((e) => e.source !== cleanId && e.target !== cleanId);
 
     set({
       nodes: filteredNodes,
       edges: filteredEdges,
       noteContentsCache: cache,
-      selectedNodeId: get().selectedNodeId === noteId ? null : get().selectedNodeId,
+      selectedNodeId: get().selectedNodeId === cleanId ? null : get().selectedNodeId,
     });
   },
 
-  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
-  setHoveredNodeId: (id) => set({ hoveredNodeId: id }),
+  setSelectedNodeId: (id) => set({ selectedNodeId: id ? normalizeNoteId(id) : null }),
+  setHoveredNodeId: (id) => set({ hoveredNodeId: id ? normalizeNoteId(id) : null }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setLayoutMode: (layoutMode) => set({ layoutMode }),
   setShowOrphans: (showOrphans) => set({ showOrphans }),

@@ -1,0 +1,91 @@
+name: Release Multi-Platform App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin,wasm32-unknown-unknown' || 'wasm32-unknown-unknown' }}
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'latest'
+
+      - name: Install Linux dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            ./src-tauri -> target
+            ./han-core -> target
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build & Publish Tauri Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'H.A.N. ${{ github.ref_name }}'
+          releaseBody: |
+            ## H.A.N. — Hierarchical Adaptive Notebook ${{ github.ref_name }}
+
+            Masaüstü uygulaması için platformunuza uygun kurulum dosyasını aşağıdaki listeden indirin:
+
+            - **Windows**: `.msi` veya `_setup.exe`
+            - **macOS**: `.dmg` (Universal binary - Apple Silicon & Intel)
+            - **Linux (Ubuntu / Debian)**: `.deb` veya `.AppImage`
+
+            ---
+            🌐 **Web / PWA Versiyonu:** [bishoku.github.io/han-notes-app](https://bishoku.github.io/han-notes-app/)
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

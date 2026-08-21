@@ -1,6 +1,6 @@
 /**
  * QuickSearchModal.tsx — Spotlight & Raycast style Command Palette and Hybrid Search Modal.
- * Integrates local ONNX semantic vector search with keyword and metadata matching.
+ * Integrates instant 0ms in-memory keyword matching with debounced local ONNX vector search.
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -28,8 +28,16 @@ import {
 export const QuickSearchModal: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isSearchModalOpen, setSearchModalOpen, setViewMode, searchQuery, setSearchQuery } = useUiStore();
-  const { selectNote, notes } = useNoteStore();
+
+  // Granular Zustand selectors to prevent unnecessary modal re-renders
+  const isSearchModalOpen = useUiStore((s) => s.isSearchModalOpen);
+  const setSearchModalOpen = useUiStore((s) => s.setSearchModalOpen);
+  const setViewMode = useUiStore((s) => s.setViewMode);
+  const searchQuery = useUiStore((s) => s.searchQuery);
+  const setSearchQuery = useUiStore((s) => s.setSearchQuery);
+
+  const selectNote = useNoteStore((s) => s.selectNote);
+  const notes = useNoteStore((s) => s.notes);
 
   const [inputQuery, setInputQuery] = useState(searchQuery || '');
   const [activeFilter, setActiveFilter] = useState<SearchFilterType>('all');
@@ -41,7 +49,7 @@ export const QuickSearchModal: React.FC = () => {
   const listRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Sync state when opened
+  // Sync state when modal is opened
   useEffect(() => {
     if (isSearchModalOpen) {
       setInputQuery(searchQuery || '');
@@ -50,7 +58,7 @@ export const QuickSearchModal: React.FC = () => {
     }
   }, [isSearchModalOpen, searchQuery]);
 
-  // Debounced search query execution
+  // Progressive Two-Stage Hybrid Search (0ms instant keyword + 200ms debounced vector search)
   useEffect(() => {
     if (!isSearchModalOpen) return;
 
@@ -60,7 +68,7 @@ export const QuickSearchModal: React.FC = () => {
 
     const trimmed = inputQuery.trim();
     if (!trimmed) {
-      // Default: show recent / popular notes
+      // Default: show recent notes
       const recentMatches: SearchMatchItem[] = notes.slice(0, 10).map((n) => ({
         id: `recent_${n.id}`,
         noteId: n.id,
@@ -78,12 +86,22 @@ export const QuickSearchModal: React.FC = () => {
       return;
     }
 
+    // Stage 1: Instant 0ms keyword match
+    const instantHits = hybridSearchService.searchKeywordOnly(trimmed, activeFilter);
+    setResults(instantHits);
+    setSelectedIndex(0);
+
+    // Stage 2: Debounced ONNX vector search (only if query is 3+ chars)
+    if (trimmed.length < 3 || activeFilter === 'tasks' || activeFilter === 'decisions' || activeFilter === 'tags') {
+      setIsSemanticLoading(false);
+      return;
+    }
+
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    setIsSemanticLoading(true);
-
     const timer = setTimeout(async () => {
+      setIsSemanticLoading(true);
       try {
         const { results: searchHits, isSemanticDone } = await hybridSearchService.search(
           trimmed,
@@ -92,15 +110,18 @@ export const QuickSearchModal: React.FC = () => {
         );
         if (!abortController.signal.aborted) {
           setResults(searchHits);
-          setSelectedIndex(0);
           setIsSemanticLoading(!isSemanticDone);
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           console.error('Search execution failed:', err);
         }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsSemanticLoading(false);
+        }
       }
-    }, 120);
+    }, 200);
 
     return () => {
       clearTimeout(timer);
