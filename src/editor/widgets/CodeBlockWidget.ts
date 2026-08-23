@@ -46,8 +46,26 @@ export class CodeBlockWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement("div");
-    wrap.className = "my-2.5 rounded-lg border border-gray-200/80 dark:border-zinc-800/80 bg-[#f8fafc] dark:bg-[#111215] shadow-xs overflow-hidden group/codeblock relative max-w-full transition-all";
+    wrap.className = "cm-codeblock-wrap my-2.5 rounded-lg border border-gray-200/80 dark:border-zinc-800/80 bg-[#f8fafc] dark:bg-[#111215] shadow-xs overflow-hidden group/codeblock relative max-w-full transition-all";
     wrap.style.lineHeight = "normal";
+    wrap.setAttribute("contenteditable", "false");
+    wrap.setAttribute("tabindex", "-1");
+    wrap.style.userSelect = "text";
+    (wrap.style as any).WebkitUserSelect = "text";
+
+    // Handle clipboard copy inside code block so selected text/snippets copy cleanly
+    wrap.addEventListener("copy", (e: ClipboardEvent) => {
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) {
+        const text = selection.toString();
+        if (text) {
+          e.clipboardData?.setData("text/plain", text);
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      }
+    });
 
     const badge = getLanguageConfig(this.lang);
     const lines = this.codeText.split('\n');
@@ -55,14 +73,32 @@ export class CodeBlockWidget extends WidgetType {
 
     // ─── Compact Header Bar (26px height, unselectable) ───
     const header = document.createElement("div");
-    header.className = "flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-[#16171b]/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px]";
+    header.className = "flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-[#16171b]/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px] cursor-default";
+    header.style.userSelect = "none";
+    (header.style as any).WebkitUserSelect = "none";
+
+    // Double-click on header bar opens edit modal
+    header.ondblclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent("edit-code-block", {
+          detail: {
+            code: this.codeText,
+            lang: this.lang,
+            from: this.from,
+            to: this.to,
+          },
+        })
+      );
+    };
 
     // Left: Language badge & line count
     const leftInfo = document.createElement("div");
     leftInfo.className = "flex items-center gap-1.5 leading-none";
 
     const pill = document.createElement("span");
-    pill.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border leading-none";
+    pill.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border leading-none select-none";
     pill.style.backgroundColor = `${badge.color}15`;
     pill.style.borderColor = `${badge.color}30`;
     pill.style.color = badge.color;
@@ -72,7 +108,7 @@ export class CodeBlockWidget extends WidgetType {
     `;
 
     const lineCountBadge = document.createElement("span");
-    lineCountBadge.className = "text-[10px] text-gray-400 dark:text-gray-500 font-mono leading-none";
+    lineCountBadge.className = "text-[10px] text-gray-400 dark:text-gray-500 font-mono leading-none select-none";
     lineCountBadge.textContent = `${lines.length} satır`;
 
     leftInfo.appendChild(pill);
@@ -81,7 +117,7 @@ export class CodeBlockWidget extends WidgetType {
 
     // Right: Action toolbar buttons
     const actions = document.createElement("div");
-    actions.className = "flex items-center gap-0.5 leading-none";
+    actions.className = "flex items-center gap-0.5 leading-none select-none";
 
     // 1. Edit Button
     const editBtn = document.createElement("button");
@@ -179,32 +215,16 @@ export class CodeBlockWidget extends WidgetType {
 
     // ─── Code Content Body (Selectable text) ───
     const body = document.createElement("div");
-    body.className = "flex overflow-x-auto p-2.5 font-mono text-[12px] leading-relaxed cursor-text";
+    body.className = "flex overflow-x-auto p-2.5 font-mono text-[12px] leading-relaxed cursor-text select-text";
     body.style.userSelect = "text";
     (body.style as any).WebkitUserSelect = "text";
     if (isLong) {
       body.style.maxHeight = "520px";
     }
 
-    // Double-click to edit modal
-    body.ondblclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      window.dispatchEvent(
-        new CustomEvent("edit-code-block", {
-          detail: {
-            code: this.codeText,
-            lang: this.lang,
-            from: this.from,
-            to: this.to,
-          },
-        })
-      );
-    };
-
     // Line Numbers Gutter (Unselectable)
     const gutter = document.createElement("div");
-    gutter.className = "flex flex-col text-right pr-2.5 select-none text-gray-300 dark:text-zinc-600 font-mono text-[10.5px] border-r border-gray-200/50 dark:border-zinc-800/60 shrink-0";
+    gutter.className = "cm-codeblock-gutter flex flex-col text-right pr-2.5 select-none text-gray-300 dark:text-zinc-600 font-mono text-[10.5px] border-r border-gray-200/50 dark:border-zinc-800/60 shrink-0 pointer-events-none";
     gutter.style.lineHeight = "1.55";
     gutter.style.userSelect = "none";
     (gutter.style as any).WebkitUserSelect = "none";
@@ -218,13 +238,15 @@ export class CodeBlockWidget extends WidgetType {
 
     // Code Content Area (Fully Selectable & Copyable)
     const codeArea = document.createElement("pre");
-    codeArea.className = "pl-2.5 flex-1 overflow-x-auto text-gray-800 dark:text-zinc-200";
+    codeArea.className = "cm-codeblock-pre pl-2.5 flex-1 overflow-x-auto text-gray-800 dark:text-zinc-200 select-text font-mono outline-none";
+    codeArea.setAttribute("tabindex", "-1");
     codeArea.style.lineHeight = "1.55";
     codeArea.style.margin = "0";
     codeArea.style.userSelect = "text";
     (codeArea.style as any).WebkitUserSelect = "text";
 
     const codeEl = document.createElement("code");
+    codeEl.className = "cm-codeblock-code select-text block font-mono";
     codeEl.style.userSelect = "text";
     (codeEl.style as any).WebkitUserSelect = "text";
     // Synchronous initial fallback

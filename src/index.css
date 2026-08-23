@@ -296,8 +296,43 @@
 .dark .cm-tok-attr { color: #fbbf24; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Fenced Code Block — Premium Full-Box Container
+   Fenced Code Block — Premium Full-Box Container & Selectable Code
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Code Block Widget — Native Selection & Highlight override */
+.cm-editor .cm-line .cm-codeblock-wrap,
+.cm-editor .cm-line .cm-codeblock-wrap * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.cm-editor .cm-line .cm-codeblock-wrap ::selection,
+.cm-editor .cm-line .cm-codeblock-wrap::selection,
+.cm-editor .cm-codeblock-wrap ::selection,
+.cm-editor .cm-codeblock-wrap::selection,
+.cm-codeblock-wrap ::selection,
+.cm-codeblock-wrap::selection,
+.cm-codeblock-wrap *::selection {
+  background-color: #b4d5fe !important;
+  color: #0f172a !important;
+}
+
+.dark .cm-editor .cm-line .cm-codeblock-wrap ::selection,
+.dark .cm-editor .cm-line .cm-codeblock-wrap::selection,
+.dark .cm-editor .cm-codeblock-wrap ::selection,
+.dark .cm-editor .cm-codeblock-wrap::selection,
+.dark .cm-codeblock-wrap ::selection,
+.dark .cm-codeblock-wrap::selection,
+.dark .cm-codeblock-wrap *::selection {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.cm-editor .cm-line .cm-codeblock-wrap .cm-codeblock-gutter,
+.cm-editor .cm-line .cm-codeblock-wrap .cm-codeblock-gutter * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
 
 /* All code lines — unified box structure */
 .cm-theme-han .cm-line.cm-codeblock-line {

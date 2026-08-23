@@ -14,6 +14,9 @@
 
 </div>
 
+![alt text](han.jpeg)
+
+
 ## ✨ What is H.A.N.?
 
 H.A.N. is a local-first, privacy-focused note-taking app that works both as a **native macOS app** and directly in your **browser**. Your notes live as plain Markdown files on your disk — no cloud, no lock-in, no subscriptions.
