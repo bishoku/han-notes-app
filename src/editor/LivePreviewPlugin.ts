@@ -219,6 +219,25 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
     const line = doc.line(l);
     const text = line.text;
 
+    // Detect and hide multi-line diagram AI / diagram comments completely without gaps
+    const trimmedLine = text.trimStart();
+    if (!isInsideFencedCode(line.from) && (trimmedLine.startsWith("<!-- diagram-ai:") || trimmedLine.startsWith("<!-- diagram:"))) {
+      let commentEndLine = l;
+      for (let nextL = l; nextL <= doc.lines; nextL++) {
+        const nextLine = doc.line(nextL);
+        if (nextLine.text.includes("-->")) {
+          commentEndLine = nextL;
+          break;
+        }
+      }
+      for (let hideL = l; hideL <= commentEndLine; hideL++) {
+        const hLine = doc.line(hideL);
+        items.push({ from: hLine.from, to: hLine.from, dec: lineDecHidden });
+      }
+      l = commentEndLine + 1;
+      continue;
+    }
+
     // A. Detect Callout Header: > [!NOTE] / > [!WARNING] / > [!TIP] / > [!IMPORTANT] / > [!CAUTION]
     const calloutMatch = text.match(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
     if (!isInsideFencedCode(line.from) && calloutMatch) {

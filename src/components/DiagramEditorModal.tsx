@@ -9,6 +9,7 @@ export interface DiagramPayload {
   logicalJson: string;
   visualJson: string;
   previewDataUri?: string;
+  aiSummary?: string;
 }
 
 interface DiagramEditorModalProps {

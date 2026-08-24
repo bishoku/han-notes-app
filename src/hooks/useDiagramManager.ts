@@ -1,6 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import type React from 'react';
+import type { EditorView } from '@codemirror/view';
 import { storage } from '@/services/storage';
 import { extractPngMetadata, injectPngMetadata, YADA_METADATA_KEYWORD, EXCALIDRAW_METADATA_KEYWORD } from '@/utils/pngMetadata';
+import { useNoteStore } from '@/store/noteStore';
+import { useUiStore } from '@/store/uiStore';
+import {
+  generateDiagramAiSummary,
+  formatDiagramAiComment,
+  updateDiagramAiCommentInMarkdown,
+} from '@/utils/diagramAiGenerator';
 import type { DiagramPayload } from '@/components/DiagramEditorModal';
 import type { ExcalidrawSavePayload } from '@/components/ExcalidrawEditorModal';
 
@@ -10,7 +19,8 @@ import type { ExcalidrawSavePayload } from '@/components/ExcalidrawEditorModal';
  */
 export function useDiagramManager(
   currentNoteId: string | null,
-  onInsertText: (text: string) => void
+  onInsertText: (text: string) => void,
+  editorRef?: React.RefObject<EditorView | null>
 ) {
   // Diagram Modal state (YADA)
   const [diagramModalOpen, setDiagramModalOpen] = useState(false);
@@ -143,8 +153,32 @@ export function useDiagramManager(
         const enrichedBytes = injectPngMetadata(rawBytes.buffer, YADA_METADATA_KEYWORD, projectPayload);
         const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, enrichedBytes as any);
 
+        const language = useUiStore.getState().language;
+        const aiSummary = payload.aiSummary || generateDiagramAiSummary(projectPayload.logicalData, projectPayload.visualData, language);
+        const aiCommentBlock = formatDiagramAiComment(fileNamePng, aiSummary);
+
         if (!isEditing) {
-          onInsertText(`\n![${fileNamePng}](${relPathPng})\n`);
+          onInsertText(`\n![${fileNamePng}](${relPathPng})\n${aiCommentBlock}\n`);
+        } else {
+          // Sync AI comment in document when editing existing diagram
+          if (editorRef?.current) {
+            const view = editorRef.current;
+            const currentDoc = view.state.doc.toString();
+            const updatedDoc = updateDiagramAiCommentInMarkdown(currentDoc, fileNamePng, aiSummary);
+            if (updatedDoc !== currentDoc) {
+              view.dispatch({
+                changes: { from: 0, to: view.state.doc.length, insert: updatedDoc },
+              });
+            }
+          } else {
+            const currentNoteContent = useNoteStore.getState().currentNoteContent;
+            if (currentNoteContent) {
+              const updatedDoc = updateDiagramAiCommentInMarkdown(currentNoteContent, fileNamePng, aiSummary);
+              if (updatedDoc !== currentNoteContent) {
+                await useNoteStore.getState().updateNote(updatedDoc);
+              }
+            }
+          }
         }
       }
 
@@ -159,7 +193,7 @@ export function useDiagramManager(
     } finally {
       setEditingDiagramId(null);
     }
-  }, [currentNoteId, onInsertText]);
+  }, [currentNoteId, onInsertText, editorRef]);
 
   const handleSaveSketch = useCallback(async (payload: ExcalidrawSavePayload) => {
     if (!currentNoteId) return;

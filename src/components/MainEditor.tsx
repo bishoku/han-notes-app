@@ -69,7 +69,7 @@ export const MainEditor: React.FC = () => {
     sketchInitialData,
     openExcalidrawEditor,
     handleSaveSketch,
-  } = useDiagramManager(currentNoteId, insertText);
+  } = useDiagramManager(currentNoteId, insertText, editorRef);
 
   // 3. Task & Decision Modals Hook
   const {

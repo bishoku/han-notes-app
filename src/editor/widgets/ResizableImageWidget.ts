@@ -319,6 +319,20 @@ export class ResizableImageWidget extends WidgetType {
             }
           }
 
+          // If following lines contain a diagram-ai comment: <!-- diagram-ai:... -->
+          if (i < doc.lines) {
+            const nextLine = doc.line(i + 1);
+            if (nextLine.text.trimStart().startsWith('<!-- diagram-ai:')) {
+              for (let scanL = i + 1; scanL <= doc.lines; scanL++) {
+                const scanLine = doc.line(scanL);
+                deleteTo = scanLine.to;
+                if (scanLine.text.includes('-->')) {
+                  break;
+                }
+              }
+            }
+          }
+
           // Clean up newline
           if (deleteTo < doc.length) {
             deleteTo += 1;
