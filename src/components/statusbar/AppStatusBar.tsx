@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGitStore } from '@/store/gitStore';
 import { useAiStore } from '@/store/aiStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -20,6 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export const AppStatusBar: React.FC = () => {
+  const { t } = useTranslation();
   const {
     isInitialized,
     status,
@@ -77,7 +79,7 @@ export const AppStatusBar: React.FC = () => {
     const changes = totalChanges;
     await syncNow();
     if (changes === 0 && !settings.remoteUrl) {
-      setFeedback('Değişiklik yok');
+      setFeedback(t('statusNoChanges'));
       setTimeout(() => setFeedback(null), 1800);
     }
   };
@@ -91,7 +93,7 @@ export const AppStatusBar: React.FC = () => {
             {/* Branch item */}
             <div
               className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-black/5 dark:hover:bg-white/5 cursor-default transition-colors"
-              title={`Aktif Git Dalı: ${status?.branch || 'main'}`}
+              title={`${t('gitActiveBranch')}: ${status?.branch || 'main'}`}
             >
               <GitBranch className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
               <span className="font-mono font-medium text-gray-800 dark:text-gray-200">
@@ -115,7 +117,7 @@ export const AppStatusBar: React.FC = () => {
                   ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium'
                   : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-zinc-300'
               )}
-              title="Değişiklikleri kaydet ve senkronize et"
+              title={t('gitSyncNow')}
             >
               {isSyncing ? (
                 <RefreshCw className="w-3 h-3 animate-spin" />
@@ -132,12 +134,12 @@ export const AppStatusBar: React.FC = () => {
               <span>
                 {feedback ||
                   (isSyncing
-                    ? 'Eşitleniyor...'
+                    ? t('statusSyncing')
                     : syncError
-                    ? 'Eşitleme Hatası'
+                    ? t('statusSyncError')
                     : totalChanges > 0
-                    ? `${totalChanges} Değişiklik`
-                    : 'Güncel')}
+                    ? t('statusChangesCount', { count: totalChanges })
+                    : t('statusUpToDate'))}
               </span>
             </button>
 
@@ -146,10 +148,10 @@ export const AppStatusBar: React.FC = () => {
               <button
                 onClick={() => openHistoryDrawer(currentNoteId)}
                 className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                title="Bu notun sürüm geçmişini ve görsel diff'ini aç"
+                title={t('versionHistoryAndDiff')}
               >
                 <History className="w-3 h-3" />
-                <span>Geçmiş</span>
+                <span>{t('statusHistory')}</span>
               </button>
             )}
           </>
@@ -159,15 +161,15 @@ export const AppStatusBar: React.FC = () => {
               try {
                 await initRepo();
               } catch {
-                setFeedback('Git başlatma hatası');
+                setFeedback(t('error'));
                 setTimeout(() => setFeedback(null), 2500);
               }
             }}
             className="flex items-center gap-1 text-gray-500 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors"
-            title="Git deposunu başlatmak için tıklayın"
+            title={t('gitSyncDesc')}
           >
             <GitBranch className="w-3 h-3 text-gray-400 dark:text-zinc-500" />
-            <span>Git: Başlatılmadı (Başlat)</span>
+            <span>{t('statusGitNotInit')}</span>
           </button>
         )}
       </div>
@@ -177,12 +179,12 @@ export const AppStatusBar: React.FC = () => {
         {modelDownloadProgress && modelDownloadProgress.progress < 100 ? (
           <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full font-medium animate-pulse">
             <Sparkles className="w-3 h-3 shrink-0" />
-            <span>AI Model İndiriliyor (%{Math.round(modelDownloadProgress.progress)})</span>
+            <span>{t('statusAiModelDownloading')}</span>
           </div>
         ) : isAiIndexing ? (
           <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full font-medium">
             <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-            <span>Vektör İndeksleniyor...</span>
+            <span>{t('aiIndexing')}...</span>
           </div>
         ) : null}
       </div>
@@ -194,11 +196,11 @@ export const AppStatusBar: React.FC = () => {
             {/* Word & Char Count */}
             <div
               className="flex items-center gap-1 px-1 py-0.5 text-gray-600 dark:text-zinc-400"
-              title={`${wordCount} kelime, ${charCount} karakter`}
+              title={`${t('statusWordsCount', { count: wordCount })}, ${t('statusCharsCount', { count: charCount })}`}
             >
               <FileText className="w-3 h-3 opacity-60" />
               <span>
-                {wordCount} kelime, {charCount} kr
+                {t('statusWordsCount', { count: wordCount })}, {t('statusCharsCount', { count: charCount })}
               </span>
             </div>
 
@@ -207,10 +209,10 @@ export const AppStatusBar: React.FC = () => {
             {/* Reading Time */}
             <div
               className="hidden md:flex items-center gap-1 px-1 py-0.5 text-gray-500 dark:text-zinc-500"
-              title={`Tahmini okuma süresi: ~${readingTimeMinutes} dakika`}
+              title={t('statusReadingTime', { minutes: readingTimeMinutes })}
             >
               <Clock className="w-3 h-3 opacity-60" />
-              <span>~{readingTimeMinutes} dk okuma</span>
+              <span>{t('statusReadingTime', { minutes: readingTimeMinutes })}</span>
             </div>
 
             <span className="text-gray-300 dark:text-zinc-700 hidden sm:inline">|</span>
@@ -221,14 +223,14 @@ export const AppStatusBar: React.FC = () => {
         <button
           onClick={() => setEditorMode(editorMode === 'preview' ? 'raw' : 'preview')}
           className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-700 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
-          title={`Editör Modu: ${editorMode === 'preview' ? 'Canlı Önizleme' : 'Ham Metin'} (Değiştirmek için tıklayın)`}
+          title={`${editorMode === 'preview' ? t('statusEditorPreview') : t('statusEditorRaw')}`}
         >
           {editorMode === 'preview' ? (
             <Eye className="w-3 h-3 text-purple-600 dark:text-purple-400" />
           ) : (
             <FileCode className="w-3 h-3 text-purple-600 dark:text-purple-400" />
           )}
-          <span>{editorMode === 'preview' ? 'Önizleme' : 'Ham Metin'}</span>
+          <span>{editorMode === 'preview' ? t('modePreview') : t('modeRaw')}</span>
         </button>
 
         <span className="text-gray-300 dark:text-zinc-700 hidden sm:inline">|</span>
@@ -243,3 +245,4 @@ export const AppStatusBar: React.FC = () => {
     </footer>
   );
 };
+

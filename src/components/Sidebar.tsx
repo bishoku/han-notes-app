@@ -36,6 +36,7 @@ const InputDialogModal: React.FC<{
   dialog: InputDialogState | null;
   onClose: () => void;
 }> = ({ dialog, onClose }) => {
+  const { t } = useTranslation();
   if (!dialog) return null;
 
   return (
@@ -66,13 +67,13 @@ const InputDialogModal: React.FC<{
               onClick={onClose}
               className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors cursor-pointer"
             >
-              İptal
+              {t('cancel')}
             </button>
             <button
               type="submit"
               className="px-3 py-1.5 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
             >
-              Tamam
+              {t('ok')}
             </button>
           </div>
         </form>
@@ -141,10 +142,10 @@ export const Sidebar: React.FC = () => {
   };
 
   const openNewNoteDialog = (parentPath = activeFolderPath || '') => {
-    const dialogTitle = parentPath ? `"${parentPath}" İçinde Yeni Not` : 'Yeni Not (Kök Dizin)';
+    const dialogTitle = parentPath ? `${t('newNote')} ("${parentPath}")` : `${t('newNote')} (${t('rootFolder')})`;
     setInputDialog({
       title: dialogTitle,
-      placeholder: 'Not Adı (örn. Toplantı Notları)',
+      placeholder: t('enterNoteTitle'),
       onConfirm: async (val) => {
         const newId = await createNote(val, parentPath);
         setViewMode('notes');
@@ -154,10 +155,10 @@ export const Sidebar: React.FC = () => {
   };
 
   const openNewFolderDialog = (parentPath = activeFolderPath || '') => {
-    const dialogTitle = parentPath ? `"${parentPath}" İçinde Yeni Klasör` : 'Yeni Klasör (Kök Dizin)';
+    const dialogTitle = parentPath ? `${t('newFolder')} ("${parentPath}")` : `${t('newFolder')} (${t('rootFolder')})`;
     setInputDialog({
       title: dialogTitle,
-      placeholder: 'Klasör Adı (örn. Projeler)',
+      placeholder: t('enterFolderName'),
       onConfirm: async (val) => {
         await createFolder(val, parentPath);
       },
@@ -200,7 +201,7 @@ export const Sidebar: React.FC = () => {
           <button
             onClick={() => setSidebarOpen(true)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title="Kenar Çubuğunu Genişlet"
+            title={t('expandSidebar')}
           >
             <PanelLeftOpen size={18} />
           </button>
@@ -216,7 +217,7 @@ export const Sidebar: React.FC = () => {
                 ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold'
                 : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
-            title="Not Gezgini (Explorer)"
+            title={t('notesExplorer')}
           >
             <FolderTree size={18} />
           </button>
@@ -229,7 +230,7 @@ export const Sidebar: React.FC = () => {
                 ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold'
                 : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
-            title="Hızlı Arama & Komut Paleti (Cmd+K)"
+            title={`${t('search')} (Cmd+K)`}
           >
             <Search size={18} />
           </button>
@@ -240,7 +241,7 @@ export const Sidebar: React.FC = () => {
               openNewNoteDialog();
             }}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title="Yeni Not Oluştur"
+            title={t('newNote')}
           >
             <FilePlus size={18} />
           </button>
@@ -275,7 +276,7 @@ export const Sidebar: React.FC = () => {
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
-            title="Karar Kayıtları (Decisions)"
+            title={t('decisions')}
           >
             <FileCheck size={18} />
           </button>
@@ -291,7 +292,7 @@ export const Sidebar: React.FC = () => {
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
-            title="Zihin Haritası (Mindmap)"
+            title={t('mindmap')}
           >
             <Network size={18} />
           </button>
@@ -312,7 +313,7 @@ export const Sidebar: React.FC = () => {
                 ? 'text-purple-600 dark:text-purple-400 hover:bg-purple-500/10'
                 : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
             )}
-            title="AI Asistan"
+            title={t('aiAssistantTitle')}
           >
             <Sparkles size={18} className={isAiEnabled ? 'text-purple-500 animate-pulse' : ''} />
             {isAiEnabled && (
@@ -344,21 +345,21 @@ export const Sidebar: React.FC = () => {
             <button
               onClick={() => openNewNoteDialog()}
               className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
-              title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Not` : 'Yeni Not'}
+              title={activeFolderPath ? `${t('newNote')} ("${activeFolderPath}")` : t('newNote')}
             >
               <FilePlus size={15} />
             </button>
             <button
               onClick={() => openNewFolderDialog()}
               className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
-              title={activeFolderPath ? `"${activeFolderPath}" İçinde Yeni Klasör` : 'Yeni Klasör'}
+              title={activeFolderPath ? `${t('newFolder')} ("${activeFolderPath}")` : t('newFolder')}
             >
               <FolderPlus size={15} />
             </button>
             <button
               onClick={() => setSidebarOpen(false)}
               className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer ml-0.5"
-              title="Kenar Çubuğunu Daralt"
+              title={t('collapseSidebar')}
             >
               <PanelLeftClose size={15} />
             </button>
@@ -373,7 +374,7 @@ export const Sidebar: React.FC = () => {
               ? 'bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-2xs'
               : 'bg-black/5 dark:bg-white/5 border-transparent hover:bg-black/10 dark:hover:bg-white/10 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
           )}
-          title="Hızlı Arama & Komut Paleti (Cmd+K)"
+          title={`${t('search')} (Cmd+K)`}
         >
           <div className="flex items-center gap-2">
             <Search size={14} className="group-hover:text-purple-500 transition-colors" />
@@ -402,7 +403,7 @@ export const Sidebar: React.FC = () => {
       >
         <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 mb-2 px-2 uppercase tracking-wider min-w-0">
           <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
-            <span className="shrink-0">Explorer</span>
+            <span className="shrink-0">{t('notesExplorer')}</span>
             {vaultPath && (
               <span
                 className="text-[9px] font-mono text-gray-500 dark:text-gray-400 truncate normal-case tracking-normal cursor-help hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
@@ -428,7 +429,7 @@ export const Sidebar: React.FC = () => {
           {activeFolderPath && (
             <span
               className="text-[9px] text-mac-accent lowercase font-mono truncate max-w-[80px] shrink-0"
-              title={`Klasör: /${activeFolderPath}`}
+              title={`${t('folder')}: /${activeFolderPath}`}
             >
               /{activeFolderPath}
             </span>
@@ -437,7 +438,7 @@ export const Sidebar: React.FC = () => {
 
         {displayedTree.length === 0 ? (
           <div className="text-xs text-gray-400 italic px-2 py-4 text-center">
-            {activeTagFilter ? `"#${activeTagFilter}" etiketli not bulunamadı` : 'Vault is empty'}
+            {activeTagFilter ? `#${activeTagFilter} ${t('noResultsFound')}` : t('emptyVault')}
           </div>
         ) : (
           <div className="flex flex-col gap-0.5">
@@ -454,15 +455,15 @@ export const Sidebar: React.FC = () => {
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1.5 uppercase tracking-wider">
               <Tag size={11} className="text-mac-accent" />
-              Etiketler ({vaultTags.length})
+              {t('tags')} ({vaultTags.length})
             </span>
             {activeTagFilter && (
               <button
                 onClick={() => setActiveTagFilter(null)}
                 className="text-[10px] text-mac-accent hover:underline flex items-center gap-0.5 cursor-pointer"
-                title="Filtreyi Temizle"
+                title={t('clearFilter')}
               >
-                <X size={10} /> Temizle
+                <X size={10} /> {t('clear')}
               </button>
             )}
           </div>
@@ -480,7 +481,7 @@ export const Sidebar: React.FC = () => {
                       ? 'bg-mac-accent text-white border-mac-accent shadow-xs font-semibold'
                       : 'bg-black/5 dark:bg-white/5 border-transparent text-gray-600 dark:text-gray-300 hover:bg-black/10 dark:hover:bg-white/10'
                   )}
-                  title={`${tagObj.count} notta geçiyor`}
+                  title={t('notesCount', { count: tagObj.count })}
                 >
                   <span>#{tagObj.tag}</span>
                   <span
@@ -502,11 +503,11 @@ export const Sidebar: React.FC = () => {
               >
                 {showAllTags ? (
                   <>
-                    <ChevronUp size={11} /> Daha Az
+                    <ChevronUp size={11} /> {t('showLess')}
                   </>
                 ) : (
                   <>
-                    <ChevronDown size={11} /> +{vaultTags.length - 8} Diğer
+                    <ChevronDown size={11} /> +{vaultTags.length - 8} {t('more')}
                   </>
                 )}
               </button>
@@ -538,7 +539,7 @@ export const Sidebar: React.FC = () => {
               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors cursor-pointer"
             >
               <FilePlus size={14} />
-              <span>Yeni Not Oluştur</span>
+              <span>{t('newNote')}</span>
             </button>
             <button
               onClick={() => {
@@ -548,7 +549,7 @@ export const Sidebar: React.FC = () => {
               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors cursor-pointer"
             >
               <FolderPlus size={14} />
-              <span>Yeni Klasör Oluştur</span>
+              <span>{t('newFolder')}</span>
             </button>
           </div>
         </>
@@ -584,7 +585,7 @@ export const Sidebar: React.FC = () => {
           )}
         >
           <FileCheck size={16} />
-          Karar Kayıtları (Decisions)
+          {t('decisions')}
         </button>
         <button
           onClick={() => {
@@ -599,7 +600,7 @@ export const Sidebar: React.FC = () => {
           )}
         >
           <Network size={16} />
-          Zihin Haritası (Mindmap)
+          {t('mindmap')}
         </button>
         <button
           onClick={() => {
@@ -620,7 +621,7 @@ export const Sidebar: React.FC = () => {
         >
           <div className="flex items-center gap-2">
             <Sparkles size={16} className={isAiEnabled ? 'text-purple-500 animate-pulse' : ''} />
-            <span>AI Asistan</span>
+            <span>{t('aiAssistantTitle')}</span>
           </div>
           {isAiEnabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
         </button>

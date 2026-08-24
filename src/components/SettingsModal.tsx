@@ -124,7 +124,7 @@ export const SettingsModal: React.FC = () => {
               )}
             >
               <Bot size={13} />
-              <span>Entegrasyonlar & AI</span>
+              <span>{t('aiSettingsTab')}</span>
             </button>
             <button
               type="button"
@@ -137,13 +137,14 @@ export const SettingsModal: React.FC = () => {
               )}
             >
               <GitBranch size={13} />
-              <span>Git & Senkronizasyon</span>
+              <span>{t('gitSyncTab')}</span>
             </button>
           </div>
 
           <button
             onClick={() => setSettingsModalOpen(false)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            title={t('close')}
           >
             <X size={18} />
           </button>
@@ -297,7 +298,7 @@ export const SettingsModal: React.FC = () => {
             onClick={() => setSettingsModalOpen(false)}
             className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-mac-accent text-white hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
           >
-            Tamam
+            {t('ok')}
           </button>
         </div>
       </div>

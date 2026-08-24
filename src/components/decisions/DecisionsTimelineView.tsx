@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileText, Calendar, User, ShieldCheck, Tag, SlidersHorizontal, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import type { DecisionInfo } from '@/services/storage';
 import type { DecisionEditData } from '@/components/DecisionEditModal';
@@ -9,25 +10,26 @@ interface DecisionsTimelineViewProps {
   onEditDecision: (data: DecisionEditData) => void;
 }
 
-export const getDecisionStatusBadge = (status?: string | null) => {
+export const DecisionStatusBadge: React.FC<{ status?: string | null }> = ({ status }) => {
+  const { t } = useTranslation();
   const st = status || 'approved';
   switch (st) {
     case 'approved':
       return (
         <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-          <CheckCircle2 size={11} /> Onaylandı
+          <CheckCircle2 size={11} /> {t('decisionApprovedBadge')}
         </span>
       );
     case 'draft':
       return (
         <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-          <Clock size={11} /> Taslak / Bekliyor
+          <Clock size={11} /> {t('decisionDraftBadge')}
         </span>
       );
     case 'deferred':
       return (
         <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-500/10 text-gray-600 dark:text-gray-400 border border-gray-500/20">
-          <AlertCircle size={11} /> Ertelendi
+          <AlertCircle size={11} /> {t('decisionDeferredBadge')}
         </span>
       );
     default:
@@ -40,6 +42,8 @@ export const DecisionsTimelineView: React.FC<DecisionsTimelineViewProps> = ({
   onSelectNote,
   onEditDecision,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="relative pl-6 border-l-2 border-purple-500/30 flex flex-col gap-6">
       {filteredDecisions.map((decision, idx) => (
@@ -53,7 +57,7 @@ export const DecisionsTimelineView: React.FC<DecisionsTimelineViewProps> = ({
                   <span className="text-base font-bold text-gray-900 dark:text-gray-100">
                     {decision.content}
                   </span>
-                  {getDecisionStatusBadge(decision.status)}
+                  <DecisionStatusBadge status={decision.status} />
                 </div>
                 {decision.description && (
                   <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mt-1">
@@ -76,7 +80,7 @@ export const DecisionsTimelineView: React.FC<DecisionsTimelineViewProps> = ({
                     tags: decision.tags,
                   })}
                   className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-400 hover:text-purple-600 transition-colors"
-                  title="Kararı Düzenle"
+                  title={t('editDecisionTitle')}
                 >
                   <SlidersHorizontal size={15} />
                 </button>
@@ -112,7 +116,7 @@ export const DecisionsTimelineView: React.FC<DecisionsTimelineViewProps> = ({
                 <div className="flex items-center gap-1">
                   {decision.approved_by.map(a => (
                     <span key={a} className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-md font-bold text-[11px]">
-                      <ShieldCheck size={10} /> Onay: {a}
+                      <ShieldCheck size={10} /> {t('decisionApprovedByLabel')} {a}
                     </span>
                   ))}
                 </div>
@@ -134,3 +138,4 @@ export const DecisionsTimelineView: React.FC<DecisionsTimelineViewProps> = ({
     </div>
   );
 };
+

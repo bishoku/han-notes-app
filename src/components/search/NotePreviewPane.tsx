@@ -220,7 +220,7 @@ export const NotePreviewPane: React.FC<NotePreviewPaneProps> = memo(({
         {isLoading ? (
           <div className="py-12 flex items-center justify-center gap-2 text-gray-400">
             <Loader2 size={14} className="animate-spin text-mac-accent" />
-            <span className="text-xs">Yükleniyor...</span>
+            <span className="text-xs">{t('loading')}</span>
           </div>
         ) : (
           <div

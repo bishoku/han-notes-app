@@ -3,6 +3,7 @@
  * a new version of the app is available. Prompts the user to reload.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { RefreshCw, X } from 'lucide-react';
 
 interface PwaUpdateToastProps {
@@ -12,6 +13,7 @@ interface PwaUpdateToastProps {
 }
 
 export const PwaUpdateToast: React.FC<PwaUpdateToastProps> = ({ show, onAccept, onDismiss }) => {
+  const { t } = useTranslation();
   if (!show) return null;
 
   return (
@@ -21,18 +23,19 @@ export const PwaUpdateToast: React.FC<PwaUpdateToastProps> = ({ show, onAccept, 
           <RefreshCw size={16} className="text-indigo-600 dark:text-indigo-400" />
         </div>
         <div className="mr-2">
-          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Güncelleme mevcut</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Yeni sürümü yüklemek için yenileyin.</p>
+          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('pwaUpdateAvailable')}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('pwaUpdateDesc')}</p>
         </div>
         <button
           onClick={onAccept}
-          className="px-4 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors shrink-0"
+          className="px-4 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors shrink-0 cursor-pointer"
         >
-          Yenile
+          {t('pwaUpdateReload')}
         </button>
         <button
           onClick={onDismiss}
-          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0"
+          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0 cursor-pointer"
+          title={t('close')}
         >
           <X size={14} />
         </button>
@@ -40,3 +43,4 @@ export const PwaUpdateToast: React.FC<PwaUpdateToastProps> = ({ show, onAccept, 
     </div>
   );
 };
+

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import {
   X,
   RotateCw,
@@ -26,6 +27,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
   data,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -126,7 +128,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
               type="button"
               onClick={handleCopyUrl}
               className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 ml-1"
-              title={copied ? "Kopyalandı!" : "URL'i Kopyala"}
+              title={copied ? t('copied') : t('copyUrl')}
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
@@ -139,7 +141,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
               type="button"
               onClick={handleRefresh}
               className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-              title="Sayfayı Yenile"
+              title={t('refreshPage')}
             >
               <RotateCw className="w-4 h-4" />
             </button>
@@ -149,7 +151,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
               type="button"
               onClick={handleOpenExternal}
               className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-              title="Dış Tarayıcıda Aç"
+              title={t('openInBrowser')}
             >
               <ExternalLink className="w-4 h-4" />
             </button>
@@ -159,7 +161,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
               type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer ml-1"
-              title="Kapat (Esc)"
+              title={t('close')}
             >
               <X className="w-4 h-4" />
             </button>
@@ -172,7 +174,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
             <div className="flex items-center gap-1.5 min-w-0">
               <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">
-                Bazı siteler güvenlik politikaları (X-Frame-Options) nedeniyle iframe içinde engellenebilir. Yüklenmezse sağ üstteki <b>Tarayıcıda Aç</b> butonunu kullanabilirsiniz.
+                {t('iframeSecurityNotice')}
               </span>
             </div>
             <button
@@ -180,7 +182,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
               onClick={() => setShowNotice(false)}
               className="text-amber-700/60 dark:text-amber-300/60 hover:text-amber-700 dark:hover:text-amber-300 text-[10px] underline cursor-pointer shrink-0"
             >
-              Gizle
+              {t('hide')}
             </button>
           </div>
         )}
@@ -191,7 +193,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xs">
               <Loader2 className="w-8 h-8 animate-spin text-mac-accent mb-2" />
               <span className="text-xs text-gray-500 font-medium font-mono">
-                {meta.hostname} yükleniyor...
+                {t('webLoading', { host: meta.hostname })}
               </span>
             </div>
           )}

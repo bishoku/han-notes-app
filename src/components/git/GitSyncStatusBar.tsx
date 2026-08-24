@@ -3,6 +3,7 @@
  * Shows status indicator, uncommitted change counts, and Quick Sync button.
  */
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGitStore } from '@/store/gitStore';
 import {
   GitBranch,
@@ -16,6 +17,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export const GitSyncStatusBar: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const {
     isInitialized,
     status,
@@ -38,7 +40,7 @@ export const GitSyncStatusBar: React.FC = () => {
     const changes = (status?.modifiedFiles.length || 0) + (status?.untrackedFiles.length || 0);
     await syncNow();
     if (changes === 0 && !settings.remoteUrl) {
-      setFeedback('Değişiklik yok');
+      setFeedback(t('statusNoChanges'));
       setTimeout(() => setFeedback(null), 1800);
     }
   };
@@ -53,14 +55,14 @@ export const GitSyncStatusBar: React.FC = () => {
           onClick={() => initRepo()}
           disabled={isSyncing}
           className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-md border border-purple-200 dark:border-purple-800/60 transition-colors shadow-2xs cursor-pointer"
-          title="Vault'u Git deposu haline getirerek notlarınızı versiyonlayın"
+          title={t('gitSyncDesc')}
         >
           {isSyncing ? (
             <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
             <GitBranch className="w-3 h-3" />
           )}
-          <span>Git Versiyonlama Başlat</span>
+          <span>{t('gitInit')}</span>
         </button>
       </div>
     );
@@ -83,10 +85,10 @@ export const GitSyncStatusBar: React.FC = () => {
         title={
           syncError ||
           (totalChanges > 0
-            ? `${totalChanges} kaydedilmemiş değişiklik`
+            ? t('statusChangesCount', { count: totalChanges })
             : lastSyncTime
-            ? `Son eşitleme: ${new Date(lastSyncTime).toLocaleTimeString('tr-TR')}`
-            : 'Tüm notlar versiyonlandı ve güncel')
+            ? `${t('gitLastSync')}: ${new Date(lastSyncTime).toLocaleTimeString(i18n.language === 'tr' ? 'tr-TR' : 'en-US')}`
+            : t('statusUpToDate'))
         }
       >
         <GitBranch className="w-3 h-3 shrink-0 opacity-75" />
@@ -97,22 +99,22 @@ export const GitSyncStatusBar: React.FC = () => {
         {isSyncing ? (
           <span className="flex items-center gap-1">
             <Loader2 className="w-2.5 h-2.5 animate-spin" />
-            <span>Eşitleniyor...</span>
+            <span>{t('statusSyncing')}</span>
           </span>
         ) : syncError ? (
           <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-medium">
             <AlertTriangle className="w-2.5 h-2.5" />
-            <span>Hata</span>
+            <span>{t('statusSyncError')}</span>
           </span>
         ) : totalChanges > 0 ? (
           <span className="flex items-center gap-1 font-medium">
             <GitCommit className="w-2.5 h-2.5" />
-            <span>{totalChanges} değişiklik</span>
+            <span>{t('statusChangesCount', { count: totalChanges })}</span>
           </span>
         ) : (
           <span className="flex items-center gap-1">
             <CheckCircle2 className="w-2.5 h-2.5" />
-            <span>Güncel</span>
+            <span>{t('statusUpToDate')}</span>
           </span>
         )}
       </div>
@@ -122,7 +124,7 @@ export const GitSyncStatusBar: React.FC = () => {
         onClick={handleSyncClick}
         disabled={isSyncing}
         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-gray-200 dark:hover:border-zinc-700 transition-colors cursor-pointer disabled:opacity-50"
-        title="Tüm değişiklikleri commit'le ve senkronize et"
+        title={t('gitSyncNow')}
       >
         {isSyncing ? (
           <RefreshCw className="w-3 h-3 animate-spin" />
@@ -133,8 +135,9 @@ export const GitSyncStatusBar: React.FC = () => {
         ) : (
           <RefreshCw className="w-3 h-3" />
         )}
-        <span>{feedback || (settings.remoteUrl ? 'Eşitle' : 'Snapshot')}</span>
+        <span>{feedback || (settings.remoteUrl ? t('gitSyncNow') : 'Snapshot')}</span>
       </button>
     </div>
   );
 };
+

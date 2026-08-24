@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Sidebar } from '@/components/Sidebar';
 import { RightPanel } from '@/components/RightPanel';
 import { AppStatusBar } from '@/components/statusbar/AppStatusBar';
@@ -29,6 +30,7 @@ function isTauri(): boolean {
 }
 
 export const MainLayout: React.FC = () => {
+  const { t } = useTranslation();
   const location = useLocation();
   const isNotesRoute = location.pathname === '/' || location.pathname.startsWith('/notes');
 
@@ -116,10 +118,10 @@ export const MainLayout: React.FC = () => {
         setStorageReady(true);
         await loadVault();
       } else {
-        setStorageError('Klasöre erişim izni verilmedi. Lütfen tekrar deneyin veya yeni bir klasör seçin.');
+        setStorageError(t('directoryAccessDenied'));
       }
     } catch (e: any) {
-      setStorageError(e?.message || 'Klasör geri yüklenirken hata oluştu.');
+      setStorageError(e?.message || t('directoryRestoreError'));
     } finally {
       setIsRestoring(false);
     }
@@ -135,7 +137,7 @@ export const MainLayout: React.FC = () => {
       await loadVault();
     } catch (e: any) {
       if (e?.name !== 'AbortError') {
-        setStorageError(e?.message || 'Klasör seçilirken bir hata oluştu.');
+        setStorageError(e?.message || t('directorySelectError'));
       }
     }
   };
@@ -151,7 +153,7 @@ export const MainLayout: React.FC = () => {
 
           <h1 className="text-2xl font-bold mb-2">H.A.N. Not Defteri</h1>
           <p className="text-sm text-gray-300 dark:text-gray-400 mb-6 leading-relaxed">
-            Notlarınızı doğrudan kendi bilgisayarınızda yerel bir klasörde saklamak için lütfen bir klasör seçin.
+            {t('storagePermissionDesc')}
           </p>
 
           {storageError && (
@@ -173,7 +175,7 @@ export const MainLayout: React.FC = () => {
                   ) : (
                     <FolderCheck size={18} />
                   )}
-                  <span>"{savedDirName}" Klasörüne İzin Ver ve Aç</span>
+                  <span>{t('grantFolderPermission', { name: savedDirName })}</span>
                 </button>
 
                 <button
@@ -182,7 +184,7 @@ export const MainLayout: React.FC = () => {
                   className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-semibold text-gray-300 hover:bg-white/10 transition-all cursor-pointer"
                 >
                   <FolderOpen size={15} />
-                  Farklı Bir Klasör Seç
+                  {t('selectDifferentFolder')}
                 </button>
               </>
             ) : (
@@ -191,7 +193,7 @@ export const MainLayout: React.FC = () => {
                 className="w-full inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-sm hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
               >
                 <FolderOpen size={18} />
-                Klasör Seç
+                {t('selectFolder')}
               </button>
             )}
           </div>
@@ -206,7 +208,7 @@ export const MainLayout: React.FC = () => {
       <div className="flex h-screen w-full items-center justify-center bg-mac-mainLight dark:bg-mac-mainDark">
         <div className="text-center">
           <div className="text-4xl mb-3 animate-pulse">📝</div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Başlatılıyor...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{t('initializing')}</p>
         </div>
       </div>
     );

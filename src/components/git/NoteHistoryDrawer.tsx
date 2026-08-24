@@ -3,6 +3,7 @@
  * Enables users to browse past commits, inspect additions/deletions, and 1-click restore.
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGitStore } from '@/store/gitStore';
 import { useNoteStore } from '@/store/noteStore';
 import {
@@ -22,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export const NoteHistoryDrawer: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const {
     isHistoryDrawerOpen,
     historyNoteId,
@@ -79,14 +81,13 @@ export const NoteHistoryDrawer: React.FC = () => {
             </div>
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate flex items-center gap-2">
-                <span>Versiyon Geçmişi:</span>
+                <span>{t('gitHistoryTitle')}:</span>
                 <span className="text-purple-600 dark:text-purple-400 font-medium truncate">
                   {noteTitle}
                 </span>
               </h2>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                {historyCommits.length} sürüm gösteriliyor
-                {hasMoreHistory && ' (aşağı kaydırın...)'}
+                {t('gitHistoryCount', { count: historyCommits.length })}
               </p>
             </div>
           </div>
@@ -94,6 +95,7 @@ export const NoteHistoryDrawer: React.FC = () => {
           <button
             onClick={closeHistoryDrawer}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+            title={t('close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -107,20 +109,20 @@ export const NoteHistoryDrawer: React.FC = () => {
             className="w-80 flex flex-col bg-gray-50/30 dark:bg-zinc-950/20 overflow-y-auto"
           >
             <div className="px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-zinc-800/60 sticky top-0 bg-gray-50/90 dark:bg-zinc-950/90 backdrop-blur-xs z-10">
-              Sürüm Zaman Çizelgesi
+              {t('decisionTimelineView')}
             </div>
 
             {isLoadingHistory ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-gray-400">
                 <Loader2 className="w-6 h-6 animate-spin text-purple-500 mb-2" />
-                <span className="text-xs">Sürümler yükleniyor...</span>
+                <span className="text-xs">{t('gitHistoryLoading')}</span>
               </div>
             ) : historyCommits.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-gray-400">
                 <AlertCircle className="w-8 h-8 stroke-1 mb-2 opacity-60" />
-                <span className="text-xs font-medium">Kayıtlı sürüm bulunamadı</span>
+                <span className="text-xs font-medium">{t('gitHistoryEmpty')}</span>
                 <span className="text-[11px] text-gray-500 mt-1">
-                  Notta düzenleme yapıldığında otomatik versiyonlanacaktır.
+                  {t('gitHistoryEmptyDesc')}
                 </span>
               </div>
             ) : (
@@ -142,12 +144,12 @@ export const NoteHistoryDrawer: React.FC = () => {
                         <div className="flex items-center gap-1.5 min-w-0">
                           <GitCommit className={cn('w-3.5 h-3.5 shrink-0', isSelected ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400')} />
                           <span className={cn('text-xs font-medium truncate', isSelected ? 'text-purple-900 dark:text-purple-200' : 'text-gray-800 dark:text-gray-200')}>
-                            {commit.message || 'Not güncellemesi'}
+                            {commit.message || 'Snapshot'}
                           </span>
                         </div>
                         {idx === 0 && (
                           <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                            Güncel
+                            {t('statusUpToDate')}
                           </span>
                         )}
                       </div>
@@ -155,7 +157,7 @@ export const NoteHistoryDrawer: React.FC = () => {
                       <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-100 dark:border-zinc-800/40">
                         <span className="flex items-center gap-1">
                           <Clock className="w-2.5 h-2.5" />
-                          {new Date(commit.timestamp).toLocaleString('tr-TR', {
+                          {new Date(commit.timestamp).toLocaleString(i18n.language === 'tr' ? 'tr-TR' : 'en-US', {
                             day: '2-digit',
                             month: 'short',
                             hour: '2-digit',
@@ -173,13 +175,13 @@ export const NoteHistoryDrawer: React.FC = () => {
                 {isLoadingMoreHistory && (
                   <div className="flex items-center justify-center p-3 text-[11px] text-gray-400 gap-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500" />
-                    <span>Daha eski sürümler yükleniyor...</span>
+                    <span>{t('loading')}</span>
                   </div>
                 )}
 
                 {!hasMoreHistory && historyCommits.length >= 15 && (
                   <div className="text-center py-2.5 text-[10px] text-gray-400 dark:text-gray-500">
-                    Tüm geçmiş yüklendi ({historyCommits.length} sürüm)
+                    {t('gitHistoryCount', { count: historyCommits.length })}
                   </div>
                 )}
               </div>
@@ -218,7 +220,7 @@ export const NoteHistoryDrawer: React.FC = () => {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 rounded-lg border border-purple-200 dark:border-purple-800 transition-colors shadow-2xs cursor-pointer"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Bu Sürüme Geri Dön</span>
+                      <span>{t('gitRevertToVersion')}</span>
                     </button>
                   </div>
                 </div>
@@ -228,13 +230,13 @@ export const NoteHistoryDrawer: React.FC = () => {
                   {isLoadingDiff ? (
                     <div className="h-full flex items-center justify-center text-gray-400">
                       <Loader2 className="w-6 h-6 animate-spin text-purple-500 mr-2" />
-                      <span>Farklar hesaplanıyor...</span>
+                      <span>{t('gitCalculatingDiff')}</span>
                     </div>
                   ) : !diffResult || diffResult.lines.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-400">
                       <Check className="w-8 h-8 text-emerald-500 mb-2" />
                       <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                        Bu sürüm ile mevcut not arasında hiçbir fark yok.
+                        {t('gitNoDiff')}
                       </span>
                     </div>
                   ) : (
@@ -285,7 +287,7 @@ export const NoteHistoryDrawer: React.FC = () => {
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-gray-400">
                 <FileText className="w-10 h-10 stroke-1 mb-2 opacity-50" />
-                <span className="text-xs">İncelemek için sol taraftan bir sürüm seçin.</span>
+                <span className="text-xs">{t('searchPreviewPrompt')}</span>
               </div>
             )}
           </div>
@@ -300,17 +302,12 @@ export const NoteHistoryDrawer: React.FC = () => {
                   <RotateCcw className="w-6 h-6" />
                 </div>
                 <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Bu Sürüme Geri Dönsün Mü?
+                  {t('gitRevertModalTitle')}
                 </h3>
               </div>
 
               <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                <strong className="text-gray-900 dark:text-gray-100">"{noteTitle}"</strong> notunun içeriği,{' '}
-                <span className="font-mono text-purple-600 dark:text-purple-400">
-                  {selectedCommit.shortHash}
-                </span>{' '}
-                ({new Date(selectedCommit.timestamp).toLocaleString('tr-TR')}) tarihindeki haline geri döndürülecektir.
-                Mevcut hali de yeni bir sürüm olarak saklanacaktır.
+                {t('gitRevertModalMessage', { message: selectedCommit.message || selectedCommit.shortHash })}
               </p>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -319,7 +316,7 @@ export const NoteHistoryDrawer: React.FC = () => {
                   disabled={isReverting}
                   className="px-4 py-2 text-xs font-medium rounded-xl text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
                 >
-                  İptal
+                  {t('cancel')}
                 </button>
                 <button
                   onClick={handleConfirmRevert}
@@ -331,7 +328,7 @@ export const NoteHistoryDrawer: React.FC = () => {
                   ) : (
                     <Check className="w-3.5 h-3.5" />
                   )}
-                  <span>Evet, Geri Yükle</span>
+                  <span>{t('gitRevertConfirm')}</span>
                 </button>
               </div>
             </div>
@@ -341,3 +338,4 @@ export const NoteHistoryDrawer: React.FC = () => {
     </div>
   );
 };
+

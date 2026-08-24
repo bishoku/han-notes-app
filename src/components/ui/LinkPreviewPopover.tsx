@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Globe,
   ExternalLink,
@@ -40,6 +41,7 @@ export const LinkPreviewPopover: React.FC<LinkPreviewPopoverProps> = ({
   onMouseLeave,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [faviconError, setFaviconError] = useState(false);
 
@@ -124,7 +126,7 @@ export const LinkPreviewPopover: React.FC<LinkPreviewPopoverProps> = ({
             type="button"
             onClick={handleCopy}
             className="p-1 rounded-md text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title={copied ? "Kopyalandı!" : "URL'i Kopyala"}
+            title={copied ? t('copied') : t('copyUrl')}
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
@@ -134,7 +136,7 @@ export const LinkPreviewPopover: React.FC<LinkPreviewPopoverProps> = ({
             type="button"
             onClick={handleExternalOpen}
             className="p-1 rounded-md text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title="Yeni Sekmede Aç"
+            title={t('openInNewTab')}
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
@@ -144,7 +146,7 @@ export const LinkPreviewPopover: React.FC<LinkPreviewPopoverProps> = ({
             type="button"
             onClick={handleFullscreenClick}
             className="p-1 rounded-md text-mac-accent hover:bg-mac-accent/10 transition-colors cursor-pointer font-semibold"
-            title="Tam Ekran Önizleme (Iframe)"
+            title={t('fullscreenPreview')}
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>

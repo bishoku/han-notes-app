@@ -287,14 +287,14 @@ export const SearchView: React.FC = () => {
                 onClick={() => setSelectedFolder(null)}
                 className="text-purple-600 hover:underline cursor-pointer lowercase"
               >
-                sıfırla
+                {t('reset')}
               </button>
             )}
           </div>
 
           <div className="space-y-1">
             {allFolders.length === 0 ? (
-              <span className="text-[11px] text-gray-400 italic">Alt klasör yok</span>
+              <span className="text-[11px] text-gray-400 italic">{t('noSubfolders')}</span>
             ) : (
               allFolders.map((f) => (
                 <button
@@ -324,7 +324,7 @@ export const SearchView: React.FC = () => {
                 onClick={() => setSelectedTag(null)}
                 className="text-purple-600 hover:underline cursor-pointer lowercase"
               >
-                sıfırla
+                {t('reset')}
               </button>
             )}
           </div>

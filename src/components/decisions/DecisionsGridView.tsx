@@ -1,8 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileText, SlidersHorizontal } from 'lucide-react';
 import type { DecisionInfo } from '@/services/storage';
 import type { DecisionEditData } from '@/components/DecisionEditModal';
-import { getDecisionStatusBadge } from './DecisionsTimelineView';
+import { DecisionStatusBadge } from './DecisionsTimelineView';
 
 interface DecisionsGridViewProps {
   filteredDecisions: DecisionInfo[];
@@ -15,6 +16,8 @@ export const DecisionsGridView: React.FC<DecisionsGridViewProps> = ({
   onSelectNote,
   onEditDecision,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="grid grid-cols-2 gap-4">
       {filteredDecisions.map((decision, idx) => (
@@ -27,7 +30,7 @@ export const DecisionsGridView: React.FC<DecisionsGridViewProps> = ({
               <span className="font-bold text-gray-900 dark:text-gray-100 leading-snug">
                 {decision.content}
               </span>
-              {getDecisionStatusBadge(decision.status)}
+              <DecisionStatusBadge status={decision.status} />
             </div>
             {decision.description && (
               <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
@@ -57,6 +60,7 @@ export const DecisionsGridView: React.FC<DecisionsGridViewProps> = ({
                 tags: decision.tags,
               })}
               className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-400 hover:text-purple-600 transition-colors"
+              title={t('editDecisionTitle')}
             >
               <SlidersHorizontal size={14} />
             </button>
@@ -66,3 +70,4 @@ export const DecisionsGridView: React.FC<DecisionsGridViewProps> = ({
     </div>
   );
 };
+

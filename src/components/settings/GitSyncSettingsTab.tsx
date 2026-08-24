@@ -3,6 +3,7 @@
  * Supports On-Prem Bitbucket, GitHub, GitLab, and Local Time Machine.
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGitStore } from '@/store/gitStore';
 import {
   GitBranch,
@@ -19,6 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export const GitSyncSettingsTab: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const {
     isInitialized,
     status,
@@ -32,7 +34,7 @@ export const GitSyncSettingsTab: React.FC = () => {
   } = useGitStore();
 
   const [remoteUrl, setRemoteUrl] = useState(settings.remoteUrl || '');
-  const [authorName, setAuthorName] = useState(settings.authorName || 'HAN Kullanıcısı');
+  const [authorName, setAuthorName] = useState(settings.authorName || 'HAN User');
   const [authorEmail, setAuthorEmail] = useState(settings.authorEmail || 'user@han-notes.local');
   const [mode, setMode] = useState<'local' | 'bitbucket' | 'github' | 'custom'>(settings.mode || 'local');
   const [autoCommit, setAutoCommit] = useState(settings.autoCommit ?? true);
@@ -62,11 +64,10 @@ export const GitSyncSettingsTab: React.FC = () => {
         </div>
         <div className="space-y-1 min-w-0">
           <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200">
-            Git Versiyonlama & Senkronizasyon (Local-First)
+            {t('gitSyncTitle')}
           </h3>
           <p className="text-gray-600 dark:text-gray-300 text-[11px] leading-normal">
-            Notlarınız yerel diskinizde güvenle saklanır ve Git ile versiyonlanır.
-            İsteğe bağlı olarak şirketinizin <strong>On-Prem Bitbucket</strong> sunucusuyla veya <strong>GitHub</strong> ile senkronize edebilirsiniz.
+            {t('gitSyncDesc')}
           </p>
         </div>
       </div>
@@ -75,15 +76,15 @@ export const GitSyncSettingsTab: React.FC = () => {
       <div className="p-4 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 space-y-3 shadow-2xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-900 dark:text-gray-100">Depo Durumu:</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{t('gitRepoStatus')}:</span>
             {isInitialized ? (
               <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-[11px] flex items-center gap-1">
                 <Check className="w-3 h-3" />
-                <span>Aktif (Git Başlatıldı)</span>
+                <span>{t('gitActive')}</span>
               </span>
             ) : (
               <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium text-[11px]">
-                Başlatılmadı
+                {t('gitNotInitialized')}
               </span>
             )}
           </div>
@@ -95,7 +96,7 @@ export const GitSyncSettingsTab: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-colors shadow-2xs cursor-pointer"
             >
               {isSyncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitBranch className="w-3 h-3" />}
-              <span>Git'i Başlat</span>
+              <span>{t('gitInit')}</span>
             </button>
           ) : (
             <button
@@ -104,7 +105,7 @@ export const GitSyncSettingsTab: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 rounded-xl border border-purple-200 dark:border-purple-800 transition-colors shadow-2xs cursor-pointer"
             >
               {isSyncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              <span>Şimdi Eşitle</span>
+              <span>{t('gitSyncNow')}</span>
             </button>
           )}
         </div>
@@ -112,17 +113,17 @@ export const GitSyncSettingsTab: React.FC = () => {
         {isInitialized && status && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-gray-100 dark:border-zinc-800 text-[11px]">
             <div>
-              <span className="text-gray-500">Aktif Dal:</span>
+              <span className="text-gray-500">{t('gitActiveBranch')}:</span>
               <p className="font-mono font-medium text-gray-900 dark:text-gray-100">{status.branch}</p>
             </div>
             <div>
-              <span className="text-gray-500">Değiştirilen Notlar:</span>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{status.modifiedFiles.length + status.untrackedFiles.length} dosya</p>
+              <span className="text-gray-500">{t('gitModifiedNotes')}:</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{status.modifiedFiles.length + status.untrackedFiles.length}</p>
             </div>
             <div>
-              <span className="text-gray-500">Son Senkronizasyon:</span>
+              <span className="text-gray-500">{t('gitLastSync')}:</span>
               <p className="font-medium text-gray-900 dark:text-gray-100">
-                {lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString('tr-TR') : 'Henüz yapılmadı'}
+                {lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString(i18n.language === 'tr' ? 'tr-TR' : 'en-US') : t('gitNever')}
               </p>
             </div>
           </div>
@@ -139,7 +140,7 @@ export const GitSyncSettingsTab: React.FC = () => {
       {/* Mode Selection */}
       <div className="space-y-2">
         <label className="block text-xs font-semibold text-gray-900 dark:text-gray-100">
-          Senkronizasyon Modu
+          {t('settingsGitSync')}
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <button
@@ -154,10 +155,10 @@ export const GitSyncSettingsTab: React.FC = () => {
           >
             <div className="flex items-center gap-2">
               <HardDrive className={cn('w-4 h-4', mode === 'local' ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400')} />
-              <span className="font-semibold text-gray-900 dark:text-gray-100 text-xs">Yalnızca Yerel</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100 text-xs">{t('gitModeLocal')}</span>
             </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-normal">
-              Notlarınız hiçbir sunucuya gitmez; yerel diskte "Time Machine" geçmişi oluşturulur.
+              {t('gitModeLocalDesc')}
             </p>
           </button>
 
@@ -173,10 +174,10 @@ export const GitSyncSettingsTab: React.FC = () => {
           >
             <div className="flex items-center gap-2">
               <Server className={cn('w-4 h-4', mode === 'bitbucket' ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400')} />
-              <span className="font-semibold text-gray-900 dark:text-gray-100 text-xs">On-Prem Bitbucket</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100 text-xs">{t('gitModeBitbucket')}</span>
             </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-normal">
-              Şirket içi Bitbucket Server (SSH / HTTPS / VPN) ile güvenli kurumsal senkronizasyon.
+              {t('gitModeBitbucketDesc')}
             </p>
           </button>
 
@@ -192,10 +193,10 @@ export const GitSyncSettingsTab: React.FC = () => {
           >
             <div className="flex items-center gap-2">
               <Cloud className={cn('w-4 h-4', mode === 'github' ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400')} />
-              <span className="font-semibold text-gray-900 dark:text-gray-100 text-xs">GitHub / GitLab</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100 text-xs">{t('gitModeGithub')}</span>
             </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-normal">
-              Kişisel bulut Git deposu ile çoklu cihaz senkronizasyonu.
+              {t('gitModeGithubDesc')}
             </p>
           </button>
         </div>
@@ -205,7 +206,7 @@ export const GitSyncSettingsTab: React.FC = () => {
       {mode !== 'local' && (
         <div className="space-y-1.5 p-4 rounded-2xl bg-gray-50/50 dark:bg-zinc-950/40 border border-gray-200 dark:border-zinc-800">
           <label className="block text-xs font-semibold text-gray-900 dark:text-gray-100">
-            Uzak Depo URL'si (Remote Repository URL)
+            {t('gitRemoteUrl')}
           </label>
           <input
             type="text"
@@ -213,14 +214,11 @@ export const GitSyncSettingsTab: React.FC = () => {
             onChange={(e) => setRemoteUrl(e.target.value)}
             placeholder={
               mode === 'bitbucket'
-                ? 'git@bitbucket.company.com:team/notes.git veya https://...'
-                : 'https://github.com/kullanici/han-notes-vault.git'
+                ? 'git@bitbucket.company.com:team/notes.git'
+                : 'https://github.com/username/notes.git'
             }
             className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-purple-500/40 font-mono text-gray-900 dark:text-gray-100"
           />
-          <p className="text-[10px] text-gray-500 dark:text-gray-400">
-            Masaüstü sürümünde SSH anahtarlarınız (`~/.ssh`) ve şirket VPN'iniz doğrudan kullanılır.
-          </p>
         </div>
       )}
 
@@ -228,20 +226,20 @@ export const GitSyncSettingsTab: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <label className="block text-xs font-semibold text-gray-900 dark:text-gray-100">
-            Yazar Adı (Git Author Name)
+            {t('gitAuthorName')}
           </label>
           <input
             type="text"
             value={authorName}
             onChange={(e) => setAuthorName(e.target.value)}
-            placeholder="Ad Soyad"
+            placeholder="John Doe"
             className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-purple-500/40 text-gray-900 dark:text-gray-100"
           />
         </div>
 
         <div className="space-y-1.5">
           <label className="block text-xs font-semibold text-gray-900 dark:text-gray-100">
-            Yazar E-Posta (Git Author Email)
+            {t('gitAuthorEmail')}
           </label>
           <input
             type="email"
@@ -257,7 +255,7 @@ export const GitSyncSettingsTab: React.FC = () => {
       <div className="p-4 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 space-y-3">
         <h4 className="text-xs font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
           <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-          <span>Otomasyon & Arka Plan Senkronizasyonu</span>
+          <span>{t('gitAutoSnapshots')}</span>
         </h4>
 
         <div className="space-y-2.5">
@@ -269,7 +267,7 @@ export const GitSyncSettingsTab: React.FC = () => {
               className="rounded border-gray-300 dark:border-zinc-700 text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
             />
             <span className="text-xs text-gray-800 dark:text-gray-200">
-              Not düzenlendiğinde arka planda otomatik yerel snapshot al (30 sn boşta kalındığında)
+              {t('gitAutoSnapshots')} (30s idle)
             </span>
           </label>
 
@@ -282,7 +280,7 @@ export const GitSyncSettingsTab: React.FC = () => {
                 className="rounded border-gray-300 dark:border-zinc-700 text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
               />
               <span className="text-xs text-gray-800 dark:text-gray-200">
-                Her 5 dakikada bir otomatik çift yönlü senkronize et (Pull & Push)
+                {t('gitAutoSyncInterval')} (5 min Pull & Push)
               </span>
             </label>
           )}
@@ -293,7 +291,7 @@ export const GitSyncSettingsTab: React.FC = () => {
       <div className="flex items-center justify-between pt-2">
         <div className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
           <Shield className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Tüm veriler cihazınızda ve hedef Git deponuzda şifresiz/şeffaf saklanır.</span>
+          <span>{t('gitSecurityNote')}</span>
         </div>
 
         <button
@@ -304,13 +302,14 @@ export const GitSyncSettingsTab: React.FC = () => {
           {savedSuccess ? (
             <>
               <Check className="w-3.5 h-3.5" />
-              <span>Kaydedildi!</span>
+              <span>{t('gitSaved')}</span>
             </>
           ) : (
-            <span>Ayarları Kaydet</span>
+            <span>{t('gitSaveSettings')}</span>
           )}
         </button>
       </div>
     </div>
   );
 };
+

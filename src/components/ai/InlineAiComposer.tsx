@@ -169,7 +169,7 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Inline AI generation error:', err);
-        setError(err.message || 'Üretim sırasında bir hata oluştu.');
+        setError(err.message || t('aiInlineError'));
       }
     } finally {
       setIsStreaming(false);
@@ -239,6 +239,7 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            title={t('close')}
           >
             <X size={16} />
           </button>
@@ -261,7 +262,7 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
               <button
                 onClick={handleStop}
                 className="p-2 rounded-xl bg-red-500 hover:bg-red-600 text-white shrink-0 shadow-xs cursor-pointer"
-                title="Durdur"
+                title={t('stop')}
               >
                 <Square size={13} fill="currentColor" />
               </button>

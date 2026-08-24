@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, ArrowRight, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,13 +14,24 @@ const MONTH_NAMES_TR = [
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
 ];
 
+const MONTH_NAMES_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 const WEEKDAYS_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+const WEEKDAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   startDate,
   endDate,
   onChange,
 }) => {
+  const { t, i18n } = useTranslation();
+  const isEnglish = i18n.language === 'en';
+  const monthNames = isEnglish ? MONTH_NAMES_EN : MONTH_NAMES_TR;
+  const weekdays = isEnglish ? WEEKDAYS_EN : WEEKDAYS_TR;
+
   const [isOpen, setIsOpen] = useState(false);
 
   // Active view date for calendar navigation
@@ -82,7 +94,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     const d = parseInt(parts[2], 10);
     const m = parseInt(parts[1], 10) - 1;
     const y = parts[0];
-    return `${d} ${MONTH_NAMES_TR[m]} ${y}`;
+    return `${d} ${monthNames[m]} ${y}`;
   };
 
   // Generate calendar days
@@ -158,10 +170,10 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
             <div className="flex items-center gap-1.5 font-mono font-medium truncate">
               <span>{formatDisplay(tempStart)}</span>
               <ArrowRight size={12} className="text-gray-400 shrink-0" />
-              <span>{tempEnd ? formatDisplay(tempEnd) : 'Bitiş seçin...'}</span>
+              <span>{tempEnd ? formatDisplay(tempEnd) : t('selectEndDate')}</span>
             </div>
           ) : (
-            <span className="text-gray-400">Tarih Aralığı Seçin (Başlangıç → Bitiş)</span>
+            <span className="text-gray-400">{t('selectDateRange')}</span>
           )}
         </div>
         {(tempStart || tempEnd) && (
@@ -171,7 +183,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
               handleClear(e);
             }}
             className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-            title="Tarihleri Temizle"
+            title={t('clearDates')}
           >
             <X size={12} />
           </span>
@@ -190,7 +202,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
               <ChevronLeft size={16} />
             </button>
             <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
-              {MONTH_NAMES_TR[month]} {year}
+              {monthNames[month]} {year}
             </span>
             <button
               onClick={handleNextMonth}
@@ -206,31 +218,31 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
               onClick={(e) => handlePreset(e, 1)}
               className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-zinc-800 hover:bg-mac-accent/10 hover:text-mac-accent text-gray-600 dark:text-gray-300 font-medium transition-colors"
             >
-              Bugün
+              {t('today')}
             </button>
             <button
               onClick={(e) => handlePreset(e, 7)}
               className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-zinc-800 hover:bg-mac-accent/10 hover:text-mac-accent text-gray-600 dark:text-gray-300 font-medium transition-colors"
             >
-              1 Hafta
+              1 {t('week')}
             </button>
             <button
               onClick={(e) => handlePreset(e, 14)}
               className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-zinc-800 hover:bg-mac-accent/10 hover:text-mac-accent text-gray-600 dark:text-gray-300 font-medium transition-colors"
             >
-              2 Hafta
+              2 {t('week')}
             </button>
             <button
               onClick={(e) => handlePreset(e, 30)}
               className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-zinc-800 hover:bg-mac-accent/10 hover:text-mac-accent text-gray-600 dark:text-gray-300 font-medium transition-colors"
             >
-              1 Ay
+              1 {t('month')}
             </button>
           </div>
 
           {/* Weekday Labels */}
           <div className="grid grid-cols-7 text-center mb-1">
-            {WEEKDAYS_TR.map((wd) => (
+            {weekdays.map((wd) => (
               <span key={wd} className="text-[10px] font-semibold text-gray-400 py-1">
                 {wd}
               </span>
@@ -286,7 +298,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
               onClick={handleClear}
               className="text-gray-400 hover:text-red-500 transition-colors text-[11px]"
             >
-              Temizle
+              {t('clearDates')}
             </button>
 
             <button
@@ -300,7 +312,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
               }}
               className="flex items-center gap-1 px-3 py-1 bg-mac-accent text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-2xs text-xs"
             >
-              <Check size={12} /> Tamam
+              <Check size={12} /> {t('ok')}
             </button>
           </div>
         </div>

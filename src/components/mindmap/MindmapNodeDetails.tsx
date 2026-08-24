@@ -3,6 +3,7 @@
  * connections, and direct navigation for the selected note node.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useGraphStore, type GraphNode } from '@/store/graphStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -31,6 +32,7 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
   onClose,
   onSelectNode,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { selectNote, createNote, notes } = useNoteStore();
   const { setViewMode } = useUiStore();
@@ -75,6 +77,7 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
         <button
           onClick={onClose}
           className="p-1 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+          title={t('close')}
         >
           <X size={15} />
         </button>
@@ -86,7 +89,7 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
         {node.tags && node.tags.length > 0 && (
           <div>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
-              Etiketler
+              {t('tags')}
             </span>
             <div className="flex flex-wrap gap-1">
               {node.tags.map((t) => (
@@ -105,7 +108,7 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
         {/* Ghost Note Alert */}
         {node.isGhost && (
           <div className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300 text-[11px] leading-relaxed">
-            Bu nota başka bir nottan <code className="font-mono">[[{node.id}]]</code> ile link verilmiş ancak henüz oluşturulmamış.
+            {t('mindmapGhostAlert')}
           </div>
         )}
 
@@ -114,11 +117,11 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
           <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
             <span className="flex items-center gap-1">
               <ArrowUpRight size={11} className="text-blue-500" />
-              Giden Bağlantılar ({node.outgoingLinks.length})
+              {t('mindmapOutgoingLinks')} ({node.outgoingLinks.length})
             </span>
           </div>
           {node.outgoingLinks.length === 0 ? (
-            <p className="text-[11px] text-gray-400 italic">Bu nottan başka nota bağlantı yok.</p>
+            <p className="text-[11px] text-gray-400 italic">---</p>
           ) : (
             <div className="space-y-1 max-h-28 overflow-y-auto">
               {node.outgoingLinks.map((targetId) => {
@@ -144,11 +147,11 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
           <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
             <span className="flex items-center gap-1">
               <ArrowDownLeft size={11} className="text-emerald-500" />
-              Gelen Bağlantılar / Backlinks ({node.incomingLinks.length})
+              {t('mindmapIncomingLinks')} ({node.incomingLinks.length})
             </span>
           </div>
           {node.incomingLinks.length === 0 ? (
-            <p className="text-[11px] text-gray-400 italic">Bu nota henüz bağlantı veren not yok.</p>
+            <p className="text-[11px] text-gray-400 italic">{t('noResultsFound')}</p>
           ) : (
             <div className="space-y-1 max-h-28 overflow-y-auto">
               {node.incomingLinks.map((sourceId) => {
@@ -179,12 +182,12 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
           {node.isGhost ? (
             <>
               <PlusCircle size={14} />
-              <span>Notu Oluştur</span>
+              <span>{t('mindmapCreateNote')}</span>
             </>
           ) : (
             <>
               <ExternalLink size={14} />
-              <span>Notu Editörde Aç</span>
+              <span>{t('mindmapOpenInEditor')}</span>
             </>
           )}
         </button>
@@ -199,9 +202,10 @@ export const MindmapNodeDetails: React.FC<MindmapNodeDetailsProps> = ({
           )}
         >
           <Sparkles size={12} />
-          <span>{localGraphOnly ? "Tüm Ağı Göster" : "Yalnızca Bu Notun Alt Ağını İncele"}</span>
+          <span>{localGraphOnly ? t('mindmapAllNetwork') : t('mindmapInspectSubnetwork')}</span>
         </button>
       </div>
     </div>
   );
 };
+

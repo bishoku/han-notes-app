@@ -20,7 +20,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
   onSelectEmoji,
   position,
 }) => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isEnglish = i18n.language === 'en';
 
   const [query, setQuery] = useState('');
@@ -89,11 +89,12 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 font-bold text-xs text-gray-900 dark:text-gray-100">
             <Sparkles size={13} className="text-amber-500" />
-            <span>{isEnglish ? 'Select Emoji' : 'Emoji Seç'}</span>
+            <span>{t('selectEmoji')}</span>
           </div>
           <button
             onClick={onClose}
             className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            title={t('close')}
           >
             <X size={14} />
           </button>
@@ -106,7 +107,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={isEnglish ? 'Search emoji or shortcode...' : 'Emoji veya etiket ara...'}
+            placeholder={t('searchEmojiPlaceholder')}
             className="w-full bg-transparent outline-none text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400"
           />
           {query && (
@@ -150,7 +151,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
       <div className="p-2.5 max-h-56 overflow-y-auto grid grid-cols-7 sm:grid-cols-8 gap-1 scroll-smooth">
         {displayedEmojis.length === 0 ? (
           <div className="col-span-full py-6 text-center text-[11px] text-gray-400">
-            {isEnglish ? 'No matching emoji found' : 'Eşleşen emoji bulunamadı'}
+            {t('noResultsFound')}
           </div>
         ) : (
           displayedEmojis.map((item) => (
@@ -172,7 +173,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
 
       {/* 4. Footer Shortcode Hint */}
       <div className="p-2 border-t border-gray-100 dark:border-zinc-800 text-[10px] text-gray-400 flex items-center justify-between px-3 bg-gray-50/50 dark:bg-zinc-900/50">
-        <span>{isEnglish ? 'Tip: Type `:rocket` in note' : 'İpucu: Notta `:roket` yazabilirsiniz'}</span>
+        <span>{t('emojiTip')}</span>
         <span className="font-mono">:shortcode:</span>
       </div>
     </div>

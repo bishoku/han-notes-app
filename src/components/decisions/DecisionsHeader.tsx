@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileCheck, GitCommit, LayoutGrid, Filter, Users, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/DateRangePicker';
@@ -37,13 +38,15 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
   activeParticipantFilter,
   setActiveParticipantFilter,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <>
       {/* Title Header */}
       <div className="flex items-center justify-between mb-6 max-w-5xl">
         <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-900 dark:text-gray-100">
           <FileCheck size={32} className="text-purple-600 dark:text-purple-400" />
-          Karar Kayıtları (Decision Records)
+          {t('decisionRecords')}
         </h1>
 
         {/* View Mode Toggle (Timeline vs Grid) */}
@@ -55,7 +58,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
               viewStyle === 'timeline' ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             )}
           >
-            <GitCommit size={14} /> Zaman Çizelgesi
+            <GitCommit size={14} /> {t('decisionTimelineView')}
           </button>
           <button
             onClick={() => setViewStyle('grid')}
@@ -64,7 +67,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
               viewStyle === 'grid' ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             )}
           >
-            <LayoutGrid size={14} /> Liste Görünümü
+            <LayoutGrid size={14} /> {t('decisionGridView')}
           </button>
         </div>
       </div>
@@ -76,7 +79,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mr-1">
               <Filter size={13} />
-              <span>Statü:</span>
+              <span>{t('decisionStatusFilter')}:</span>
             </div>
             <button
               onClick={() => setActiveStatusFilter('all')}
@@ -85,7 +88,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
                 activeStatusFilter === 'all' ? "bg-purple-600 text-white shadow-sm" : "bg-white dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700"
               )}
             >
-              Hepsi ({totalCount})
+              {t('decisionAll')} ({totalCount})
             </button>
             <button
               onClick={() => setActiveStatusFilter('approved')}
@@ -94,7 +97,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
                 activeStatusFilter === 'approved' ? "bg-emerald-600 text-white shadow-sm" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
               )}
             >
-              Onaylananlar ({approvedCount})
+              {t('decisionApproved')} ({approvedCount})
             </button>
             <button
               onClick={() => setActiveStatusFilter('draft')}
@@ -103,7 +106,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
                 activeStatusFilter === 'draft' ? "bg-amber-600 text-white shadow-sm" : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
               )}
             >
-              Taslaklar ({draftCount})
+              {t('decisionDrafts')} ({draftCount})
             </button>
           </div>
 
@@ -124,7 +127,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200 dark:border-zinc-800/80">
           <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mr-1">
             <Users size={13} />
-            <span>Kişiler:</span>
+            <span>{t('decisionParticipantsFilter')}:</span>
           </div>
           <button
             onClick={() => setActiveParticipantFilter('all')}
@@ -133,7 +136,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
               activeParticipantFilter === 'all' ? "bg-purple-600 text-white shadow-sm" : "bg-white dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-700"
             )}
           >
-            Tüm Kişiler
+            {t('decisionAllParticipants')}
           </button>
           {availableParticipants.map(person => (
             <button
@@ -154,3 +157,4 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
     </>
   );
 };
+

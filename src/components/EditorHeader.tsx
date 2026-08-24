@@ -82,7 +82,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-1 rounded-md text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 transition-colors cursor-pointer shrink-0 mr-0.5"
-            title="Kenar Çubuğunu Aç (Explorer)"
+            title={t('expandSidebar')}
           >
             <PanelLeftOpen size={16} />
           </button>
@@ -93,14 +93,14 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           <button
             onClick={() => navigate(-1)}
             className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title="Geri (Alt + Sol Ok)"
+            title={t('navBack')}
           >
             <ChevronLeft size={15} />
           </button>
           <button
             onClick={() => navigate(1)}
             className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title="İleri (Alt + Sağ Ok)"
+            title={t('navForward')}
           >
             <ChevronRight size={15} />
           </button>
@@ -144,6 +144,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 <button 
                   onClick={onCloseTagPopover}
                   className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-md cursor-pointer"
+                  title={t('close')}
                 >
                   <X size={12} />
                 </button>
@@ -174,10 +175,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-2xs font-semibold"
                 : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
             )}
-            title="Canlı Önizleme Modu (WYSIWYG)"
+            title={t('statusEditorPreview')}
           >
             <Eye size={12} className={editorMode === 'preview' ? "text-purple-600 dark:text-purple-400" : ""} />
-            <span className="hidden md:inline">Önizleme</span>
+            <span className="hidden md:inline">{t('modePreview')}</span>
           </button>
           <button
             onClick={() => setEditorMode('raw')}
@@ -187,10 +188,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-2xs font-semibold"
                 : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
             )}
-            title="Ham Metin Kod Editörü (Plain Text)"
+            title={t('statusEditorRaw')}
           >
             <FileCode size={12} className={editorMode === 'raw' ? "text-purple-600 dark:text-purple-400" : ""} />
-            <span className="hidden md:inline">Ham Metin</span>
+            <span className="hidden md:inline">{t('modeRaw')}</span>
           </button>
         </div>
 
@@ -204,7 +205,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-2xs font-bold"
                 : "text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             )}
-            title="Küçük Font (13px)"
+            title={t('fontSizeSmall')}
           >
             <span className="text-[10px] font-medium leading-none">a</span>
           </button>
@@ -216,7 +217,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-2xs font-bold"
                 : "text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             )}
-            title="Orta Font (14px)"
+            title={t('fontSizeMedium')}
           >
             <span className="text-[12px] font-semibold leading-none">A</span>
           </button>
@@ -228,7 +229,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 shadow-2xs font-bold"
                 : "text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             )}
-            title="Büyük Font (16px)"
+            title={t('fontSizeLarge')}
           >
             <span className="text-[15px] font-bold leading-none">A</span>
           </button>
@@ -239,7 +240,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           <button
             onClick={() => useGitStore.getState().openHistoryDrawer(currentNoteId)}
             className="p-1.5 rounded-md hover:bg-purple-500/10 text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
-            title="Not Versiyon Geçmişi & Diff"
+            title={t('versionHistoryAndDiff')}
           >
             <History size={15} />
           </button>
@@ -249,7 +250,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         <button 
           onClick={onToggleRightPanel} 
           className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer" 
-          title={rightPanelOpen ? "Sağ Paneli Kapat" : "Sağ Paneli Aç"}
+          title={rightPanelOpen ? t('collapseRightPanel') : t('expandRightPanel')}
         >
           {rightPanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
         </button>

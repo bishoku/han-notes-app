@@ -135,7 +135,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
     const validation = await validateMermaid(currentCode);
 
     if (!validation.valid) {
-      setSyntaxError(validation.error || 'Sözdizimi Hatası');
+      setSyntaxError(validation.error || t('syntaxError'));
       setIsRendering(false);
       return;
     }
@@ -331,7 +331,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                   "p-1.5 rounded-md transition-colors cursor-pointer",
                   layoutMode === 'code' ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-xs" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-200"
                 )}
-                title="Sadece Kod"
+                title={t('statusEditorRaw')}
               >
                 <Code2 size={14} />
               </button>
@@ -342,7 +342,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                   "p-1.5 rounded-md transition-colors cursor-pointer",
                   layoutMode === 'split' ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-xs" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-200"
                 )}
-                title="Bölünmüş Görünüm (Kod + Önizleme)"
+                title={t('codeEditorTitle')}
               >
                 <Columns size={14} />
               </button>
@@ -353,7 +353,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                   "p-1.5 rounded-md transition-colors cursor-pointer",
                   layoutMode === 'preview' ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-xs" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-200"
                 )}
-                title="Sadece Önizleme"
+                title={t('statusEditorPreview')}
               >
                 <Eye size={14} />
               </button>
@@ -363,6 +363,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
               type="button"
               onClick={onClose}
               className="p-1.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded-lg hover:bg-gray-200/60 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={t('close')}
             >
               <X size={18} />
             </button>
@@ -381,46 +382,46 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
             >
               {/* Quick Helper Chips Bar */}
               <div className="flex items-center gap-1.5 px-4 py-2 bg-gray-100/60 dark:bg-zinc-800/40 border-b border-gray-200 dark:border-zinc-800 overflow-x-auto text-[11px]">
-                <span className="text-gray-400 font-medium shrink-0">{t('quickInsert', 'Hızlı Ekle:')}</span>
+                <span className="text-gray-400 font-medium shrink-0">{t('quickInsert')}</span>
                 <button
                   type="button"
                   onClick={() => handleInsertSnippet('--> ')}
-                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0"
+                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0 cursor-pointer"
                 >
-                  {"--> (Ok)"}
+                  {"-->"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleInsertSnippet('subgraph GrupAdı [Başlık]\n    A --> B\nend\n')}
-                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0"
+                  onClick={() => handleInsertSnippet('subgraph GroupName [Title]\n    A --> B\nend\n')}
+                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0 cursor-pointer"
                 >
                   subgraph
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleInsertSnippet('[(Veritabanı)]')}
-                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0"
+                  onClick={() => handleInsertSnippet('[(Database)]')}
+                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0 cursor-pointer"
                 >
                   [(DB)]
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleInsertSnippet('{Karar?}')}
-                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0"
+                  onClick={() => handleInsertSnippet('{Decision?}')}
+                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0 cursor-pointer"
                 >
-                  {'{Karar}'}
+                  {'{Decision}'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleInsertSnippet('([Stadyum])')}
-                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0"
+                  onClick={() => handleInsertSnippet('([Stadium])')}
+                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0 cursor-pointer"
                 >
-                  ([Hap])
+                  ([Pill])
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleInsertSnippet('classDef vurgu fill:#3b82f620,stroke:#3b82f6,stroke-width:2px;\n')}
-                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0"
+                  onClick={() => handleInsertSnippet('classDef highlight fill:#3b82f620,stroke:#3b82f6,stroke-width:2px;\n')}
+                  className="px-2 py-0.5 bg-white dark:bg-zinc-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-gray-700 dark:text-gray-300 hover:text-teal-600 rounded border border-gray-200 dark:border-zinc-700 transition-colors shrink-0 cursor-pointer"
                 >
                   classDef
                 </button>
@@ -466,10 +467,10 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
               <div className="flex items-center justify-between px-4 py-2 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-sm border-b border-gray-200 dark:border-zinc-800 shrink-0">
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                   <Eye size={13} className="text-teal-500" />
-                  <span className="font-medium">{t('mermaidLivePreview', 'Canlı Önizleme')}</span>
+                  <span className="font-medium">{t('mermaidLivePreview')}</span>
                   {isRendering && (
                     <span className="text-[10px] text-teal-600 dark:text-teal-400 animate-pulse ml-2 font-medium">
-                      {t('rendering', 'Çiziliyor...')}
+                      {t('loading')}
                     </span>
                   )}
                 </div>
@@ -484,7 +485,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                         "p-1 rounded-full transition-colors cursor-pointer",
                         bgMode === 'light' ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-xs" : "text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200"
                       )}
-                      title="Açık Tuval"
+                      title={t('themeLight')}
                     >
                       <Sun size={12} />
                     </button>
@@ -495,7 +496,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                         "p-1 rounded-full transition-colors cursor-pointer",
                         bgMode === 'dark' ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-xs" : "text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200"
                       )}
-                      title="Koyu Tuval"
+                      title={t('themeDark')}
                     >
                       <Moon size={12} />
                     </button>
@@ -506,7 +507,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                         "p-1 rounded-full transition-colors cursor-pointer",
                         bgMode === 'grid' ? "bg-white dark:bg-zinc-700 text-gray-900 dark:text-zinc-100 shadow-xs" : "text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200"
                       )}
-                      title="Izgara Tuval"
+                      title="Grid"
                     >
                       <Grid size={12} />
                     </button>
@@ -518,7 +519,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                       type="button"
                       onClick={() => setZoomLevel((prev) => Math.max(0.4, prev - 0.15))}
                       className="p-1 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded transition-colors cursor-pointer"
-                      title="Uzaklaştır"
+                      title={t('zoomOut')}
                     >
                       <ZoomOut size={13} />
                     </button>
@@ -529,7 +530,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                       type="button"
                       onClick={() => setZoomLevel((prev) => Math.min(2.5, prev + 0.15))}
                       className="p-1 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded transition-colors cursor-pointer"
-                      title="Yakınlaştır"
+                      title={t('zoomIn')}
                     >
                       <ZoomIn size={13} />
                     </button>
@@ -537,7 +538,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                       type="button"
                       onClick={() => setZoomLevel(1)}
                       className="p-1 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded transition-colors cursor-pointer ml-0.5"
-                      title="Sıfırla (%100)"
+                      title={t('reset')}
                     >
                       <RotateCcw size={12} />
                     </button>
@@ -562,7 +563,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                   <div className="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 gap-2">
                     <GitFork size={32} className="opacity-40 animate-pulse" />
                     <span className="text-xs">
-                      {syntaxError ? t('fixSyntaxError', 'Lütfen sözdizimi hatasını düzeltin') : t('previewPlaceholder', 'Diyagram önizlemesi burada gösterilecek')}
+                      {syntaxError ? t('fixSyntaxError') : t('previewPlaceholder')}
                     </span>
                   </div>
                 )}
@@ -574,7 +575,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
         {/* ─── Modal Footer ─── */}
         <div className="flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 shrink-0">
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>💡 {t('mermaidTip', 'Kısayol: Ctrl/Cmd + Enter ile kaydedebilirsiniz.')}</span>
+            <span>💡 {t('mermaidTip')}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -584,7 +585,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
             >
               <Copy size={13} />
-              <span>{copiedCode ? t('copied', 'Kopyalandı!') : t('copyCode', 'Kodu Kopyala')}</span>
+              <span>{copiedCode ? t('copied') : t('copyCode')}</span>
             </button>
 
             {renderedSvg && (
@@ -594,7 +595,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
               >
                 <Copy size={13} />
-                <span>{copiedSvg ? t('copied', 'Kopyalandı!') : t('copySvg', 'SVG Kopyala')}</span>
+                <span>{copiedSvg ? t('copied') : t('copySvg')}</span>
               </button>
             )}
 
@@ -603,7 +604,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
               onClick={onClose}
               className="px-4 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
             >
-              {t('cancel', 'İptal')}
+              {t('cancel')}
             </button>
 
             <button
@@ -613,7 +614,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
               className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               <Check size={14} />
-              <span>{isEditing ? t('updateDiagram', 'Diyagramı Güncelle') : t('insertDiagram', 'Diyagramı Ekle')}</span>
+              <span>{isEditing ? t('updateDiagram') : t('insertDiagram')}</span>
             </button>
           </div>
         </div>

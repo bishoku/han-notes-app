@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useNoteStore } from '@/store/noteStore';
 import type { FileNode } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
@@ -18,6 +19,7 @@ interface FileTreeNodeProps {
 }
 
 export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, level = 0, openInputDialog }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -92,8 +94,8 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     closeContextMenu();
     if (openInputDialog) {
       openInputDialog({
-        title: `"${node.name}" İçinde Yeni Not`,
-        placeholder: "Not Adı",
+        title: `${t('newNote')} ("${node.name}")`,
+        placeholder: t('enterNoteTitle'),
         onConfirm: async (title) => {
           const newId = await createNote(title, node.is_dir ? node.relative_path : '');
           setViewMode('notes');
@@ -107,8 +109,8 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     closeContextMenu();
     if (openInputDialog) {
       openInputDialog({
-        title: `"${node.name}" İçinde Yeni Klasör`,
-        placeholder: "Klasör Adı",
+        title: `${t('newFolder')} ("${node.name}")`,
+        placeholder: t('enterFolderName'),
         onConfirm: async (folderName) => {
           await createFolder(folderName, node.is_dir ? node.relative_path : '');
         }
@@ -120,8 +122,8 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     closeContextMenu();
     if (openInputDialog) {
       openInputDialog({
-        title: `Yeniden Adlandır`,
-        placeholder: "Yeni Ad",
+        title: t('rename'),
+        placeholder: t('newTitle'),
         defaultValue: node.name,
         onConfirm: async (newName) => {
           if (newName !== node.name) {
@@ -191,20 +193,20 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
           >
             {node.is_dir && (
               <>
-                <button onClick={handleCreateSubNote} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left">
-                  <Plus size={12} /> Yeni Not
+                <button onClick={handleCreateSubNote} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left cursor-pointer">
+                  <Plus size={12} /> {t('newNote')}
                 </button>
-                <button onClick={handleCreateSubFolder} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left">
-                  <Folder size={12} /> Yeni Klasör
+                <button onClick={handleCreateSubFolder} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left cursor-pointer">
+                  <Folder size={12} /> {t('newFolder')}
                 </button>
                 <div className="my-1 border-t border-gray-100 dark:border-zinc-800" />
               </>
             )}
-            <button onClick={handleRename} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left">
-              <Edit3 size={12} /> Yeniden Adlandır
+            <button onClick={handleRename} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left cursor-pointer">
+              <Edit3 size={12} /> {t('rename')}
             </button>
-            <button onClick={handleDelete} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-red-500 hover:text-white rounded text-red-500 transition-colors text-left">
-              <Trash2 size={12} /> Sil
+            <button onClick={handleDelete} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-red-500 hover:text-white rounded text-red-500 transition-colors text-left cursor-pointer">
+              <Trash2 size={12} /> {t('delete')}
             </button>
           </div>
         </>

@@ -172,7 +172,7 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
           <span>{headerLabel}</span>
         </div>
         <span className="font-mono text-[9px] normal-case opacity-60">
-          {activeSubMenu ? '← geri' : t('slashMenuHint')}
+          {activeSubMenu ? `← ${t('back')}` : t('slashMenuHint')}
         </span>
       </div>
 
@@ -180,7 +180,7 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
       <div className="flex flex-col max-h-[280px] overflow-y-auto">
         {displayCommands.length === 0 ? (
           <div className="px-3 py-4 text-xs text-gray-400 text-center italic">
-            Sonuç bulunamadı
+            {t('noResultsFound')}
           </div>
         ) : (
           displayCommands.map((cmd: SlashCommand, idx: number) => {

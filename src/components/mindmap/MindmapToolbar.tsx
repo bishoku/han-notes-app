@@ -2,6 +2,7 @@
  * MindmapToolbar.tsx — Top control bar for the Workspace Mindmap & Knowledge Graph.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useGraphStore,
   type GraphColorBy,
@@ -38,6 +39,7 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
   onFit,
   onResetLayout,
 }) => {
+  const { t } = useTranslation();
   const {
     nodes,
     edges,
@@ -68,7 +70,7 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
           <Search size={13} className="text-gray-400 shrink-0" />
           <input
             type="text"
-            placeholder="Ağda not ara..."
+            placeholder={t('mindmapSearchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-transparent outline-none w-full text-xs text-gray-800 dark:text-gray-200 placeholder-gray-400"
@@ -95,10 +97,10 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-mac-accent shadow-xs font-semibold"
                 : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
             )}
-            title="Organik Kuvvet Ağı (Force Network)"
+            title={t('mindmapForceNetwork')}
           >
             <Network size={14} />
-            <span className="hidden md:inline text-[11px]">Ağ</span>
+            <span className="hidden md:inline text-[11px]">{t('mindmapForceNetwork')}</span>
           </button>
           <button
             onClick={() => setLayoutMode('breadthfirst')}
@@ -108,10 +110,10 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-mac-accent shadow-xs font-semibold"
                 : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
             )}
-            title="Zihin Haritası Ağacı (Mindmap Tree)"
+            title={t('mindmapTree')}
           >
             <GitFork size={14} />
-            <span className="hidden md:inline text-[11px]">Ağaç</span>
+            <span className="hidden md:inline text-[11px]">{t('mindmapTree')}</span>
           </button>
           <button
             onClick={() => setLayoutMode('concentric')}
@@ -121,10 +123,10 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-mac-accent shadow-xs font-semibold"
                 : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
             )}
-            title="Eşmerkezli / Radyal (Radial)"
+            title={t('mindmapRadial')}
           >
             <Radio size={14} />
-            <span className="hidden md:inline text-[11px]">Radyal</span>
+            <span className="hidden md:inline text-[11px]">{t('mindmapRadial')}</span>
           </button>
           <button
             onClick={() => setLayoutMode('circle')}
@@ -134,7 +136,7 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
                 ? "bg-white dark:bg-zinc-700 text-mac-accent shadow-xs font-semibold"
                 : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
             )}
-            title="Dairesel (Circle)"
+            title={t('mindmapCircle')}
           >
             <CircleDot size={14} />
           </button>
@@ -151,10 +153,10 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
               ? "bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-zinc-700"
               : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/40"
           )}
-          title={showOrphans ? "Bağlantısız (Yetim) notlar açık" : "Bağlantısız notlar gizlendi"}
+          title={t('mindmapOrphanNotes')}
         >
           {showOrphans ? <Eye size={13} /> : <EyeOff size={13} />}
-          <span className="text-[11px] font-medium hidden lg:inline">Yetim Notlar</span>
+          <span className="text-[11px] font-medium hidden lg:inline">{t('mindmapOrphanNotes')}</span>
         </button>
 
         {/* Group By Folder Toggle */}
@@ -166,10 +168,10 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
               ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/40 font-semibold"
               : "bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-zinc-700 hover:text-gray-900 dark:hover:text-gray-200"
           )}
-          title={groupByFolder ? "Klasör alanları / çerçeveleri açık" : "Klasör çerçeveleri kapalı"}
+          title={t('mindmapFolderFrames')}
         >
           <FolderTree size={13} />
-          <span className="text-[11px] font-medium hidden lg:inline">Klasör Çerçeveleri</span>
+          <span className="text-[11px] font-medium hidden lg:inline">{t('mindmapFolderFrames')}</span>
         </button>
 
         {/* Color Scheme Picker */}
@@ -179,11 +181,11 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
             setColorBy(next);
           }}
           className="p-1.5 rounded-xl text-xs flex items-center gap-1 bg-gray-100/80 dark:bg-zinc-800/80 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-gray-300 border border-gray-200/60 dark:border-zinc-700/60 transition-all cursor-pointer"
-          title={`Renklendirme: ${colorBy === 'folder' ? 'Klasöre Göre' : colorBy === 'tag' ? 'Etikete Göre' : 'Bağlantı Sayısına Göre'}`}
+          title={`${t('mindmapColorBy')}: ${colorBy === 'folder' ? t('mindmapColorFolder') : colorBy === 'tag' ? t('mindmapColorTag') : t('mindmapColorConnections')}`}
         >
           <Palette size={13} className="text-mac-accent" />
           <span className="text-[11px] font-medium capitalize hidden lg:inline">
-            {colorBy === 'folder' ? 'Klasör' : colorBy === 'tag' ? 'Etiket' : 'Bağlantı'}
+            {colorBy === 'folder' ? t('mindmapColorFolder') : colorBy === 'tag' ? t('mindmapColorTag') : t('mindmapColorConnections')}
           </span>
         </button>
 
@@ -197,10 +199,10 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
                 ? "bg-mac-accent text-white border-mac-accent shadow-xs font-semibold"
                 : "bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-zinc-700 hover:text-mac-accent"
             )}
-            title="Yalnızca seçili nota bağlı olan alt ağı göster"
+            title={t('mindmapLocalNetwork')}
           >
             <Sparkles size={13} />
-            <span className="text-[11px] hidden xl:inline">Lokal Ağ</span>
+            <span className="text-[11px] hidden xl:inline">{t('mindmapLocalNetwork')}</span>
           </button>
         )}
       </div>
@@ -211,11 +213,11 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-zinc-800/80 shadow-lg text-[11px] font-medium text-gray-600 dark:text-gray-300">
           <span className="flex items-center gap-1 text-mac-accent font-semibold">
             <Layers size={13} />
-            {realNodesCount} Not
+            {realNodesCount} {t('mindmapNotesCount')}
           </span>
           <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-zinc-600" />
           <span className="text-purple-600 dark:text-purple-400 font-semibold">
-            {edgesCount} Bağlantı
+            {edgesCount} {t('mindmapConnectionsCount')}
           </span>
         </div>
 
@@ -224,14 +226,14 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
           <button
             onClick={onZoomIn}
             className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-            title="Yakınlaştır (+)"
+            title={t('mindmapZoomIn')}
           >
             <ZoomIn size={15} />
           </button>
           <button
             onClick={onZoomOut}
             className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-            title="Uzaklaştır (-)"
+            title={t('mindmapZoomOut')}
           >
             <ZoomOut size={15} />
           </button>
@@ -239,14 +241,14 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
           <button
             onClick={onFit}
             className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-            title="Ekrana Sığdır"
+            title={t('mindmapFit')}
           >
             <Maximize2 size={15} />
           </button>
           <button
             onClick={onResetLayout}
             className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-            title="Ağı Yeniden Düzenle"
+            title={t('mindmapResetLayout')}
           >
             <RotateCcw size={15} />
           </button>
@@ -255,3 +257,4 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
     </div>
   );
 };
+

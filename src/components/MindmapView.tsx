@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import cytoscape, { type Core, type EventObject } from 'cytoscape';
 // @ts-expect-error - cytoscape-fcose types
 import fcose from 'cytoscape-fcose';
@@ -31,6 +32,7 @@ function stringToColor(str: string, isDark: boolean): string {
 }
 
 export const MindmapView: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -489,7 +491,7 @@ export const MindmapView: React.FC = () => {
           <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/90 dark:bg-zinc-900/90 shadow-2xl border border-gray-200 dark:border-zinc-800">
             <Loader2 size={18} className="animate-spin text-mac-accent" />
             <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-              İlişki Ağı Oluşturuluyor...
+              {t('mindmapBuildingNetwork')}
             </span>
           </div>
         </div>
@@ -503,10 +505,10 @@ export const MindmapView: React.FC = () => {
               <Network size={28} />
             </div>
             <h3 className="font-bold text-base text-gray-900 dark:text-gray-100 mb-1">
-              Henüz Not Bağlantısı Yok
+              {t('noBacklinksTitle')}
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
-              Notlarınızın içine <code className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 font-mono text-mac-accent">[[Not Adı]]</code> yazarak bağlantılar ekleyin ve zihin haritanızı canlandırın.
+              {t('mindmapEmptyDesc')}
             </p>
             <button
               onClick={() => {
@@ -516,7 +518,7 @@ export const MindmapView: React.FC = () => {
               className="inline-flex items-center gap-2 px-4 py-2 bg-mac-accent text-white font-semibold text-xs rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Plus size={14} />
-              Notlara Dön
+              {t('returnToNotes')}
             </button>
           </div>
         </div>

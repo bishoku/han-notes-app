@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,13 +14,24 @@ const MONTH_NAMES_TR = [
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
 ];
 
+const MONTH_NAMES_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 const WEEKDAYS_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+const WEEKDAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export const SingleDatePicker: React.FC<SingleDatePickerProps> = ({
   value,
   onChange,
-  placeholder = "Tarih Seçin..."
+  placeholder,
 }) => {
+  const { t, i18n } = useTranslation();
+  const isEnglish = i18n.language === 'en';
+  const monthNames = isEnglish ? MONTH_NAMES_EN : MONTH_NAMES_TR;
+  const weekdays = isEnglish ? WEEKDAYS_EN : WEEKDAYS_TR;
+
   const [isOpen, setIsOpen] = useState(false);
 
   const initialDate = value ? new Date(value) : new Date();
@@ -69,7 +81,7 @@ export const SingleDatePicker: React.FC<SingleDatePickerProps> = ({
     const d = parseInt(parts[2], 10);
     const m = parseInt(parts[1], 10) - 1;
     const y = parts[0];
-    return `${d} ${MONTH_NAMES_TR[m]} ${y}`;
+    return `${d} ${monthNames[m]} ${y}`;
   };
 
   const firstDayOfMonth = new Date(year, month, 1);
@@ -117,14 +129,14 @@ export const SingleDatePicker: React.FC<SingleDatePickerProps> = ({
           {value ? (
             <span className="font-mono font-medium truncate">{formatDisplay(value)}</span>
           ) : (
-            <span className="text-gray-400">{placeholder}</span>
+            <span className="text-gray-400">{placeholder || t('selectDate')}</span>
           )}
         </div>
         {value && (
           <span
             onClick={handleClear}
             className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-            title="Tarihi Temizle"
+            title={t('clearDates')}
           >
             <X size={12} />
           </span>
@@ -143,7 +155,7 @@ export const SingleDatePicker: React.FC<SingleDatePickerProps> = ({
               <ChevronLeft size={15} />
             </button>
             <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
-              {MONTH_NAMES_TR[month]} {year}
+              {monthNames[month]} {year}
             </span>
             <button
               onClick={handleNextMonth}
@@ -155,7 +167,7 @@ export const SingleDatePicker: React.FC<SingleDatePickerProps> = ({
 
           {/* Weekday Labels */}
           <div className="grid grid-cols-7 text-center mb-1">
-            {WEEKDAYS_TR.map((wd) => (
+            {weekdays.map((wd) => (
               <span key={wd} className="text-[10px] font-semibold text-gray-400 py-0.5">
                 {wd}
               </span>
@@ -197,14 +209,14 @@ export const SingleDatePicker: React.FC<SingleDatePickerProps> = ({
               onClick={handleClear}
               className="text-gray-400 hover:text-red-500 transition-colors text-[11px]"
             >
-              Temizle
+              {t('clearDates')}
             </button>
 
             <button
               onClick={handleToday}
               className="text-purple-600 dark:text-purple-400 hover:underline font-medium text-[11px]"
             >
-              Bugün
+              {t('today')}
             </button>
           </div>
         </div>

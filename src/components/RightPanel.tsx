@@ -158,7 +158,7 @@ export const RightPanel: React.FC = () => {
 
             {backlinks.length === 0 ? (
               <div className="text-xs text-gray-400 italic p-3 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-lg">
-                No note links to <span className="font-semibold text-gray-600 dark:text-gray-300">[[{currentNoteId}]]</span> yet.
+                {t('noResultsFound')}
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
@@ -205,7 +205,7 @@ export const RightPanel: React.FC = () => {
 
               {headings.length === 0 ? (
                 <div className="text-xs text-gray-400 italic p-3 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-lg">
-                  Başlık (H1-H4) bulunamadı.
+                  {t('noHeadingsFound')}
                 </div>
               ) : (
                 <div className="flex flex-col gap-1">
@@ -243,7 +243,7 @@ export const RightPanel: React.FC = () => {
               <div className="flex items-center justify-between mb-2 sticky top-0 bg-mac-sidebarLight dark:bg-mac-sidebarDark py-1 z-10">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   <CheckCircle2 size={13} className="text-mac-accent" />
-                  Not Görevleri
+                  {t('tasksInNote')}
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-mac-accent/10 text-mac-accent border border-mac-accent/20">
                   {noteTasks.length}
@@ -252,7 +252,7 @@ export const RightPanel: React.FC = () => {
 
               {noteTasks.length === 0 ? (
                 <div className="text-xs text-gray-400 italic p-3 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-lg">
-                  Bu notta henüz görev yok.
+                  {t('noTasksInNote')}
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
@@ -316,7 +316,7 @@ export const RightPanel: React.FC = () => {
                               })
                             }
                             className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-400 hover:text-mac-accent transition-colors shrink-0 cursor-pointer"
-                            title="Görev Özelliklerini Düzenle"
+                            title={t('editTaskModalTitle')}
                           >
                             <SlidersHorizontal size={13} />
                           </button>
@@ -334,7 +334,7 @@ export const RightPanel: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
                           {overdue && (
                             <span className="flex items-center gap-0.5 px-1.5 py-0.2 rounded-full font-bold bg-red-500 text-white">
-                              <AlertTriangle size={9} /> Gecikmiş
+                              <AlertTriangle size={9} /> {t('taskFilterOverdue')}
                             </span>
                           )}
 

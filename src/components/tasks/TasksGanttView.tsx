@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import type { Task as GanttTask } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
@@ -36,6 +37,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
   toggleRightPanel,
   onUpdateTask,
 }) => {
+  const { t, i18n } = useTranslation();
   const [ganttViewMode, setGanttViewMode] = useState<ViewMode>(ViewMode.Day);
   const [groupByAssignee, setGroupByAssignee] = useState<boolean>(false);
 
@@ -58,15 +60,16 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
       const activeAssignees = new Set<string>();
       tasksWithDates.forEach(t => {
         const assigns = getTaskAssignees(t);
-        if (assigns.length === 0) activeAssignees.add('Atanmamış');
+        if (assigns.length === 0) activeAssignees.add(t.assignee || 'Unassigned');
         else assigns.forEach(a => activeAssignees.add(a));
       });
 
       Array.from(activeAssignees).forEach(assignee => {
+        const displayName = (assignee === 'Atanmamış' || assignee === 'Unassigned') ? t('taskUnassigned') : assignee;
         gTasks.push({
           id: `proj_${assignee}`,
           type: 'project',
-          name: assignee,
+          name: displayName,
           start: new Date(Math.min(...tasksWithDates.map(t => new Date(t.start_date!).getTime()))),
           end: new Date(Math.max(...tasksWithDates.map(t => new Date(t.end_date!).getTime()))),
           progress: 0,
@@ -76,7 +79,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
 
       tasksWithDates.forEach(task => {
         const assigns = getTaskAssignees(task);
-        if (assigns.length === 0) assigns.push('Atanmamış');
+        if (assigns.length === 0) assigns.push(task.assignee || 'Unassigned');
 
         assigns.forEach(assignee => {
           const progress = task.progress ?? (task.completed ? 100 : 0);
@@ -137,7 +140,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
     }
 
     return gTasks;
-  }, [filteredTasks, groupByAssignee, todayStr]);
+  }, [filteredTasks, groupByAssignee, todayStr, t]);
 
   const handleTaskChange = async (ganttTask: GanttTask) => {
     const parts = ganttTask.id.split('_');
@@ -191,9 +194,9 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
         className="flex border-b border-gray-200 dark:border-zinc-800 bg-gray-50/80 dark:bg-zinc-900/90 backdrop-blur-xs select-none" 
         style={{ height: headerHeight, fontSize }}
       >
-        <div className="flex-1 flex items-center px-3 font-semibold text-gray-500 dark:text-gray-400 truncate">Görev</div>
-        <div className="w-[75px] flex items-center font-semibold text-gray-500 dark:text-gray-400 pl-1">Baş.</div>
-        <div className="w-[75px] flex items-center font-semibold text-gray-500 dark:text-gray-400 pl-1">Bit.</div>
+        <div className="flex-1 flex items-center px-3 font-semibold text-gray-500 dark:text-gray-400 truncate">{t('taskGanttHeaderTask')}</div>
+        <div className="w-[75px] flex items-center font-semibold text-gray-500 dark:text-gray-400 pl-1">{t('taskGanttStart')}</div>
+        <div className="w-[75px] flex items-center font-semibold text-gray-500 dark:text-gray-400 pl-1">{t('taskGanttEnd')}</div>
       </div>
     );
   };
@@ -248,7 +251,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
         <div className="flex items-center gap-3">
           <BarChart size={24} className="text-mac-accent" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-            Görev Çizelgesi
+            {t('taskChart')}
           </h1>
         </div>
         
@@ -261,7 +264,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
                 !groupByAssignee ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               )}
             >
-              Görev Bazlı
+              {t('taskBased')}
             </button>
             <button
               onClick={() => setGroupByAssignee(true)}
@@ -270,7 +273,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
                 groupByAssignee ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               )}
             >
-              Atanan Bazlı
+              {t('taskFilterAssignee')}
             </button>
           </div>
 
@@ -282,7 +285,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
                 ganttViewMode === ViewMode.Day ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               )}
             >
-              Gün
+              {t('taskDay')}
             </button>
             <button
               onClick={() => setGanttViewMode(ViewMode.Week)}
@@ -291,7 +294,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
                 ganttViewMode === ViewMode.Week ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               )}
             >
-              Hafta
+              {t('taskWeek')}
             </button>
             <button
               onClick={() => setGanttViewMode(ViewMode.Month)}
@@ -300,14 +303,14 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
                 ganttViewMode === ViewMode.Month ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               )}
             >
-              Ay
+              {t('taskMonth')}
             </button>
           </div>
 
           <button 
             onClick={toggleRightPanel} 
             className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors border border-gray-200 dark:border-zinc-700"
-            title={rightPanelOpen ? "Sağ Paneli Kapat" : "Sağ Paneli Aç"}
+            title={rightPanelOpen ? t('closeRightPanel') : t('openRightPanel')}
           >
             {rightPanelOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
           </button>
@@ -334,7 +337,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
                 arrowColor="#a1a1aa"
                 arrowIndent={15}
                 todayColor="rgba(0, 122, 255, 0.1)"
-                locale="tr"
+                locale={i18n.language === 'tr' ? 'tr' : 'en'}
                 TooltipContent={() => null}
                 TaskListHeader={TaskListHeader}
                 TaskListTable={TaskListTable}
@@ -342,8 +345,8 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-gray-400">
                 <Calendar size={48} className="mb-4 text-gray-300 dark:text-gray-600" />
-                <p className="font-medium">Görüntülenecek tarihli görev bulunamadı.</p>
-                <p className="text-sm mt-2 opacity-70">Sağ panelden görevlere başlangıç ve bitiş tarihi ekleyin.</p>
+                <p className="font-medium">{t('taskNoDatedTasks')}</p>
+                <p className="text-sm mt-2 opacity-70">{t('taskNoDatedTasksDesc')}</p>
               </div>
             )}
           </div>
@@ -352,3 +355,4 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
     </main>
   );
 };
+

@@ -325,7 +325,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
                   ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50"
                   : "bg-white dark:bg-zinc-800 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-200 border-gray-200 dark:border-zinc-700"
               )}
-              title={lineWrap ? "Satır Kaydırmayı Kapat" : "Satır Kaydırmayı Aç"}
+              title={lineWrap ? t('lineWrappingDisable') : t('lineWrappingEnable')}
             >
               <WrapText size={14} />
             </button>
@@ -335,6 +335,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
               type="button"
               onClick={onClose}
               className="p-1.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded-lg hover:bg-gray-200/60 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={t('close')}
             >
               <X size={18} />
             </button>
@@ -372,12 +373,12 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
           {/* Status info */}
           <div className="flex items-center gap-4 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
             <span>
-              Satır {stats.cursor.line}, Sütun {stats.cursor.col}
+              {t('lineColStats', { line: stats.cursor.line, col: stats.cursor.col })}
             </span>
             <span className="text-gray-300 dark:text-zinc-700">•</span>
-            <span>{stats.lines} satır</span>
+            <span>{stats.lines} {t('linesCount')}</span>
             <span className="text-gray-300 dark:text-zinc-700">•</span>
-            <span>{stats.chars} karakter</span>
+            <span>{stats.chars} {t('charsCount')}</span>
             <span className="text-gray-300 dark:text-zinc-700">•</span>
             <span className="capitalize">{activeLangConfig.name}</span>
           </div>
@@ -390,7 +391,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
             >
               <Copy size={13} />
-              <span>{copied ? t('copied', 'Kopyalandı!') : t('copyCode', 'Kodu Kopyala')}</span>
+              <span>{copied ? t('copied') : t('copyCode')}</span>
             </button>
 
             <button
@@ -398,7 +399,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
               onClick={onClose}
               className="px-4 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
             >
-              {t('cancel', 'İptal')}
+              {t('cancel')}
             </button>
 
             <button
@@ -407,7 +408,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
               className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-sm transition-colors cursor-pointer"
             >
               <Check size={14} />
-              <span>{isEditing ? t('updateCodeBlock', 'Kod Bloğunu Güncelle') : t('insertCodeBlock', 'Kod Bloğunu Ekle')}</span>
+              <span>{isEditing ? t('updateCodeBlock') : t('insertCodeBlock')}</span>
             </button>
           </div>
         </div>

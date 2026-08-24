@@ -77,7 +77,7 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
         <div className="flex items-center gap-2 text-white/90">
           <Maximize2 size={16} className="text-mac-accent shrink-0" />
           <span className="text-sm font-medium truncate max-w-md">
-            {cleanTitle || (isSimulation ? "YADA Canlı Simülasyon" : "Görsel Önizleme")}
+            {cleanTitle || (isSimulation ? t('mediaSimulationPreview') : t('mediaImagePreview'))}
           </span>
         </div>
 
@@ -91,7 +91,7 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
                 className={`p-1.5 rounded-full transition-colors cursor-pointer ${
                   bgMode === 'light' ? 'bg-white/25 text-white' : 'text-white/60 hover:text-white'
                 }`}
-                title="Açık Tuval Arka Planı"
+                title={t('themeLight')}
               >
                 <Sun size={14} />
               </button>
@@ -101,7 +101,7 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
                 className={`p-1.5 rounded-full transition-colors cursor-pointer ${
                   bgMode === 'dark' ? 'bg-white/25 text-white' : 'text-white/60 hover:text-white'
                 }`}
-                title="Koyu Tuval Arka Planı"
+                title={t('themeDark')}
               >
                 <Moon size={14} />
               </button>
@@ -111,7 +111,7 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
                 className={`p-1.5 rounded-full transition-colors cursor-pointer ${
                   bgMode === 'grid' ? 'bg-white/25 text-white' : 'text-white/60 hover:text-white'
                 }`}
-                title="Izgara Tuval Arka Planı"
+                title="Grid"
               >
                 <Grid size={14} />
               </button>
@@ -121,7 +121,7 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-all duration-150 cursor-pointer shadow-md"
-            title={t('close') || "Kapat (Esc)"}
+            title={t('close')}
           >
             <X size={18} />
           </button>

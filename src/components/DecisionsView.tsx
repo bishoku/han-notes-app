@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useDecisionStore } from '@/store/decisionStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
@@ -13,6 +14,7 @@ import { DecisionsTimelineView } from './decisions/DecisionsTimelineView';
 import { DecisionsGridView } from './decisions/DecisionsGridView';
 
 export const DecisionsView: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { decisions, registry, loadDecisions, updateDecisionMetadata } = useDecisionStore();
   const selectNote = useNoteStore(state => state.selectNote);
@@ -94,7 +96,7 @@ export const DecisionsView: React.FC = () => {
         {filteredDecisions.length === 0 ? (
           <div className="text-gray-400 italic py-16 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl flex flex-col items-center gap-3">
             <FileCheck size={32} className="text-gray-300 dark:text-gray-600" />
-            <span>Seçilen filtrelere uygun karar kaydı bulunamadı.</span>
+            <span>{t('noDecisionsMatchFilter')}</span>
           </div>
         ) : viewStyle === 'timeline' ? (
           <DecisionsTimelineView

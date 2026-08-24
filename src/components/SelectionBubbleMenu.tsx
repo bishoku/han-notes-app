@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Bold,
   Italic,
@@ -54,20 +55,21 @@ interface SelectionBubbleMenuProps {
 }
 
 const PRESET_COLORS = [
-  { name: 'Kırmızı', value: '#ef4444', bg: 'bg-red-500' },
-  { name: 'Turuncu', value: '#f97316', bg: 'bg-orange-500' },
-  { name: 'Sarı / Amber', value: '#f59e0b', bg: 'bg-amber-500' },
-  { name: 'Yeşil', value: '#10b981', bg: 'bg-emerald-500' },
-  { name: 'Mavi', value: '#3b82f6', bg: 'bg-blue-500' },
-  { name: 'Mor', value: '#8b5cf6', bg: 'bg-purple-500' },
-  { name: 'Pembe', value: '#ec4899', bg: 'bg-pink-500' },
-  { name: 'Gri', value: '#6b7280', bg: 'bg-gray-500' },
+  { key: 'red', value: '#ef4444', bg: 'bg-red-500' },
+  { key: 'orange', value: '#f97316', bg: 'bg-orange-500' },
+  { key: 'amber', value: '#f59e0b', bg: 'bg-amber-500' },
+  { key: 'green', value: '#10b981', bg: 'bg-emerald-500' },
+  { key: 'blue', value: '#3b82f6', bg: 'bg-blue-500' },
+  { key: 'purple', value: '#8b5cf6', bg: 'bg-purple-500' },
+  { key: 'pink', value: '#ec4899', bg: 'bg-pink-500' },
+  { key: 'gray', value: '#6b7280', bg: 'bg-gray-500' },
 ];
 
 export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.memo(({
   bubbleState,
   onFormat,
 }) => {
+  const { t } = useTranslation();
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showHeadingMenu, setShowHeadingMenu] = useState(false);
   const [showCalloutMenu, setShowCalloutMenu] = useState(false);
@@ -155,12 +157,13 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
               type="submit"
               className="px-2 py-1 bg-mac-accent text-white font-semibold rounded-md text-xs hover:opacity-90 cursor-pointer"
             >
-              Ekle
+              {t('add')}
             </button>
             <button
               type="button"
               onClick={() => setShowLinkInput(false)}
               className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs cursor-pointer"
+              title={t('close')}
             >
               ✕
             </button>
@@ -176,7 +179,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
                   : "hover:bg-gray-100 dark:hover:bg-zinc-800"
               )}
-              title={active?.isBold ? "Kalınlığı Kaldır" : "Kalın Yap (Cmd+B)"}
+              title={active?.isBold ? t('removeBold') : `${t('makeBold')} (Cmd+B)`}
             >
               <Bold size={14} />
             </button>
@@ -190,7 +193,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
                   : "hover:bg-gray-100 dark:hover:bg-zinc-800"
               )}
-              title={active?.isItalic ? "İtaliği Kaldır" : "İtalik Yap (Cmd+I)"}
+              title={active?.isItalic ? t('removeItalic') : `${t('makeItalic')} (Cmd+I)`}
             >
               <Italic size={14} />
             </button>
@@ -204,7 +207,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
                   : "hover:bg-gray-100 dark:hover:bg-zinc-800"
               )}
-              title={active?.isStrikethrough ? "Üstü Çizgiyi Kaldır" : "Üstü Çizili (~~text~~)"}
+              title={active?.isStrikethrough ? t('removeStrikethrough') : `${t('strikethrough')} (~~text~~)`}
             >
               <Strikethrough size={14} />
             </button>
@@ -218,7 +221,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   ? "bg-amber-500 text-white shadow-xs font-bold ring-1 ring-amber-600/50"
                   : "hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-gray-100 dark:hover:bg-zinc-800"
               )}
-              title={active?.isHighlight ? "Vurguyu Kaldır" : "Vurgula (==text==)"}
+              title={active?.isHighlight ? t('removeHighlight') : `${t('highlight')} (==text==)`}
             >
               <Highlighter size={14} />
             </button>
@@ -232,7 +235,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   ? "bg-mac-accent text-white shadow-xs font-bold ring-1 ring-mac-accent/50"
                   : "hover:bg-gray-100 dark:hover:bg-zinc-800"
               )}
-              title={active?.isCode ? "Kod Formatını Kaldır" : "Satır İçi Kod (`code`)"}
+              title={active?.isCode ? t('removeCode') : `${t('inlineCode')} (\`code\`)`}
             >
               <Code size={14} />
             </button>
@@ -251,7 +254,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer",
                   (showColorPicker || active?.color) && "bg-gray-100 dark:bg-zinc-800 text-mac-accent"
                 )}
-                title="Yazı Rengi"
+                title={t('textColor')}
               >
                 <Palette size={14} style={active?.color ? { color: active.color } : undefined} />
                 <ChevronDown size={10} className="opacity-60" />
@@ -260,7 +263,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
               {showColorPicker && (
                 <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 p-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-2xl flex flex-wrap gap-1.5 w-36 z-50">
                   <div className="w-full text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5 px-0.5">
-                    Renk Seçimi
+                    {t('colorSelection')}
                   </div>
                   {PRESET_COLORS.map((c) => (
                     <button
@@ -273,7 +276,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                         "group relative flex items-center justify-center w-6 h-6 rounded-lg hover:scale-110 transition-transform cursor-pointer",
                         active?.color === c.value && "ring-2 ring-mac-accent ring-offset-1 dark:ring-offset-zinc-900"
                       )}
-                      title={c.name}
+                      title={c.key}
                     >
                       <span className={cn("w-4 h-4 rounded-full shadow-2xs", c.bg)} />
                     </button>
@@ -285,7 +288,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     }}
                     className="w-full mt-1 py-0.5 text-[10px] text-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded transition-colors cursor-pointer"
                   >
-                    Rengi Temizle
+                    {t('clearColor')}
                   </button>
                 </div>
               )}
@@ -303,7 +306,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer",
                   (showHeadingMenu || (active?.headingLevel && active.headingLevel > 0)) && "bg-gray-100 dark:bg-zinc-800 text-mac-accent font-bold"
                 )}
-                title="Başlık Seviyesi"
+                title={t('headingLevel')}
               >
                 <Heading size={14} />
                 {active?.headingLevel && active.headingLevel > 0 ? (
@@ -325,7 +328,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     )}
                   >
                     <Heading1 size={13} className="text-mac-accent" />
-                    <span className="font-bold">Başlık 1</span>
+                    <span className="font-bold">{t('heading')} 1</span>
                   </button>
                   <button
                     onClick={() => {
@@ -338,7 +341,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     )}
                   >
                     <Heading2 size={13} className="text-mac-accent" />
-                    <span className="font-semibold">Başlık 2</span>
+                    <span className="font-semibold">{t('heading')} 2</span>
                   </button>
                   <button
                     onClick={() => {
@@ -351,7 +354,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     )}
                   >
                     <Heading3 size={13} className="text-mac-accent" />
-                    <span className="font-medium">Başlık 3</span>
+                    <span className="font-medium">{t('heading')} 3</span>
                   </button>
                   <button
                     onClick={() => {
@@ -363,7 +366,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                       (!active?.headingLevel || active.headingLevel === 0) && "bg-gray-100 dark:bg-zinc-800 font-medium"
                     )}
                   >
-                    <span>Paragraf</span>
+                    <span>{t('paragraph')}</span>
                   </button>
                 </div>
               )}
@@ -381,7 +384,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                   "flex items-center gap-0.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer",
                   showCalloutMenu && "bg-gray-100 dark:bg-zinc-800 text-mac-accent"
                 )}
-                title="Alıntı / Callout Kutusu"
+                title={t('quoteOrCallout')}
               >
                 <Quote size={14} />
                 <ChevronDown size={10} className="opacity-60" />
@@ -397,7 +400,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-left cursor-pointer"
                   >
                     <Quote size={13} />
-                    <span>Alıntı Metni</span>
+                    <span>{t('quoteText')}</span>
                   </button>
                   <div className="w-full h-px bg-gray-100 dark:bg-zinc-800 my-0.5" />
                   <button
@@ -408,7 +411,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 transition-colors text-left cursor-pointer"
                   >
                     <Info size={12} />
-                    <span>Bilgi (NOTE)</span>
+                    <span>{t('calloutNote')}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -418,7 +421,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 transition-colors text-left cursor-pointer"
                   >
                     <Lightbulb size={12} />
-                    <span>İpucu (TIP)</span>
+                    <span>{t('calloutTip')}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -428,7 +431,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/30 text-purple-600 dark:text-purple-400 transition-colors text-left cursor-pointer"
                   >
                     <Flame size={12} />
-                    <span>Önemli</span>
+                    <span>{t('calloutImportant')}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -438,7 +441,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-600 dark:text-amber-400 transition-colors text-left cursor-pointer"
                   >
                     <AlertTriangle size={12} />
-                    <span>Uyarı</span>
+                    <span>{t('calloutWarning')}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -448,7 +451,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
                     className="flex items-center gap-2 px-2 py-1 text-xs rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 transition-colors text-left cursor-pointer"
                   >
                     <ShieldAlert size={12} />
-                    <span>Dikkat</span>
+                    <span>{t('calloutCaution')}</span>
                   </button>
                 </div>
               )}
@@ -460,7 +463,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
             <button
               onClick={() => setShowLinkInput(true)}
               className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-              title="Web Bağlantısı Ekle"
+              title={t('addWebLink')}
             >
               <Link size={14} />
             </button>
@@ -469,7 +472,7 @@ export const SelectionBubbleMenu: React.FC<SelectionBubbleMenuProps> = React.mem
             <button
               onClick={() => onFormat('wikilink')}
               className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-mac-accent cursor-pointer"
-              title="Not Bağlantısı [[WikiLink]]"
+              title={`${t('noteLink')} [[WikiLink]]`}
             >
               <Link2 size={14} />
             </button>

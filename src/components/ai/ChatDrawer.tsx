@@ -221,7 +221,7 @@ export const ChatDrawer: React.FC = () => {
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-              title={isExpanded ? "Daralt" : "Genişlet"}
+              title={isExpanded ? t('collapseSidebar') : t('expandSidebar')}
             >
               {isExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
             </button>
@@ -237,6 +237,7 @@ export const ChatDrawer: React.FC = () => {
             <button
               onClick={() => setChatDrawerOpen(false)}
               className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={t('close')}
             >
               <X size={16} />
             </button>
@@ -430,7 +431,7 @@ export const ChatDrawer: React.FC = () => {
                 <div className="max-h-48 overflow-y-auto flex flex-col gap-0.5 scrollbar-thin">
                   {availableNotesToAttach.length === 0 ? (
                     <div className="p-3 text-center text-xs text-gray-400">
-                      Not bulunamadı
+                      {t('noResultsFound')}
                     </div>
                   ) : (
                     availableNotesToAttach.map((note) => (
@@ -594,7 +595,7 @@ export const ChatDrawer: React.FC = () => {
               onClick={handleSend}
               disabled={!input.trim()}
               className="p-1.5 rounded-xl bg-mac-accent hover:opacity-90 active:scale-95 text-white shrink-0 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-xs cursor-pointer"
-              title="Gönder"
+              title={t('send')}
             >
               <Send size={13} />
             </button>

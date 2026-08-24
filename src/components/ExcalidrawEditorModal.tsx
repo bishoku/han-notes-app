@@ -136,12 +136,12 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 bg-mac-accent hover:opacity-90 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-              <span>{t('saveAndClose', 'Kaydet & Kapat')}</span>
+              <span>{t('saveAndClose')}</span>
             </button>
             <button
               onClick={onClose}
               className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
-              title="Kapat"
+              title={t('close')}
             >
               <X size={16} />
             </button>
@@ -154,7 +154,7 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
             fallback={
               <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500">
                 <Loader2 size={24} className="animate-spin text-mac-accent" />
-                <span className="text-xs font-medium">{t('loadingExcalidraw', 'Excalidraw yükleniyor...')}</span>
+                <span className="text-xs font-medium">{t('loadingExcalidraw')}</span>
               </div>
             }
           >
