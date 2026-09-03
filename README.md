@@ -48,6 +48,15 @@ Built with the philosophy that your notes should be **yours**, H.A.N. combines t
 - **Seamless Live Preview Re-editing** — Hover over any diagram or sketch in the live preview and click the floating edit button to instantly reopen its native editor modal and continue where you left off.
 - **Dynamic Code-Splitting** — Excalidraw and diagram engines are lazily loaded on demand to keep initial app startup instant.
 
+### 📑 PDF Research, Split-View Reader & Export
+- **Smart PDF Import** — Import research papers, articles, or books into any vault folder with automatic `.attachments/` archiving and instant note generation.
+- **AI-Powered Structured Markdown** — Transform dense PDFs into organized study notes with executive summaries, key findings, and YAML frontmatter tags using integrated LLMs.
+- **Academic Two-Column Parser (Rust/WASM)** — Intelligently reconstructs two-column academic articles, fixes hyphenated line wraps, and formats paragraphs cleanly via `han-core`.
+- **Side-by-Side Split Reader** — Read PDFs alongside your notes in a resizable, HiDPI/Retina-aware viewer with pixel-perfect text selection.
+- **Instant Citation & Smart Quote Callouts** — Select text in the PDF and click *Nota Alıntı Ekle* to insert a cleaned, de-hyphenated `> [!QUOTE]` callout block with a direct page link (`> — [[doc.pdf#page=X]]`).
+- **Deep Page Linking (`#page=X`)** — Click any PDF link in your note to instantly jump to that exact page in the reader.
+- **Native PDF Export** — Export notes to paginated, print-optimized PDFs with one click from the editor header.
+
 ### ✅ Tasks
 - **Global Task View** — See all tasks across your entire vault in one place
 - **Rich Metadata** — Priority, assignees, dates, progress, and tags per task

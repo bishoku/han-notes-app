@@ -90,6 +90,28 @@ export function wasm_parse_yaml_frontmatter(content) {
 }
 
 /**
+ * @param {string} items_json
+ * @param {number} page_width
+ * @param {number} _page_height
+ * @param {number} body_font_size
+ * @returns {string}
+ */
+export function wasm_process_pdf_page_layout(items_json, page_width, _page_height, body_font_size) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(items_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasm_process_pdf_page_layout(ptr0, len0, page_width, _page_height, body_font_size);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * @param {string} raw
  * @returns {string}
  */

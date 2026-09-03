@@ -21,6 +21,7 @@ import { MediaFullscreenModal, type FullscreenMediaData } from '@/components/ui/
 import { LinkPreviewPopover, type LinkPreviewData } from '@/components/ui/LinkPreviewPopover';
 import { WebLinkFullscreenModal, type WebLinkFullscreenData } from '@/components/ui/WebLinkFullscreenModal';
 import { InlineAiComposer } from '@/components/ai/InlineAiComposer';
+import { PdfImportModal } from '@/components/pdf/PdfImportModal';
 
 interface EditorModalCoordinatorProps {
   editorRef: React.RefObject<any>;
@@ -103,6 +104,7 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
   } | null>(null);
   const [confirmDeleteMermaid, setConfirmDeleteMermaid] = useState<{ from: number; to: number } | null>(null);
   const [confirmDeleteCodeBlock, setConfirmDeleteCodeBlock] = useState<{ from: number; to: number } | null>(null);
+  const [pdfImportData, setPdfImportData] = useState<{ file: File; buffer: ArrayBuffer } | null>(null);
 
   // Context for Inline AI Composer
   const inlineAiContext = useMemo(() => {
@@ -173,6 +175,9 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
       setWebLinkFullscreenData(payload);
       setLinkPreviewData(null);
     });
+    const unbindPdfImport = eventBus.on('modal:pdf-import', (payload) => {
+      setPdfImportData(payload);
+    });
 
     // Window events for backward compatibility
     const handleFullscreenWin = (e: CustomEvent) => setFullscreenMedia(e.detail);
@@ -214,6 +219,7 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
       unbindShowLink();
       unbindHideLink();
       unbindWebFullscreen();
+      unbindPdfImport();
 
       window.removeEventListener('open-image-fullscreen' as any, handleFullscreenWin);
       window.removeEventListener('request-delete-image' as any, handleDeleteWin);
@@ -433,6 +439,15 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
         onClose={() => setInlineAiState((prev) => ({ ...prev, isOpen: false }))}
         onInsertMarkdown={handleInsertInlineAiMarkdown}
         surroundingContext={inlineAiContext}
+      />
+
+      {/* Smart PDF Import Wizard Modal */}
+      <PdfImportModal
+        isOpen={!!pdfImportData}
+        fileData={pdfImportData}
+        onClose={() => setPdfImportData(null)}
+        onNoteCreated={() => setPdfImportData(null)}
+        currentNoteId={currentNoteId}
       />
     </>
   );

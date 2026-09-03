@@ -25,13 +25,24 @@ export class WikilinkWidget extends WidgetType {
     const span = document.createElement('span');
     span.className = 'cm-wikilink inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md bg-mac-accent/10 hover:bg-mac-accent/20 text-mac-accent font-semibold text-xs border border-mac-accent/25 cursor-pointer select-none transition-colors align-baseline';
     span.dataset.target = this.target;
-    span.title = `Not Bağlantısı: ${this.target} (Açmak için tıkla)`;
+    const isPdf = this.target.toLowerCase().includes('.pdf');
+    span.title = isPdf
+      ? `PDF Dokümanı: ${this.target} (Bölünmüş Okuyucuda Aç)`
+      : `Not Bağlantısı: ${this.target} (Açmak için tıkla)`;
+
+    const iconSvg = isPdf
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-red-500 dark:text-red-400">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-80">
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+          <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+        </svg>`;
 
     span.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-80">
-        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-        <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
-      </svg>
+      ${iconSvg}
       <span class="truncate max-w-[240px]">${this.display}</span>
     `;
 
@@ -44,8 +55,15 @@ export class WikilinkWidget extends WidgetType {
       e.preventDefault();
       e.stopPropagation();
 
-      const { notes, selectNote, createNote } = useNoteStore.getState();
       const cleanTitle = this.target.trim();
+
+      // If Wikilink targets a PDF, open in side-by-side Split Reader
+      if (cleanTitle.toLowerCase().includes('.pdf')) {
+        useUiStore.getState().openPdfSplitReader(cleanTitle);
+        return;
+      }
+
+      const { notes, selectNote, createNote } = useNoteStore.getState();
 
       const targetNote = notes.find((n) =>
         n.id.toLowerCase() === cleanTitle.toLowerCase() ||

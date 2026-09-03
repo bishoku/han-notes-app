@@ -12,6 +12,7 @@
 - **[[Visual Diagramming & Sketching|Visual-Diagramming-&-Sketching]]**
 
 #### 📊 **Workflows & Knowledge**
+- **[[PDF Workflows & Research|PDF-Workflows-&-Research]]**
 - **[[Task Management & Gantt|Task-Management]]**
 - **[[Decision Tracking (ADR)|Decision-Tracking]]**
 - **[[Knowledge Graph & Mindmap|Knowledge-Graph-&-Mindmap]]**

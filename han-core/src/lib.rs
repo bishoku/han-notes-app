@@ -475,6 +475,206 @@ pub fn wasm_strip_reasoning(raw: &str) -> String {
     result.content
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct WasmPdfTextItem {
+    pub str: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Clone, Debug)]
+struct FormattedLine {
+    text: String,
+    font_size: f64,
+    is_heading: bool,
+    heading_level: usize,
+}
+
+#[wasm_bindgen]
+pub fn wasm_process_pdf_page_layout(
+    items_json: &str,
+    page_width: f64,
+    _page_height: f64,
+    body_font_size: f64,
+) -> String {
+    let items: Vec<WasmPdfTextItem> = match serde_json::from_str(items_json) {
+        Ok(it) => it,
+        Err(_) => return String::new(),
+    };
+
+    if items.is_empty() {
+        return String::new();
+    }
+
+    let mid_x = page_width / 2.0;
+    let mut left_items = Vec::new();
+    let mut right_items = Vec::new();
+    let mut full_width_items = Vec::new();
+
+    // 1. Column analysis: check if items cluster into two columns
+    let left_count = items.iter().filter(|i| i.x + i.width < mid_x).count();
+    let right_count = items.iter().filter(|i| i.x > mid_x * 0.85).count();
+    let is_two_column = items.len() > 15 && left_count > items.len() / 4 && right_count > items.len() / 4;
+
+    let ordered_items: Vec<WasmPdfTextItem> = if is_two_column {
+        for item in items {
+            // Full-width title or banner (width > 60% of page)
+            if item.width > page_width * 0.6 {
+                full_width_items.push(item);
+            } else if item.x + item.width / 2.0 < mid_x {
+                left_items.push(item);
+            } else {
+                right_items.push(item);
+            }
+        }
+
+        // Sort items top-to-bottom (y descending in PDF coordinate space)
+        left_items.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)));
+        right_items.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)));
+        full_width_items.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Stitch: full-width banners with high y (titles at top), then left column, then right column, then remaining full-width
+        let mut combined = Vec::new();
+        let top_threshold = if !left_items.is_empty() { left_items[0].y + 10.0 } else { 0.0 };
+        
+        let mut remaining_full = Vec::new();
+        for item in full_width_items {
+            if item.y >= top_threshold {
+                combined.push(item);
+            } else {
+                remaining_full.push(item);
+            }
+        }
+        combined.extend(left_items);
+        combined.extend(right_items);
+        combined.extend(remaining_full);
+        combined
+    } else {
+        let mut single = items;
+        single.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)));
+        single
+    };
+
+    // 2. Line Grouping (group items having close Y-coordinates)
+    let mut lines: Vec<FormattedLine> = Vec::new();
+    let mut current_line_text = String::new();
+    let mut current_y: Option<f64> = None;
+    let mut current_font_size = body_font_size;
+
+    for item in ordered_items {
+        match current_y {
+            None => {
+                current_y = Some(item.y);
+                current_line_text = item.str;
+                current_font_size = item.height;
+            }
+            Some(prev_y) => {
+                if (item.y - prev_y).abs() < current_font_size * 0.6 {
+                    current_line_text.push(' ');
+                    current_line_text.push_str(&item.str);
+                    if item.height > current_font_size {
+                        current_font_size = item.height;
+                    }
+                } else {
+                    let trimmed = current_line_text.trim();
+                    if !trimmed.is_empty() && !is_page_number_alone(trimmed) {
+                        let (is_heading, level) = classify_heading(trimmed, current_font_size, body_font_size);
+                        lines.push(FormattedLine {
+                            text: trimmed.to_string(),
+                            font_size: current_font_size,
+                            is_heading,
+                            heading_level: level,
+                        });
+                    }
+                    current_y = Some(item.y);
+                    current_line_text = item.str;
+                    current_font_size = item.height;
+                }
+            }
+        }
+    }
+
+    let final_trimmed = current_line_text.trim();
+    if !final_trimmed.is_empty() && !is_page_number_alone(final_trimmed) {
+        let (is_heading, level) = classify_heading(final_trimmed, current_font_size, body_font_size);
+        lines.push(FormattedLine {
+            text: final_trimmed.to_string(),
+            font_size: current_font_size,
+            is_heading,
+            heading_level: level,
+        });
+    }
+
+    // 3. Paragraph Stitching and Markdown Generation
+    let mut blocks: Vec<String> = Vec::new();
+    let mut current_para = String::new();
+
+    for line in lines {
+        if line.is_heading {
+            if !current_para.is_empty() {
+                blocks.push(current_para.trim().to_string());
+                current_para.clear();
+            }
+            let hashes = "#".repeat(line.heading_level.min(4));
+            blocks.push(format!("{} {}", hashes, line.text));
+            continue;
+        }
+
+        // Bullet point check
+        if line.text.starts_with('•') || line.text.starts_with('-') || line.text.starts_with('*') {
+            if !current_para.is_empty() {
+                blocks.push(current_para.trim().to_string());
+                current_para.clear();
+            }
+            let clean_bullet = line.text.trim_start_matches(|c: char| c == '•' || c == '-' || c == '*').trim_start();
+            blocks.push(format!("- {}", clean_bullet));
+            continue;
+        }
+
+        // De-hyphenation at line ends (e.g. "inter-" + "national")
+        if current_para.ends_with('-') {
+            current_para.pop();
+            current_para.push_str(&line.text);
+        } else if !current_para.is_empty() {
+            current_para.push(' ');
+            current_para.push_str(&line.text);
+        } else {
+            current_para.push_str(&line.text);
+        }
+
+        // If line ends with sentence terminal punctuation (. ! ? :), flush paragraph
+        if line.text.ends_with('.') || line.text.ends_with('!') || line.text.ends_with('?') || line.text.ends_with(':') {
+            blocks.push(current_para.trim().to_string());
+            current_para.clear();
+        }
+    }
+
+    if !current_para.is_empty() {
+        blocks.push(current_para.trim().to_string());
+    }
+
+    blocks.join("\n\n")
+}
+
+fn is_page_number_alone(s: &str) -> bool {
+    let t = s.trim_matches(|c: char| c == '-' || c == '—' || c == '–' || c == ' ').trim();
+    !t.is_empty() && t.chars().all(|c| c.is_ascii_digit())
+}
+
+fn classify_heading(_text: &str, font_size: f64, body_font_size: f64) -> (bool, usize) {
+    if font_size >= body_font_size * 1.45 {
+        (true, 1)
+    } else if font_size >= body_font_size * 1.25 {
+        (true, 2)
+    } else if font_size >= body_font_size * 1.10 {
+        (true, 3)
+    } else {
+        (false, 0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

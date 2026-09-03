@@ -7,6 +7,7 @@ export const wasm_parse_decisions_from_content: (a: number, b: number, c: number
 export const wasm_parse_reasoning: (a: number, b: number) => any;
 export const wasm_parse_tasks_from_content: (a: number, b: number, c: number, d: number) => any;
 export const wasm_parse_yaml_frontmatter: (a: number, b: number) => any;
+export const wasm_process_pdf_page_layout: (a: number, b: number, c: number, d: number, e: number) => [number, number];
 export const wasm_strip_reasoning: (a: number, b: number) => [number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_malloc: (a: number, b: number) => number;

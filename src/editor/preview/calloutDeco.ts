@@ -2,14 +2,21 @@ import { Decoration, WidgetType } from "@codemirror/view";
 
 export const CALLOUT_ICONS: Record<string, string> = {
   NOTE: "ℹ️",
+  INFO: "ℹ️",
   TIP: "💡",
   IMPORTANT: "🟣",
   WARNING: "⚠️",
   CAUTION: "🚨",
+  QUOTE: "💬",
 };
 
 export const calloutLineDecs: Record<string, { header: Decoration; body: Decoration; single: Decoration }> = {
   NOTE: {
+    header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-note" } }),
+    body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-note" } }),
+    single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-note" } }),
+  },
+  INFO: {
     header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-note" } }),
     body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-note" } }),
     single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-note" } }),
@@ -33,6 +40,11 @@ export const calloutLineDecs: Record<string, { header: Decoration; body: Decorat
     header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-caution" } }),
     body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-caution" } }),
     single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-caution" } }),
+  },
+  QUOTE: {
+    header: Decoration.line({ attributes: { class: "cm-callout-header cm-callout-quote" } }),
+    body: Decoration.line({ attributes: { class: "cm-callout-body cm-callout-quote" } }),
+    single: Decoration.line({ attributes: { class: "cm-callout-single cm-callout-quote" } }),
   },
 };
 

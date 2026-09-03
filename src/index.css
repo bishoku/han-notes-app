@@ -904,6 +904,24 @@
   color: #fee2e2;
 }
 
+/* QUOTE (Slate / Gray) */
+.cm-callout-quote {
+  background-color: rgba(248, 250, 252, 0.75);
+  border-left-color: #64748b;
+  color: #334155;
+}
+.dark .cm-callout-quote {
+  background-color: rgba(30, 41, 59, 0.25);
+  border-left-color: #94a3b8;
+  color: #e2e8f0;
+}
+
+/* PDF.js TextLayer Selection Highlight */
+.textLayer ::selection {
+  background: rgba(147, 51, 234, 0.35);
+  color: transparent;
+}
+
 /* ─── Editor Font Size Overrides ─── */
 
 .cm-fontsize-sm .cm-content {

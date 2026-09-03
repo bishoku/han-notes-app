@@ -37,6 +37,7 @@ H.A.N. is available both as a **blazing-fast native macOS desktop application** 
 | :--- | :--- |
 | **📝 Editor** | Live Preview & Raw CodeMirror 6 editor, Slash Commands (`/`), Notion-style tables, Callout alerts (`[!NOTE]`, `[!WARNING]`, `[!TIP]`), Code blocks with 100+ languages syntax highlighting, Resizable images, Emoji autocomplete (`:smile:`). |
 | **📐 Diagrams & Sketches** | Embedded **YADA** (architecture & system flowcharts), embedded **Excalidraw** (freehand whiteboard & sketching), **Mermaid** diagrams, portable PNGs with embedded editable `tEXt` vector metadata. |
+| **📑 PDF & Research** | Smart PDF Import with folder placement, AI-powered structured Markdown extraction, Two-column academic flow reconstruction (Rust/WASM), Side-by-side Split Reader with HiDPI/Retina rendering, One-click quote citations (`> [!QUOTE]`), Deep page linking (`#page=X`), Clean paginated PDF export. |
 | **✅ Task Management** | Standard Markdown checklists (`- [ ]`), rich metadata (Priority, Multi-Assignees, Start/End Dates, Progress %, Tags), Inline editor modal, Global Task list, Filters, interactive **Gantt timeline view**. |
 | **📋 Decisions (ADR)** | Architecture Decision tracking (`- [D]`), status tracking (Approved, Draft/Pending, Deferred), Participants, Approvers, Timeline & Grid view, Analytics & Metrics cards. |
 | **🔗 Knowledge Graph** | Wiki-links (`[[note-name]]`), automatic backlink aggregation, interactive Cytoscape knowledge graph / mindmap with force-directed physics layout (`fcose`). |
@@ -61,6 +62,7 @@ Explore the complete documentation pages below:
 - [[Visual Diagramming & Sketching|Visual-Diagramming-&-Sketching]]: YADA architecture diagrams, Excalidraw sketches, Mermaid flowcharts, and portable PNGs.
 
 ### 📊 Productivity & Knowledge Systems
+- [[PDF Workflows & Research|PDF-Workflows-&-Research]]: PDF import, AI structured extraction, side-by-side split reader, one-click citations, and PDF export.
 - [[Task Management & Gantt|Task-Management]]: Checklist syntax, task metadata, global task tracking, and Gantt charts.
 - [[Decision Tracking (ADR)|Decision-Tracking]]: Documenting decisions, tracking approval status, timeline views, and metrics.
 - [[Knowledge Graph & Mindmap|Knowledge-Graph-&-Mindmap]]: Wiki-links, backlinks, graph exploration, and node navigation.

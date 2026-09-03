@@ -86,9 +86,14 @@ H.A.N. natively supports GitHub-style callouts with distinct color-coded icons a
 
 > [!CAUTION]
 > Critical actions that may result in data loss or disruption.
+
+> [!QUOTE]
+> Quotations, citations, or excerpts from books, research papers, or external sources.
+>
+> — [[Paper.pdf#page=12]]
 ```
 
-In Live Preview, callouts render as styled alert cards with live editable text inside.
+In Live Preview, callouts render as styled alert cards with live editable text inside. The `[!QUOTE]` callout is specially themed with elegant citation typography and direct links to source documents.
 
 ---
 
@@ -145,12 +150,13 @@ In Live Preview, images render with interactive resize handles. Drag the corner 
 
 ## 🔗 Wiki-Links & Autocomplete
 
-Link notes together effortlessly using double brackets `[[note-name]]`:
+Link notes and documents together effortlessly using double brackets `[[note-name]]`:
 
 - Type `[[` anywhere in the editor to open the **Wiki-link Autocomplete Popup**.
-- Start typing the name of any note in your vault; press <kbd>Enter</kbd> to insert.
+- Start typing the name of any note or attachment in your vault; press <kbd>Enter</kbd> to insert.
 - **Custom Display Text**: Use the pipe character `[[Target Note|Display Title]]` to link to `Target Note` while displaying custom text.
-- Clicking any wiki-link in Live Preview immediately navigates to that note. If the target note does not exist, H.A.N. offers to create it automatically.
+- **PDF Deep Linking**: Link directly to specific pages of PDF documents using `#page=X` syntax (e.g. `[[Research/.attachments/paper.pdf#page=8]]` or `[[book.pdf#page=42|Bölüm 2]]`). Clicking the link in Live Preview immediately opens the **PDF Split Viewer** and turns to that exact page.
+- Clicking any note wiki-link in Live Preview navigates to that note. If the target note does not exist, H.A.N. offers to create it automatically.
 
 ---
 
@@ -179,4 +185,16 @@ author: John Doe
 ```
 
 - Tags defined in frontmatter are automatically indexed across the entire vault.
-- The **Tag Bar** below the note title in the editor allows adding, editing, or removing tags with auto-completing pill badges.
+- **Header Tag Popover (`+ Etiket`)**: Click the `+ Etiket` button in the editor header to open the interactive tag manager popover. You can add new tags with auto-completion from all existing vault tags, delete existing tags, or inspect tag counts without leaving the editor.
+
+---
+
+## 🖨️ Exporting Notes to PDF
+
+You can export any Markdown note into a clean, paginated PDF:
+
+1. Click the **PDF Dışa Aktar** (Printer icon) in the top right of the editor header.
+2. H.A.N. applies print-optimized stylesheets:
+   - Toolbars, sidebars, headers, and UI elements are automatically hidden.
+   - Code blocks, tables, callouts, and images are paginated with clean margins and high-contrast typography.
+3. Choose **Save as PDF** in the native print dialog.

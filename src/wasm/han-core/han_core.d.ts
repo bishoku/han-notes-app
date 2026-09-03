@@ -13,6 +13,8 @@ export function wasm_parse_tasks_from_content(content: string, note_id: string):
 
 export function wasm_parse_yaml_frontmatter(content: string): any;
 
+export function wasm_process_pdf_page_layout(items_json: string, page_width: number, _page_height: number, body_font_size: number): string;
+
 export function wasm_strip_reasoning(raw: string): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -25,6 +27,7 @@ export interface InitOutput {
     readonly wasm_parse_reasoning: (a: number, b: number) => any;
     readonly wasm_parse_tasks_from_content: (a: number, b: number, c: number, d: number) => any;
     readonly wasm_parse_yaml_frontmatter: (a: number, b: number) => any;
+    readonly wasm_process_pdf_page_layout: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly wasm_strip_reasoning: (a: number, b: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

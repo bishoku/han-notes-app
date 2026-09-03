@@ -87,9 +87,9 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   };
 
   return (
-    <header className="print:hidden h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none overflow-hidden">
+    <header className="print:hidden h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none z-30">
       {/* ── Left Side: Back/Forward, Note Title, Tags ── */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0 flex-1 overflow-hidden">
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0 flex-1">
         {/* Expand Sidebar Button (Visible when sidebar is collapsed) */}
         {!sidebarOpen && (
           <button
@@ -149,29 +149,36 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 
           {/* Tag Manager Popover */}
           {showTagPopover && (
-            <div className="absolute top-8 left-0 z-50 w-72 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-xl p-3 animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1">
-                  <Tag size={12} className="text-purple-500" /> {t('noteTags')}
-                </span>
-                <button 
-                  onClick={onCloseTagPopover}
-                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-md cursor-pointer"
-                  title={t('close')}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-
-              <MultiBadgeSelect
-                label=""
-                values={currentTags}
-                onChange={onUpdateTags}
-                suggestions={vaultTags.map((t: TagCount) => t.tag)}
-                placeholder={t('tagPlaceholder')}
-                badgeStyle="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+            <>
+              {/* Invisible backdrop to dismiss popover on click outside */}
+              <div
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={onCloseTagPopover}
               />
-            </div>
+              <div className="absolute top-9 left-0 z-50 w-72 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                    <Tag size={12} className="text-purple-500" /> {t('noteTags')}
+                  </span>
+                  <button 
+                    onClick={onCloseTagPopover}
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-md cursor-pointer"
+                    title={t('close')}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+
+                <MultiBadgeSelect
+                  label=""
+                  values={currentTags}
+                  onChange={onUpdateTags}
+                  suggestions={vaultTags.map((t: TagCount) => t.tag)}
+                  placeholder={t('tagPlaceholder')}
+                  badgeStyle="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+                />
+              </div>
+            </>
           )}
         </div>
       </div>

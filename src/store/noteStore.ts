@@ -3,6 +3,7 @@ import { storage } from '@/services/storage';
 import { useGraphStore } from '@/store/graphStore';
 import { useAiStore } from '@/store/aiStore';
 import { useGitStore } from '@/store/gitStore';
+import { useUiStore } from '@/store/uiStore';
 import { indexingCoordinator } from '@/services/ai/indexingCoordinator';
 import { eventBus } from '@/lib/eventBus';
 import {
@@ -185,6 +186,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
       // 3. Non-blocking snapshot of previous note in background
       if (prevId && prevId !== cleanId) {
+        useUiStore.getState().closePdfSplitReader();
         eventBus.emit('note:flush-save');
         window.dispatchEvent(new CustomEvent('han-flush-note-save'));
         const prevNote = get().notes.find((n) => n.id === prevId);

@@ -17,6 +17,10 @@ MyVault/
 ├── Architecture/
 │   ├── Auth-Spec.md
 │   └── Storage-Engine.md
+├── Research/
+│   ├── .attachments/          # Stored original PDF documents
+│   │   └── Attention-Paper.pdf
+│   └── Attention-Paper.md     # Extracted/summarized research note
 ├── Projects/
 │   └── Roadmap-2026.md
 └── Welcome.md
@@ -25,6 +29,7 @@ MyVault/
 ### Supported File Operations
 - **Create Note**: Click the `+ Note` icon in the sidebar or right-click any folder.
 - **Create Folder**: Click the `+ Folder` icon to add nested subfolders.
+- **Import PDF**: Click `+ PDF İçe Aktar` in the sidebar or right-click any folder to import PDFs into `.attachments/` and generate linked Markdown notes.
 - **Rename**: Right-click any file/folder or click the options menu to rename. Wiki-links referencing the old path update automatically.
 - **Move / Drag & Drop**: Drag files and drop them into target folders in the tree.
 - **Delete**: Right-click to delete notes or directories.

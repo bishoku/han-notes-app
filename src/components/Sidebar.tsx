@@ -12,6 +12,7 @@ import {
   CheckCircle,
   FolderPlus,
   FilePlus,
+  FileUp,
   FileCheck,
   Tag,
   ChevronDown,
@@ -355,6 +356,13 @@ export const Sidebar: React.FC = () => {
               title={activeFolderPath ? `${t('newFolder')} ("${activeFolderPath}")` : t('newFolder')}
             >
               <FolderPlus size={15} />
+            </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-pdf-import-picker'))}
+              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
+              title="PDF İçe Aktar (Smart PDF Import)"
+            >
+              <FileUp size={15} />
             </button>
             <button
               onClick={() => setSidebarOpen(false)}

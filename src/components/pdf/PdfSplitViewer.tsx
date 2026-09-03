@@ -1,0 +1,453 @@
+/**
+ * PdfSplitViewer.tsx — Side-by-side interactive PDF Reader & Deep-Linked Citation Tool.
+ * Renders vector-sharp PDF pages with text selection layer and one-click note quote insertion.
+ */
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  X,
+  Quote,
+  Loader2,
+  Check,
+} from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+import 'pdfjs-dist/web/pdf_viewer.css';
+import { storage } from '@/services/storage';
+
+interface PdfSplitViewerProps {
+  pdfPath: string;
+  pdfName: string;
+  initialPage?: number;
+  jumpKey?: number;
+  onClose: () => void;
+  onInsertQuote: (quoteText: string, pageNumber: number) => void;
+}
+
+export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
+  pdfPath,
+  pdfName,
+  initialPage = 1,
+  jumpKey,
+  onClose,
+  onInsertQuote,
+}) => {
+  const [doc, setDoc] = useState<any>(null);
+  const [numPages, setNumPages] = useState<number>(1);
+  const [currentPage, setCurrentPage] = useState<number>(initialPage);
+  const [scale, setScale] = useState<number>(1.25);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pageDims, setPageDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // Split-view pane width state (resizable)
+  const [width, setWidth] = useState<number>(480);
+  const [isDraggingResizer, setIsDraggingResizer] = useState<boolean>(false);
+
+  // Floating quote pill state
+  const [selectedText, setSelectedText] = useState<string>('');
+  const [pillPos, setPillPos] = useState<{ top: number; left: number } | null>(null);
+  const [justQuoted, setJustQuoted] = useState<boolean>(false);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const textLayerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Jump to initialPage when prop or jumpKey changes
+  useEffect(() => {
+    if (initialPage && initialPage >= 1) {
+      setCurrentPage(initialPage);
+      if (containerRef.current) {
+        containerRef.current.scrollTop = 0;
+      }
+    }
+  }, [initialPage, jumpKey]);
+
+  // Load PDF Document
+  useEffect(() => {
+    let isCancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+
+    const loadDoc = async () => {
+      try {
+        let pdfSource: any;
+        if (pdfPath.startsWith('http') || pdfPath.startsWith('data:')) {
+          pdfSource = pdfPath;
+        } else {
+          const dataUrl = await storage.getImageDataUrl(pdfPath);
+          pdfSource = dataUrl;
+        }
+
+        let loadingTask: any;
+        if (typeof pdfSource === 'string' && pdfSource.startsWith('data:')) {
+          const base64 = pdfSource.split(',')[1];
+          const binaryStr = atob(base64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          loadingTask = pdfjsLib.getDocument({ data: bytes, useSystemFonts: true });
+        } else {
+          loadingTask = pdfjsLib.getDocument({ url: pdfSource, useSystemFonts: true });
+        }
+
+        const loadedDoc = await loadingTask.promise;
+        if (!isCancelled) {
+          setDoc(loadedDoc);
+          setNumPages(loadedDoc.numPages);
+          setIsLoading(false);
+        }
+      } catch (err: any) {
+        if (!isCancelled) {
+          console.error('Failed to load PDF in SplitViewer:', err);
+          setLoadError(err.message || 'PDF dokümanı yüklenemedi.');
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadDoc();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [pdfPath]);
+
+  // Render Page onto Canvas
+  useEffect(() => {
+    if (!doc || !canvasRef.current) return;
+    let renderTask: any = null;
+
+    const renderPage = async () => {
+      try {
+        const page = await doc.getPage(currentPage);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const pixelRatio = window.devicePixelRatio || 1;
+        const viewport = page.getViewport({ scale });
+        const w = Math.floor(viewport.width);
+        const h = Math.floor(viewport.height);
+
+        setPageDims({ width: w, height: h });
+
+        canvas.width = Math.floor(viewport.width * pixelRatio);
+        canvas.height = Math.floor(viewport.height * pixelRatio);
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+
+        const transform = pixelRatio !== 1 ? [pixelRatio, 0, 0, pixelRatio, 0, 0] : null;
+
+        renderTask = page.render({
+          canvasContext: ctx,
+          viewport,
+          transform,
+        });
+
+        await renderTask.promise;
+
+        // Render TextLayer for high-accuracy text selection
+        const textContent = await page.getTextContent();
+        if (textLayerRef.current) {
+          textLayerRef.current.innerHTML = '';
+          textLayerRef.current.style.width = `${w}px`;
+          textLayerRef.current.style.height = `${h}px`;
+
+          const textLayer = new (pdfjsLib as any).TextLayer({
+            textContentSource: textContent,
+            container: textLayerRef.current,
+            viewport,
+          });
+          await textLayer.render();
+        }
+      } catch (err: any) {
+        if (err.name !== 'RenderingCancelledException') {
+          console.error('Page render failed:', err);
+        }
+      }
+    };
+
+    renderPage();
+
+    return () => {
+      if (renderTask) {
+        renderTask.cancel();
+      }
+    };
+  }, [doc, currentPage, scale]);
+
+  // Handle Text Selection for Floating Quote Pill
+  const handleMouseUp = useCallback((e?: React.MouseEvent) => {
+    // If the mouseup happened inside the quote pill container, ignore
+    if (e && (e.target as HTMLElement)?.closest?.('.quote-pill-container')) {
+      return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      setPillPos(null);
+      setSelectedText('');
+      return;
+    }
+
+    const text = selection.toString().trim();
+    if (text.length >= 1 && containerRef.current) {
+      try {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        const containerRect = containerRef.current.getBoundingClientRect();
+
+        // Check if selection is within the PDF scroll container
+        if (
+          rect.bottom < containerRect.top ||
+          rect.top > containerRect.bottom ||
+          rect.right < containerRect.left ||
+          rect.left > containerRect.right
+        ) {
+          setPillPos(null);
+          return;
+        }
+
+        // Relative coordinates inside container taking scroll into account
+        const scrollTop = containerRef.current.scrollTop;
+        const scrollLeft = containerRef.current.scrollLeft;
+
+        // Position pill immediately below the bottom of the selected word/range (6px gap)
+        const relBottom = rect.bottom - containerRect.top + scrollTop;
+        const relTop = rect.top - containerRect.top + scrollTop;
+        const relCenterX = rect.left - containerRect.left + scrollLeft + rect.width / 2;
+
+        let top = relBottom + 6;
+        // If placing it below would overflow the visible viewport, flip to 6px above
+        if (rect.bottom + 42 > containerRect.bottom && relTop - 36 > 0) {
+          top = relTop - 36;
+        }
+
+        setSelectedText(text);
+        setPillPos({
+          top: Math.round(top),
+          left: Math.round(relCenterX),
+        });
+      } catch {
+        setPillPos(null);
+      }
+    } else {
+      setPillPos(null);
+      setSelectedText('');
+    }
+  }, []);
+
+  // Insert Quote Action
+  const handleQuoteClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!selectedText) return;
+    onInsertQuote(selectedText, currentPage);
+    setJustQuoted(true);
+    setTimeout(() => {
+      setJustQuoted(false);
+      setPillPos(null);
+      setSelectedText('');
+      window.getSelection()?.removeAllRanges();
+    }, 1200);
+  };
+
+  // Resizer Dragging
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingResizer) return;
+      const newWidth = Math.min(Math.max(e.clientX - 200, 320), window.innerWidth * 0.65);
+      setWidth(newWidth);
+    };
+
+    const handleMouseUpResizer = () => {
+      setIsDraggingResizer(false);
+    };
+
+    if (isDraggingResizer) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUpResizer);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUpResizer);
+    };
+  }, [isDraggingResizer]);
+
+  return (
+    <div
+      style={{ width: `${width}px` }}
+      className="h-full border-r border-gray-200 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-950 flex flex-col relative shrink-0 z-20"
+    >
+      {/* Top Header & Page Navigation Toolbar */}
+      <div className="h-11 px-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2 truncate min-w-0 pr-1">
+          <FileText size={15} className="text-purple-600 dark:text-purple-400 shrink-0" />
+          <span
+            className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate cursor-help"
+            title={pdfName}
+          >
+            {pdfName}
+          </span>
+        </div>
+
+        {/* Page Switcher */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1 || isLoading}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer"
+            title="Önceki Sayfa"
+          >
+            <ChevronLeft size={14} />
+          </button>
+
+          <span className="text-[11px] font-mono text-gray-600 dark:text-gray-400 px-1">
+            {currentPage} / {numPages}
+          </span>
+
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
+            disabled={currentPage >= numPages || isLoading}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer"
+            title="Sonraki Sayfa"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+
+        {/* Zoom & Close Controls */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={() => setScale((s) => Math.max(0.6, s - 0.15))}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+            title="Uzaklaştır"
+          >
+            <ZoomOut size={13} />
+          </button>
+          <button
+            onClick={() => setScale(1.25)}
+            className="text-[10px] font-mono text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 px-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded cursor-pointer"
+            title="Sıfırla"
+          >
+            {Math.round((scale / 1.25) * 100)}%
+          </button>
+          <button
+            onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+            title="Yakınlaştır"
+          >
+            <ZoomIn size={13} />
+          </button>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer ml-1"
+            title="Okuyucuyu Kapat"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* PDF Canvas & Text Selection Container */}
+      <div
+        ref={containerRef}
+        onMouseUp={handleMouseUp}
+        className="pdfViewer flex-1 overflow-auto p-4 flex justify-center items-start relative select-text"
+        style={{
+          '--scale-factor': `${scale}`,
+        } as any}
+      >
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center gap-2 h-64 text-gray-400">
+            <Loader2 size={24} className="animate-spin text-purple-600" />
+            <span className="text-xs">PDF yükleniyor...</span>
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center gap-2 h-64 text-red-500 text-xs text-center px-4">
+            <p className="font-semibold">Doküman açılamadı</p>
+            <p className="text-gray-400 text-[11px]">{loadError}</p>
+          </div>
+        ) : (
+          <div
+            className="page relative shadow-lg rounded-sm overflow-hidden bg-white select-text"
+            style={{
+              width: pageDims.width ? `${pageDims.width}px` : undefined,
+              height: pageDims.height ? `${pageDims.height}px` : undefined,
+              '--scale-factor': `${scale}`,
+            } as any}
+          >
+            <div className="canvasWrapper" style={{ width: '100%', height: '100%' }}>
+              <canvas ref={canvasRef} className="block max-w-none pointer-events-none" />
+            </div>
+            <div
+              ref={textLayerRef}
+              className="textLayer"
+              style={{
+                width: pageDims.width ? `${pageDims.width}px` : undefined,
+                height: pageDims.height ? `${pageDims.height}px` : undefined,
+              }}
+            />
+          </div>
+        )}
+
+        {/* Floating Quick Quote Pill */}
+        {pillPos && (
+          <div
+            style={{
+              top: `${pillPos.top}px`,
+              left: `${pillPos.left}px`,
+              transform: 'translateX(-50%)',
+            }}
+            className="quote-pill-container absolute z-40 animate-in fade-in zoom-in-95 duration-100 pointer-events-auto"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={handleQuoteClick}
+              className="flex items-center gap-1.5 px-3 py-1 bg-gray-950/95 dark:bg-zinc-100/95 text-white dark:text-gray-900 rounded-full shadow-2xl text-[11px] font-semibold hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/20 dark:border-black/20 select-none whitespace-nowrap"
+            >
+              {justQuoted ? (
+                <>
+                  <Check size={12} className="text-emerald-400 dark:text-emerald-600" />
+                  <span>Alıntı Eklendi!</span>
+                </>
+              ) : (
+                <>
+                  <Quote size={11} className="text-purple-400 dark:text-purple-600" />
+                  <span>Nota Alıntı Ekle</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Draggable Resizer Handle on Right Border */}
+      <div
+        onMouseDown={() => setIsDraggingResizer(true)}
+        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-purple-500/40 active:bg-purple-600 transition-colors z-30"
+      />
+    </div>
+  );
+};

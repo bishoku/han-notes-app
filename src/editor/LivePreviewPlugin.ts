@@ -209,6 +209,162 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
     items.push({ from: h.from, to: h.to, dec: hiddenMark });
   }
 
+  // Helper: Apply inline text formatting, wikilinks, and web links
+  const applyInlineDecorationsToLine = (
+    targetLine: { from: number; to: number; text: string },
+    minOffset = 0
+  ) => {
+    const text = targetLine.text;
+    const lineFrom = targetLine.from;
+
+    if (isInsideFencedCode(lineFrom)) return;
+
+    // 1. Bold Italic: ***text*** or ___text___
+    boldItalicRe.lastIndex = 0;
+    let biMatch: RegExpExecArray | null;
+    while ((biMatch = boldItalicRe.exec(text)) !== null) {
+      const biFrom = lineFrom + biMatch.index;
+      const biTo = biFrom + biMatch[0].length;
+      if (biFrom < minOffset) continue;
+      items.push({ from: biFrom, to: biFrom + 3, dec: hiddenMark });
+      items.push({ from: biFrom + 3, to: biTo - 3, dec: boldItalicMark });
+      items.push({ from: biTo - 3, to: biTo, dec: hiddenMark });
+    }
+
+    // 2. Bold: **text** or __text__
+    boldRe.lastIndex = 0;
+    let bMatch: RegExpExecArray | null;
+    while ((bMatch = boldRe.exec(text)) !== null) {
+      const bFrom = lineFrom + bMatch.index;
+      const bTo = bFrom + bMatch[0].length;
+      if (bFrom < minOffset) continue;
+      items.push({ from: bFrom, to: bFrom + 2, dec: hiddenMark });
+      items.push({ from: bFrom + 2, to: bTo - 2, dec: boldMark });
+      items.push({ from: bTo - 2, to: bTo, dec: hiddenMark });
+    }
+
+    // 3. Italic: *text* or _text_
+    italicRe.lastIndex = 0;
+    let iMatch: RegExpExecArray | null;
+    while ((iMatch = italicRe.exec(text)) !== null) {
+      const iFrom = lineFrom + iMatch.index;
+      const iTo = iFrom + iMatch[0].length;
+      if (iFrom < minOffset) continue;
+      items.push({ from: iFrom, to: iFrom + 1, dec: hiddenMark });
+      items.push({ from: iFrom + 1, to: iTo - 1, dec: italicMark });
+      items.push({ from: iTo - 1, to: iTo, dec: hiddenMark });
+    }
+
+    // 4. Strikethrough: ~~text~~
+    strikeRe.lastIndex = 0;
+    let sMatch: RegExpExecArray | null;
+    while ((sMatch = strikeRe.exec(text)) !== null) {
+      const sFrom = lineFrom + sMatch.index;
+      const sTo = sFrom + sMatch[0].length;
+      if (sFrom < minOffset) continue;
+      items.push({ from: sFrom, to: sFrom + 2, dec: hiddenMark });
+      items.push({ from: sFrom + 2, to: sTo - 2, dec: strikethroughMark });
+      items.push({ from: sTo - 2, to: sTo, dec: hiddenMark });
+    }
+
+    // 5. Highlight: ==text==
+    highlightRe.lastIndex = 0;
+    let hlMatch: RegExpExecArray | null;
+    while ((hlMatch = highlightRe.exec(text)) !== null) {
+      const hlFrom = lineFrom + hlMatch.index;
+      const hlTo = hlFrom + hlMatch[0].length;
+      if (hlFrom < minOffset) continue;
+      items.push({ from: hlFrom, to: hlFrom + 2, dec: hiddenMark });
+      items.push({ from: hlFrom + 2, to: hlTo - 2, dec: highlightMark });
+      items.push({ from: hlTo - 2, to: hlTo, dec: hiddenMark });
+    }
+
+    // 6. Inline Code: `code`
+    codeRe.lastIndex = 0;
+    let cMatch: RegExpExecArray | null;
+    while ((cMatch = codeRe.exec(text)) !== null) {
+      const cFrom = lineFrom + cMatch.index;
+      const cTo = cFrom + cMatch[0].length;
+      if (cFrom < minOffset) continue;
+      items.push({ from: cFrom, to: cFrom + 1, dec: hiddenMark });
+      items.push({ from: cFrom + 1, to: cTo - 1, dec: inlineCodeMark });
+      items.push({ from: cTo - 1, to: cTo, dec: hiddenMark });
+    }
+
+    // N. Wikilinks [[Note Title]]
+    wikilinkRe.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = wikilinkRe.exec(text)) !== null) {
+      const matchFrom = lineFrom + match.index;
+      const matchTo = matchFrom + match[0].length;
+      if (matchFrom < minOffset) continue;
+      const rawContent = match[1].trim();
+      if (!rawContent) continue;
+
+      let target = rawContent;
+      let display = rawContent;
+      if (rawContent.includes('|')) {
+        const parts = rawContent.split('|');
+        target = parts[0].trim();
+        display = parts[1].trim() || target;
+      }
+
+      const widget = getCachedWidget(
+        `wl:${matchFrom}:${matchTo}:${target}`,
+        () => new WikilinkWidget(target, display, matchFrom, matchTo)
+      );
+      items.push({
+        from: matchFrom,
+        to: matchTo,
+        dec: Decoration.replace({ widget }),
+      });
+    }
+
+    // Standard Markdown Links: [Label](url)
+    webLinkRe.lastIndex = 0;
+    let wlMatch: RegExpExecArray | null;
+    while ((wlMatch = webLinkRe.exec(text)) !== null) {
+      const linkFrom = lineFrom + wlMatch.index;
+      const linkTo = linkFrom + wlMatch[0].length;
+      if (linkFrom < minOffset) continue;
+      const label = wlMatch[1];
+      const url = wlMatch[2];
+
+      const widget = getCachedWidget(
+        `web:${linkFrom}:${linkTo}:${url}`,
+        () => new WebLinkWidget(label, url, linkFrom, linkTo)
+      );
+      items.push({
+        from: linkFrom,
+        to: linkTo,
+        dec: Decoration.replace({ widget }),
+      });
+    }
+
+    // Bare URLs: https://example.com
+    bareUrlRe.lastIndex = 0;
+    let buMatch: RegExpExecArray | null;
+    while ((buMatch = bareUrlRe.exec(text)) !== null) {
+      const linkFrom = lineFrom + buMatch.index;
+      const linkTo = linkFrom + buMatch[0].length;
+      if (linkFrom < minOffset) continue;
+      const url = buMatch[1];
+
+      const hasOverlap = items.some((it) => linkFrom < it.to && linkTo > it.from);
+      if (!hasOverlap) {
+        const widget = getCachedWidget(
+          `bare:${linkFrom}:${linkTo}:${url}`,
+          () => new WebLinkWidget(url, url, linkFrom, linkTo)
+        );
+        items.push({
+          from: linkFrom,
+          to: linkTo,
+          dec: Decoration.replace({ widget }),
+        });
+      }
+    }
+  };
+
   // 4. Viewport-scoped Line by Line Processing
   let l = startLineNum;
   while (l <= endLineNum) {
@@ -238,8 +394,8 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       continue;
     }
 
-    // A. Detect Callout Header: > [!NOTE] / > [!WARNING] / > [!TIP] / > [!IMPORTANT] / > [!CAUTION]
-    const calloutMatch = text.match(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
+    // A. Detect Callout Header: > [!NOTE] / > [!WARNING] / > [!TIP] / > [!IMPORTANT] / > [!CAUTION] / > [!QUOTE] / > [!INFO]
+    const calloutMatch = text.match(/^(?:>\s*)?\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|QUOTE|INFO)\]\s*(.*)$/i);
     if (!isInsideFencedCode(line.from) && calloutMatch) {
       const type = calloutMatch[1].toUpperCase();
       const calloutDecs = calloutLineDecs[type] || calloutLineDecs.NOTE;
@@ -264,16 +420,21 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
         dec: isSingleLine ? calloutDecs.single : calloutDecs.header,
       });
 
-      // Replace prefix `> [!NOTE] ` with atomic IconWidget
-      const prefixMatch = text.match(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i);
+      // Replace prefix `> [!NOTE] ` or `[!NOTE] ` with atomic IconWidget
+      const prefixMatch = text.match(/^(?:>\s*)?\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|QUOTE|INFO)\]\s*/i);
+      let headerPrefixEnd = line.from;
       if (prefixMatch) {
         const prefixFrom = line.from;
         const prefixTo = line.from + prefixMatch[0].length;
+        headerPrefixEnd = prefixTo;
         const widgetDec = Decoration.replace({
           widget: new IconWidget(icon, type, prefixFrom),
         });
         items.push({ from: prefixFrom, to: prefixTo, dec: widgetDec });
       }
+
+      // Format inline elements on header line after prefix
+      applyInlineDecorationsToLine(line, headerPrefixEnd);
 
       // Line decorations for Body Lines 2..N
       for (let bL = l + 1; bL <= calloutEndLine; bL++) {
@@ -285,12 +446,17 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
 
         items.push({ from: bLine.from, to: bLine.from, dec: bodyDec });
 
+        let contentStart = bLine.from;
         const leadMatch = bLine.text.match(/^>\s?/);
         if (leadMatch) {
           const leadFrom = bLine.from;
           const leadTo = bLine.from + leadMatch[0].length;
+          contentStart = leadTo;
           items.push({ from: leadFrom, to: leadTo, dec: hiddenMark });
         }
+
+        // CRITICAL: Format inline elements inside callout body (Wikilinks, bold, links)!
+        applyInlineDecorationsToLine(bLine, contentStart);
       }
 
       l = calloutEndLine + 1;
@@ -610,145 +776,8 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
       items.push({ from: commentFrom, to: commentTo, dec: hiddenMark });
     }
 
-    // K. Inline Text Formatting (Bold, Italic, Strikethrough, Highlight, Inline Code)
-    if (!isInsideFencedCode(line.from)) {
-      // 1. Bold Italic: ***text*** or ___text___
-      boldItalicRe.lastIndex = 0;
-      let biMatch: RegExpExecArray | null;
-      while ((biMatch = boldItalicRe.exec(text)) !== null) {
-        const biFrom = line.from + biMatch.index;
-        const biTo = biFrom + biMatch[0].length;
-        items.push({ from: biFrom, to: biFrom + 3, dec: hiddenMark });
-        items.push({ from: biFrom + 3, to: biTo - 3, dec: boldItalicMark });
-        items.push({ from: biTo - 3, to: biTo, dec: hiddenMark });
-      }
-
-      // 2. Bold: **text** or __text__
-      boldRe.lastIndex = 0;
-      let bMatch: RegExpExecArray | null;
-      while ((bMatch = boldRe.exec(text)) !== null) {
-        const bFrom = line.from + bMatch.index;
-        const bTo = bFrom + bMatch[0].length;
-        items.push({ from: bFrom, to: bFrom + 2, dec: hiddenMark });
-        items.push({ from: bFrom + 2, to: bTo - 2, dec: boldMark });
-        items.push({ from: bTo - 2, to: bTo, dec: hiddenMark });
-      }
-
-      // 3. Italic: *text* or _text_
-      italicRe.lastIndex = 0;
-      let iMatch: RegExpExecArray | null;
-      while ((iMatch = italicRe.exec(text)) !== null) {
-        const iFrom = line.from + iMatch.index;
-        const iTo = iFrom + iMatch[0].length;
-        items.push({ from: iFrom, to: iFrom + 1, dec: hiddenMark });
-        items.push({ from: iFrom + 1, to: iTo - 1, dec: italicMark });
-        items.push({ from: iTo - 1, to: iTo, dec: hiddenMark });
-      }
-
-      // 4. Strikethrough: ~~text~~
-      strikeRe.lastIndex = 0;
-      let sMatch: RegExpExecArray | null;
-      while ((sMatch = strikeRe.exec(text)) !== null) {
-        const sFrom = line.from + sMatch.index;
-        const sTo = sFrom + sMatch[0].length;
-        items.push({ from: sFrom, to: sFrom + 2, dec: hiddenMark });
-        items.push({ from: sFrom + 2, to: sTo - 2, dec: strikethroughMark });
-        items.push({ from: sTo - 2, to: sTo, dec: hiddenMark });
-      }
-
-      // 5. Highlight: ==text==
-      highlightRe.lastIndex = 0;
-      let hlMatch: RegExpExecArray | null;
-      while ((hlMatch = highlightRe.exec(text)) !== null) {
-        const hlFrom = line.from + hlMatch.index;
-        const hlTo = hlFrom + hlMatch[0].length;
-        items.push({ from: hlFrom, to: hlFrom + 2, dec: hiddenMark });
-        items.push({ from: hlFrom + 2, to: hlTo - 2, dec: highlightMark });
-        items.push({ from: hlTo - 2, to: hlTo, dec: hiddenMark });
-      }
-
-      // 6. Inline Code: `code`
-      codeRe.lastIndex = 0;
-      let cMatch: RegExpExecArray | null;
-      while ((cMatch = codeRe.exec(text)) !== null) {
-        const cFrom = line.from + cMatch.index;
-        const cTo = cFrom + cMatch[0].length;
-        items.push({ from: cFrom, to: cFrom + 1, dec: hiddenMark });
-        items.push({ from: cFrom + 1, to: cTo - 1, dec: inlineCodeMark });
-        items.push({ from: cTo - 1, to: cTo, dec: hiddenMark });
-      }
-    }
-
-    // N. Wikilinks [[Note Title]]
-    wikilinkRe.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = wikilinkRe.exec(text)) !== null) {
-      const matchFrom = line.from + match.index;
-      const matchTo = matchFrom + match[0].length;
-      const rawContent = match[1].trim();
-      if (!rawContent) continue;
-
-      let target = rawContent;
-      let display = rawContent;
-      if (rawContent.includes('|')) {
-        const parts = rawContent.split('|');
-        target = parts[0].trim();
-        display = parts[1].trim() || target;
-      }
-
-      const widget = getCachedWidget(
-        `wl:${matchFrom}:${matchTo}:${target}`,
-        () => new WikilinkWidget(target, display, matchFrom, matchTo)
-      );
-      items.push({
-        from: matchFrom,
-        to: matchTo,
-        dec: Decoration.replace({ widget }),
-      });
-    }
-
-    // Standard Markdown Links: [Label](url)
-    webLinkRe.lastIndex = 0;
-    let wlMatch: RegExpExecArray | null;
-    while ((wlMatch = webLinkRe.exec(text)) !== null) {
-      const linkFrom = line.from + wlMatch.index;
-      const linkTo = linkFrom + wlMatch[0].length;
-      const label = wlMatch[1];
-      const url = wlMatch[2];
-
-      const widget = getCachedWidget(
-        `web:${linkFrom}:${linkTo}:${url}`,
-        () => new WebLinkWidget(label, url, linkFrom, linkTo)
-      );
-      items.push({
-        from: linkFrom,
-        to: linkTo,
-        dec: Decoration.replace({ widget }),
-      });
-    }
-
-    // Bare URLs: https://example.com (only if not already part of an image or markdown link)
-    bareUrlRe.lastIndex = 0;
-    let buMatch: RegExpExecArray | null;
-    while ((buMatch = bareUrlRe.exec(text)) !== null) {
-      const linkFrom = line.from + buMatch.index;
-      const linkTo = linkFrom + buMatch[0].length;
-      const url = buMatch[1];
-
-      // Check for overlap with existing item ranges
-      const hasOverlap = items.some((it) => linkFrom < it.to && linkTo > it.from);
-      if (!hasOverlap) {
-        const widget = getCachedWidget(
-          `bare:${linkFrom}:${linkTo}:${url}`,
-          () => new WebLinkWidget(url, url, linkFrom, linkTo)
-        );
-        items.push({
-          from: linkFrom,
-          to: linkTo,
-          dec: Decoration.replace({ widget }),
-        });
-      }
-    }
+    // K. Inline Text Formatting (Bold, Italic, Strikethrough, Highlight, Inline Code, Wikilinks, Links)
+    applyInlineDecorationsToLine(line, line.from);
 
     // O. HTML Colored span tags: <span style="color: #ef4444">text</span>
     spanColorRe.lastIndex = 0;

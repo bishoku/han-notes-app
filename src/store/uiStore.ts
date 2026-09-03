@@ -45,6 +45,13 @@ interface UiState {
   fontSize: FontSize;
   viewMode: 'notes' | 'tasks' | 'decisions' | 'mindmap' | 'search';
   editorMode: 'preview' | 'raw';
+  pdfSplitReader: {
+    isOpen: boolean;
+    pdfPath: string;
+    pdfName: string;
+    initialPage: number;
+    jumpKey?: number;
+  };
   
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -53,6 +60,8 @@ interface UiState {
   setSearchModalOpen: (open: boolean) => void;
   setSearchQuery: (query: string) => void;
   openSearch: (query?: string) => void;
+  openPdfSplitReader: (pdfPath: string, initialPage?: number) => void;
+  closePdfSplitReader: () => void;
   setTheme: (theme: AppTheme) => void;
   setLanguage: (lang: AppLanguage) => void;
   setFontSize: (size: FontSize) => void;
@@ -76,6 +85,13 @@ export const useUiStore = create<UiState>((set, get) => ({
   fontSize: initialFontSize,
   viewMode: 'notes',
   editorMode: 'preview',
+  pdfSplitReader: {
+    isOpen: false,
+    pdfPath: '',
+    pdfName: '',
+    initialPage: 1,
+    jumpKey: 0,
+  },
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
@@ -84,6 +100,30 @@ export const useUiStore = create<UiState>((set, get) => ({
   setSearchModalOpen: (open) => set({ isSearchModalOpen: open }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   openSearch: (query = '') => set({ isSearchModalOpen: true, searchQuery: query }),
+  openPdfSplitReader: (pdfPath, initialPage = 1) => {
+    const cleanPath = pdfPath.replace(/^\[\[/, '').replace(/\]\]$/, '');
+    const pageMatch = cleanPath.match(/#page=(\d+)/i);
+    const targetPage = pageMatch ? parseInt(pageMatch[1], 10) : initialPage;
+    const pathWithoutHash = cleanPath.split('#')[0];
+    const pdfName = pathWithoutHash.split('/').pop() || 'Doküman.pdf';
+    set({
+      pdfSplitReader: {
+        isOpen: true,
+        pdfPath: pathWithoutHash,
+        pdfName,
+        initialPage: targetPage,
+        jumpKey: Date.now(),
+      },
+    });
+  },
+  closePdfSplitReader: () => {
+    set((s) => ({
+      pdfSplitReader: {
+        ...s.pdfSplitReader,
+        isOpen: false,
+      },
+    }));
+  },
 
   setFontSize: (size) => {
     localStorage.setItem(SAVED_FONTSIZE_KEY, size);
