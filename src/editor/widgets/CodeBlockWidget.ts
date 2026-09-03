@@ -26,8 +26,12 @@ export class CodeBlockWidget extends WidgetType {
   }
 
   get estimatedHeight(): number {
-    const lineCount = this.codeText.split('\n').length;
-    return Math.min(500, Math.max(50, lineCount * 19 + 28));
+    const lines = this.codeText.replace(/\n+$/, '').split('\n');
+    const lineCount = lines.length;
+    if (lineCount > 28) {
+      return 516;
+    }
+    return Math.max(50, lineCount * 20 + 36);
   }
 
   ignoreEvent(_event: Event): boolean {
@@ -46,8 +50,10 @@ export class CodeBlockWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement("div");
-    wrap.className = "cm-codeblock-wrap my-2.5 rounded-lg border border-gray-200/80 dark:border-zinc-800/80 bg-[#f8fafc] dark:bg-[#111215] shadow-xs overflow-hidden group/codeblock relative max-w-full transition-all";
+    wrap.className = "cm-codeblock-wrap my-2.5 rounded-lg border border-gray-200/80 dark:border-zinc-800/80 bg-[#f8fafc] dark:bg-[#111215] shadow-xs overflow-hidden group/codeblock relative w-full max-w-full min-w-0 box-border transition-all";
     wrap.style.lineHeight = "normal";
+    wrap.style.boxSizing = "border-box";
+    wrap.style.maxWidth = "100%";
     wrap.setAttribute("contenteditable", "false");
     wrap.setAttribute("tabindex", "-1");
     wrap.style.userSelect = "text";
@@ -68,12 +74,14 @@ export class CodeBlockWidget extends WidgetType {
     });
 
     const badge = getLanguageConfig(this.lang);
-    const lines = this.codeText.split('\n');
-    const isLong = lines.length > 35;
+    // Strip trailing newlines for clean rendering and accurate line counts
+    const cleanCode = this.codeText.replace(/\n+$/, '');
+    const lines = cleanCode ? cleanCode.split('\n') : [''];
+    const isLong = lines.length > 28;
 
     // ─── Compact Header Bar (26px height, unselectable) ───
     const header = document.createElement("div");
-    header.className = "flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-[#16171b]/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px] cursor-default";
+    header.className = "flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-[#16171b]/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px] cursor-default w-full max-w-full box-border";
     header.style.userSelect = "none";
     (header.style as any).WebkitUserSelect = "none";
 
@@ -113,6 +121,32 @@ export class CodeBlockWidget extends WidgetType {
 
     leftInfo.appendChild(pill);
     leftInfo.appendChild(lineCountBadge);
+
+    let isExpanded = false;
+    if (isLong) {
+      const expandBtn = document.createElement("button");
+      expandBtn.type = "button";
+      expandBtn.className = "text-[10px] text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 font-medium px-1.5 py-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer select-none";
+      expandBtn.textContent = "Tümünü Göster";
+      expandBtn.onmousedown = (e) => { e.preventDefault(); e.stopPropagation(); };
+      expandBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isExpanded = !isExpanded;
+        if (isExpanded) {
+          body.style.maxHeight = "none";
+          body.style.overflowY = "visible";
+          expandBtn.textContent = "Daralt";
+        } else {
+          body.style.maxHeight = "520px";
+          body.style.overflowY = "auto";
+          expandBtn.textContent = "Tümünü Göster";
+        }
+        view.requestMeasure();
+      };
+      leftInfo.appendChild(expandBtn);
+    }
+
     header.appendChild(leftInfo);
 
     // Right: Action toolbar buttons
@@ -215,22 +249,30 @@ export class CodeBlockWidget extends WidgetType {
 
     // ─── Code Content Body (Selectable text) ───
     const body = document.createElement("div");
-    body.className = "flex overflow-x-auto p-2.5 font-mono text-[12px] leading-relaxed cursor-text select-text";
+    body.className = "cm-codeblock-body flex w-full max-w-full min-w-0 font-mono text-[12px] cursor-text select-text relative box-border";
     body.style.userSelect = "text";
     (body.style as any).WebkitUserSelect = "text";
+    body.style.overflowX = "hidden"; // Body NEVER scrolls horizontally; codeArea does
+    body.style.boxSizing = "border-box";
     if (isLong) {
       body.style.maxHeight = "520px";
+      body.style.overflowY = "auto"; // Single vertical scrollbar on body
+    } else {
+      body.style.maxHeight = "none";
+      body.style.overflowY = "visible";
     }
 
     // Line Numbers Gutter (Unselectable)
     const gutter = document.createElement("div");
-    gutter.className = "cm-codeblock-gutter flex flex-col text-right pr-2.5 select-none text-gray-300 dark:text-zinc-600 font-mono text-[10.5px] border-r border-gray-200/50 dark:border-zinc-800/60 shrink-0 pointer-events-none";
-    gutter.style.lineHeight = "1.55";
+    gutter.className = "cm-codeblock-gutter flex flex-col text-right py-2.5 pl-2 pr-2.5 select-none text-gray-400 dark:text-zinc-500 font-mono text-[11px] border-r border-gray-200/60 dark:border-zinc-800/60 shrink-0 pointer-events-none";
+    gutter.style.lineHeight = "20px";
     gutter.style.userSelect = "none";
     (gutter.style as any).WebkitUserSelect = "none";
+    gutter.style.overflow = "hidden";
 
     for (let i = 1; i <= lines.length; i++) {
       const numSpan = document.createElement("span");
+      numSpan.className = "block h-[20px] leading-[20px]";
       numSpan.textContent = String(i);
       gutter.appendChild(numSpan);
     }
@@ -238,15 +280,31 @@ export class CodeBlockWidget extends WidgetType {
 
     // Code Content Area (Fully Selectable & Copyable)
     const codeArea = document.createElement("pre");
-    codeArea.className = "cm-codeblock-pre pl-2.5 flex-1 overflow-x-auto text-gray-800 dark:text-zinc-200 select-text font-mono outline-none";
+    codeArea.className = "cm-codeblock-pre py-2.5 pl-3 pr-4 flex-1 min-w-0 overflow-x-auto text-gray-800 dark:text-zinc-200 select-text font-mono outline-none";
     codeArea.setAttribute("tabindex", "-1");
-    codeArea.style.lineHeight = "1.55";
+    codeArea.style.lineHeight = "20px";
+    codeArea.style.fontSize = "12px";
     codeArea.style.margin = "0";
     codeArea.style.userSelect = "text";
     (codeArea.style as any).WebkitUserSelect = "text";
+    codeArea.style.overflowY = "hidden"; // Strictly no vertical scrollbar on pre!
+
+    // Forward vertical wheel scroll to body so mouse-wheel / trackpad scrolling over code lines ALWAYS scrolls body
+    codeArea.addEventListener(
+      "wheel",
+      (e: WheelEvent) => {
+        if (!isExpanded && body.scrollHeight > body.clientHeight) {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            body.scrollTop += e.deltaY;
+          }
+        }
+      },
+      { passive: true }
+    );
 
     const codeEl = document.createElement("code");
-    codeEl.className = "cm-codeblock-code select-text block font-mono";
+    codeEl.className = "cm-codeblock-code select-text block font-mono text-[12px]";
+    codeEl.style.lineHeight = "20px";
     codeEl.style.userSelect = "text";
     (codeEl.style as any).WebkitUserSelect = "text";
     // Synchronous initial fallback
@@ -256,8 +314,8 @@ export class CodeBlockWidget extends WidgetType {
 
     wrap.appendChild(body);
 
-    // Perform asynchronous syntax highlighting
-    highlightCodeToHtml(this.codeText, this.lang).then((highlightedHtml) => {
+    // Perform asynchronous syntax highlighting using cleanCode
+    highlightCodeToHtml(cleanCode, this.lang).then((highlightedHtml) => {
       if (highlightedHtml && codeEl.isConnected) {
         codeEl.innerHTML = highlightedHtml;
         view.requestMeasure();

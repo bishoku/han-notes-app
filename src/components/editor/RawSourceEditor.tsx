@@ -54,7 +54,7 @@ export const RawSourceEditor: React.FC<RawSourceEditorProps> = ({
 
   return (
     <div className="w-full h-full flex-1 overflow-y-auto bg-mac-mainLight dark:bg-mac-mainDark font-mono selection:bg-mac-accent/30 py-6 px-4 md:px-8">
-      <div className="w-full max-w-5xl mx-auto cm-raw-source-container">
+      <div className="w-full cm-raw-source-container">
         <CodeMirror
           value={value}
           onChange={onChange}

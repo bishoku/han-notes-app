@@ -145,6 +145,15 @@
   box-shadow: none !important;
 }
 
+.cm-theme-han.cm-editor,
+.cm-theme-han .cm-scroller,
+.cm-preview-mode .cm-editor,
+.cm-preview-mode .cm-scroller {
+  overflow-x: hidden !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
 .cm-theme-han .cm-scroller {
   font-family: var(--font-sans) !important;
   outline: none !important;
@@ -154,12 +163,26 @@
   contain: layout style paint;
 }
 
-.cm-theme-han .cm-content {
+.cm-theme-han .cm-content,
+.cm-preview-mode .cm-content {
   caret-color: var(--color-mac-accent) !important;
   outline: none !important;
   border: none !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
   /* Inline layout changes (widget insert/remove) stay contained within content */
   contain: layout style;
+}
+
+.cm-theme-han .cm-line,
+.cm-preview-mode .cm-line {
+  max-width: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
 }
 
 /* Headings: remove underlines and set proper typography */
@@ -246,12 +269,16 @@
   background-color: transparent !important;
 }
 
+.cm-editor .cm-line.cm-hidden-table-line,
+.cm-editor .cm-line.cm-hidden-frontmatter,
 .cm-theme-han .cm-line.cm-hidden-frontmatter,
 .cm-hidden-frontmatter,
 .cm-theme-han .cm-line.cm-hidden-table-line,
 .cm-hidden-table-line {
   display: none !important;
   height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
   border: 0 !important;
@@ -259,6 +286,21 @@
   font-size: 0 !important;
   overflow: hidden !important;
   visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.cm-editor .cm-line.cm-hidden-table-line *,
+.cm-editor .cm-line.cm-hidden-frontmatter *,
+.cm-theme-han .cm-line.cm-hidden-table-line *,
+.cm-theme-han .cm-line.cm-hidden-frontmatter * {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -328,10 +370,88 @@
   color: #ffffff !important;
 }
 
-.cm-editor .cm-line .cm-codeblock-wrap .cm-codeblock-gutter,
-.cm-editor .cm-line .cm-codeblock-wrap .cm-codeblock-gutter * {
+/* Code Block Widget — Strict Width & Layout Containment */
+.cm-codeblock-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.cm-codeblock-wrap .cm-codeblock-gutter {
   user-select: none !important;
   -webkit-user-select: none !important;
+  flex-shrink: 0 !important;
+  overflow: hidden !important;
+}
+
+.cm-codeblock-wrap .cm-codeblock-body {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+}
+
+.cm-codeblock-wrap .cm-codeblock-pre {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+.cm-codeblock-wrap .cm-codeblock-code {
+  display: block !important;
+  width: max-content !important;
+  min-width: 100% !important;
+  white-space: pre !important;
+}
+
+/* Code Block Widget — Subtle Modern Scrollbars */
+.cm-codeblock-pre::-webkit-scrollbar {
+  height: 6px;
+}
+.cm-codeblock-pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cm-codeblock-pre::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.45);
+  border-radius: 3px;
+}
+.cm-codeblock-pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.75);
+}
+.dark .cm-codeblock-pre::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.45);
+}
+.dark .cm-codeblock-pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(113, 113, 122, 0.75);
+}
+
+.cm-codeblock-body::-webkit-scrollbar {
+  width: 7px;
+}
+.cm-codeblock-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+}
+.dark .cm-codeblock-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+.cm-codeblock-body::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 4px;
+}
+.cm-codeblock-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.8);
+}
+.dark .cm-codeblock-body::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.5);
+}
+.dark .cm-codeblock-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(113, 113, 122, 0.8);
 }
 
 /* All code lines — unified box structure */
@@ -796,16 +916,16 @@
   font-size: 16px !important;
 }
 
-/* Base Body Text Lines (Exclude Headings) */
-.cm-fontsize-sm .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4) {
+/* Base Body Text Lines (Exclude Headings & Hidden Lines) */
+.cm-fontsize-sm .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4):not(.cm-hidden-table-line):not(.cm-hidden-frontmatter) {
   font-size: 13px !important;
   line-height: 1.55 !important;
 }
-.cm-fontsize-md .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4) {
+.cm-fontsize-md .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4):not(.cm-hidden-table-line):not(.cm-hidden-frontmatter) {
   font-size: 14px !important;
   line-height: 1.65 !important;
 }
-.cm-fontsize-lg .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4) {
+.cm-fontsize-lg .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3):not(.cm-h4):not(.tok-heading1):not(.tok-heading2):not(.tok-heading3):not(.tok-heading4):not(.cm-hidden-table-line):not(.cm-hidden-frontmatter) {
   font-size: 16px !important;
   line-height: 1.75 !important;
 }
