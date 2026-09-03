@@ -5,6 +5,7 @@
  * This is the production storage for macOS/Windows/Linux desktop apps.
  */
 import { invoke } from '@tauri-apps/api/core';
+import { resolveBinaryBytes } from '@/utils/pngMetadata';
 import type {
   IStorageService,
   FileNode,
@@ -193,6 +194,11 @@ export class TauriStorage implements IStorageService {
     const dataUrl = await invoke<string>('get_image_data_url', { relativePath });
     TauriStorage.imageCache.set(relativePath, dataUrl);
     return dataUrl;
+  }
+
+  async getImageBytes(relativePath: string): Promise<Uint8Array> {
+    const dataUrl = await this.getImageDataUrl(relativePath);
+    return resolveBinaryBytes(dataUrl);
   }
 
   // ── Generic Vault Files ──

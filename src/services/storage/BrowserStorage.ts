@@ -18,15 +18,41 @@ import type {
   DecisionInfo,
   DecisionRegistry,
 } from './types';
-import { normalizeNoteId, toNoteFilePath } from '@/utils/pathUtils';
+import { toNoteFilePath } from '@/utils/pathUtils';
 import initWasm, {
   wasm_parse_yaml_frontmatter,
   wasm_inject_yaml_frontmatter,
-  wasm_parse_tasks_from_content,
-  wasm_parse_decisions_from_content,
-  wasm_find_backlinks,
 } from '@/wasm/han-core/han_core';
 import wasmUrl from '@/wasm/han-core/han_core_bg.wasm?url';
+
+import { saveHandle, loadHandle, clearHandle } from './browser/handleDb';
+import {
+  clearFileTextCache,
+  readFileText,
+  writeFileText,
+  buildFileTree,
+  getOrCreateFile,
+  copyDirRecursive,
+  deleteFileByPath,
+} from './browser/fileOps';
+import {
+  getAssetUrl,
+  getAssetBytes,
+  clearImageCache,
+  saveImageBytes,
+  saveTextAsset,
+  readTextAsset,
+} from './browser/assetManager';
+import {
+  getVaultFilesBatched,
+  getGlobalTasksBatched,
+  getGlobalDecisionsBatched,
+  getBacklinksBatched,
+  invalidateNoteMetaCache,
+} from './browser/vaultIndexer';
+
+// Re-export cache invalidators for consumers
+export { clearFileTextCache, clearImageCache };
 
 // ─── WebAssembly Initialization ──────────────────────────────────────────
 
@@ -39,205 +65,11 @@ async function ensureWasmLoaded(): Promise<void> {
   await wasmPromise;
 }
 
-// ─── IndexedDB for persisting the directory handle across sessions ──────
-
-const DB_NAME = 'han-notes-browser';
-const DB_VERSION = 1;
-const HANDLE_STORE = 'handles';
-
-// In-memory cache for fast, synchronous-like image preview without disk churn
-const imageCache = new Map<string, string>();
-// In-memory text cache to prevent duplicate disk reads across multiple store operations
-const fileTextCache = new Map<string, string>();
-
-export function clearFileTextCache(path?: string) {
-  if (path) fileTextCache.delete(path);
-  else fileTextCache.clear();
-}
-
-export function clearImageCache(path?: string) {
-  if (path) imageCache.delete(path);
-  else imageCache.clear();
-}
-
-function openHandleDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(HANDLE_STORE)) {
-        db.createObjectStore(HANDLE_STORE);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function saveHandle(handle: FileSystemDirectoryHandle): Promise<void> {
-  try {
-    const db = await openHandleDB();
-    const tx = db.transaction(HANDLE_STORE, 'readwrite');
-    tx.objectStore(HANDLE_STORE).put(handle, 'vaultDir');
-    return new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (err) {
-    console.error('[BrowserStorage] Failed to save directory handle:', err);
-  }
-}
-
-async function loadHandle(): Promise<FileSystemDirectoryHandle | null> {
-  try {
-    const db = await openHandleDB();
-    const tx = db.transaction(HANDLE_STORE, 'readonly');
-    const req = tx.objectStore(HANDLE_STORE).get('vaultDir');
-    return new Promise((resolve, reject) => {
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => reject(req.error);
-    });
-  } catch (err) {
-    console.warn('[BrowserStorage] Failed to load saved handle from IndexedDB:', err);
-    return null;
-  }
-}
-
-async function clearHandle(): Promise<void> {
-  try {
-    const db = await openHandleDB();
-    const tx = db.transaction(HANDLE_STORE, 'readwrite');
-    tx.objectStore(HANDLE_STORE).delete('vaultDir');
-    return new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (err) {
-    console.warn('[BrowserStorage] Failed to clear directory handle:', err);
-  }
-}
-
-// ─── File System Access API Helpers ─────────────────────────────────────
-
-async function getOrCreateFile(
-  dir: FileSystemDirectoryHandle,
-  path: string,
-  create = false,
-): Promise<FileSystemFileHandle | null> {
-  const parts = path.split('/').filter(Boolean);
-  const fileName = parts.pop();
-  if (!fileName) return null;
-
-  let current = dir;
-  for (const part of parts) {
-    try {
-      current = await current.getDirectoryHandle(part, { create });
-    } catch {
-      return null;
-    }
-  }
-
-  try {
-    return await current.getFileHandle(fileName, { create });
-  } catch {
-    return null;
-  }
-}
-
-async function listAllMdFiles(
-  dir: FileSystemDirectoryHandle,
-  prefix = '',
-): Promise<Array<{ name: string; relativePath: string }>> {
-  const results: Array<{ name: string; relativePath: string }> = [];
-
-  for await (const entry of (dir as any).values()) {
-    if (entry.name.startsWith('.')) continue;
-
-    const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.kind === 'directory') {
-      const sub = await listAllMdFiles(entry as FileSystemDirectoryHandle, entryPath);
-      results.push(...sub);
-    } else if (entry.kind === 'file' && entry.name.endsWith('.md')) {
-      results.push({ name: entry.name, relativePath: entryPath });
-    }
-  }
-
-  return results;
-}
-
-async function readFileText(
-  dir: FileSystemDirectoryHandle,
-  path: string,
-): Promise<string> {
-  if (fileTextCache.has(path)) {
-    return fileTextCache.get(path)!;
-  }
-  const handle = await getOrCreateFile(dir, path);
-  if (!handle) return '';
-  const file = await handle.getFile();
-  const text = await file.text();
-  fileTextCache.set(path, text);
-  return text;
-}
-
-async function writeFileText(
-  dir: FileSystemDirectoryHandle,
-  path: string,
-  content: string,
-): Promise<void> {
-  const handle = await getOrCreateFile(dir, path, true);
-  if (!handle) throw new Error(`Cannot create file: ${path}`);
-  const writable = await handle.createWritable();
-  await writable.write(content);
-  await writable.close();
-  fileTextCache.set(path, content);
-}
-
-async function buildFileTree(
-  dir: FileSystemDirectoryHandle,
-  prefix = '',
-): Promise<FileNode[]> {
-  const nodes: FileNode[] = [];
-
-  for await (const entry of (dir as any).values()) {
-    if (entry.name.startsWith('.')) continue;
-
-    const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.kind === 'directory') {
-      const children = await buildFileTree(entry as FileSystemDirectoryHandle, entryPath);
-      nodes.push({
-        name: entry.name,
-        relative_path: entryPath,
-        is_dir: true,
-        children,
-      });
-    } else if (entry.kind === 'file' && entry.name.endsWith('.md')) {
-      const displayName = entry.name.replace(/\.md$/, '');
-      nodes.push({
-        name: displayName,
-        relative_path: entryPath,
-        is_dir: false,
-        children: [],
-      });
-    }
-  }
-
-  nodes.sort((a, b) => {
-    if (a.is_dir === b.is_dir) return a.name.localeCompare(b.name);
-    return a.is_dir ? -1 : 1;
-  });
-
-  return nodes;
-}
-
 // ─── BrowserStorage Implementation ──────────────────────────────────────
 
 export class BrowserStorage implements IStorageService {
   private dirHandle: FileSystemDirectoryHandle | null = null;
 
-  /**
-   * Get the name of the saved directory handle (if one exists in IndexedDB).
-   */
   async getSavedHandleName(): Promise<string | null> {
     try {
       const saved = await loadHandle();
@@ -247,11 +79,6 @@ export class BrowserStorage implements IStorageService {
     }
   }
 
-  /**
-   * Try to silently reuse a previously saved directory handle.
-   * Does NOT show any browser dialogs — safe to call on page load.
-   * Throws if no saved handle or permission not already granted.
-   */
   async init(): Promise<void> {
     await ensureWasmLoaded();
     const saved = await loadHandle();
@@ -269,10 +96,6 @@ export class BrowserStorage implements IStorageService {
     throw new Error('No saved directory handle or permission not granted.');
   }
 
-  /**
-   * Request permission for a previously saved directory handle inside a user gesture (click).
-   * Returns true if permission was granted, false otherwise.
-   */
   async requestPermissionForSaved(): Promise<boolean> {
     await ensureWasmLoaded();
     const saved = await loadHandle();
@@ -290,17 +113,11 @@ export class BrowserStorage implements IStorageService {
     }
   }
 
-  /**
-   * Clear the saved directory handle from IndexedDB.
-   */
   async clearSavedHandle(): Promise<void> {
     this.dirHandle = null;
     await clearHandle();
   }
 
-  /**
-   * Show the directory picker dialog. MUST be called from a user gesture (click).
-   */
   async pickDirectory(): Promise<void> {
     await ensureWasmLoaded();
     this.dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
@@ -320,22 +137,7 @@ export class BrowserStorage implements IStorageService {
 
   async getVaultFiles(): Promise<NoteInfo[]> {
     await ensureWasmLoaded();
-    const dir = this.getDir();
-    const files = await listAllMdFiles(dir);
-
-    const notes = await Promise.all(
-      files.map(async (f) => {
-        const content = await readFileText(dir, f.relativePath);
-        const parsed = wasm_parse_yaml_frontmatter(content);
-        const tags: string[] = parsed?.[0]?.tags || [];
-        const noteId = normalizeNoteId(f.relativePath);
-        const title = f.name.replace(/\.md$/, '');
-        return { id: noteId, title, path: f.relativePath, tags };
-      })
-    );
-
-    notes.sort((a, b) => a.title.localeCompare(b.title));
-    return notes;
+    return getVaultFilesBatched(this.getDir());
   }
 
   async getVaultTree(): Promise<FileNode[]> {
@@ -349,6 +151,8 @@ export class BrowserStorage implements IStorageService {
   async selectVaultFolder(): Promise<string | null> {
     await this.pickDirectory();
     clearFileTextCache();
+    clearImageCache();
+    invalidateNoteMetaCache();
     return this.dirHandle?.name ? `/${this.dirHandle.name}` : null;
   }
 
@@ -377,6 +181,7 @@ export class BrowserStorage implements IStorageService {
   async writeNote(id: string, content: string): Promise<void> {
     const path = toNoteFilePath(id);
     await writeFileText(this.getDir(), path, content);
+    invalidateNoteMetaCache(path);
   }
 
   async createNoteInFolder(parentPath: string, title: string): Promise<void> {
@@ -384,6 +189,7 @@ export class BrowserStorage implements IStorageService {
     const path = parentPath ? `${parentPath}/${fileName}` : fileName;
     const noteTitle = title.replace(/\.md$/, '');
     await writeFileText(this.getDir(), path, `# ${noteTitle}\n`);
+    invalidateNoteMetaCache(path);
   }
 
   async createFolder(parentPath: string, folderName: string): Promise<void> {
@@ -402,26 +208,19 @@ export class BrowserStorage implements IStorageService {
     const fileName = srcRelPath.split('/').pop() ?? srcRelPath;
     const destPath = destDirRelPath ? `${destDirRelPath}/${fileName}` : fileName;
 
-    // CRITICAL: Prevent moving a file/folder to the exact same path (which would overwrite and delete itself)
-    if (srcRelPath === destPath) {
-      return;
-    }
+    if (srcRelPath === destPath) return;
 
-    // Prevent moving a folder into its own subfolder
     if (destDirRelPath === srcRelPath || destDirRelPath.startsWith(`${srcRelPath}/`)) {
       console.warn(`Cannot move folder "${srcRelPath}" into its own subfolder "${destDirRelPath}"`);
       return;
     }
 
-    // Check if source is a file or a folder
     const srcFile = await getOrCreateFile(dir, srcRelPath, false);
     if (srcFile) {
-      // Source is a file
       const content = await readFileText(dir, srcRelPath);
       await writeFileText(dir, destPath, content);
-      await this.deleteFileByPath(dir, srcRelPath);
+      await deleteFileByPath(dir, srcRelPath);
     } else {
-      // Source is a directory — copy recursively
       const srcParts = srcRelPath.split('/').filter(Boolean);
       let currentSrc = dir;
       for (const part of srcParts) {
@@ -434,31 +233,17 @@ export class BrowserStorage implements IStorageService {
         currentDest = await currentDest.getDirectoryHandle(part, { create: true });
       }
 
-      await this.copyDirRecursive(currentSrc, currentDest);
-      await this.deleteFileByPath(dir, srcRelPath);
+      await copyDirRecursive(currentSrc, currentDest);
+      await deleteFileByPath(dir, srcRelPath);
     }
-  }
 
-  private async copyDirRecursive(
-    srcDir: FileSystemDirectoryHandle,
-    destDir: FileSystemDirectoryHandle,
-  ): Promise<void> {
-    for await (const entry of (srcDir as any).values()) {
-      if (entry.kind === 'file') {
-        const srcFile = await (entry as FileSystemFileHandle).getFile();
-        const destFileHandle = await destDir.getFileHandle(entry.name, { create: true });
-        const writable = await destFileHandle.createWritable();
-        await writable.write(await srcFile.arrayBuffer());
-        await writable.close();
-      } else if (entry.kind === 'directory') {
-        const subDestDir = await destDir.getDirectoryHandle(entry.name, { create: true });
-        await this.copyDirRecursive(entry as FileSystemDirectoryHandle, subDestDir);
-      }
-    }
+    invalidateNoteMetaCache(srcRelPath);
+    invalidateNoteMetaCache(destPath);
   }
 
   async deleteNode(relativePath: string): Promise<void> {
-    await this.deleteFileByPath(this.getDir(), relativePath);
+    await deleteFileByPath(this.getDir(), relativePath);
+    invalidateNoteMetaCache(relativePath);
   }
 
   async renameNode(relativePath: string, newName: string): Promise<void> {
@@ -466,45 +251,39 @@ export class BrowserStorage implements IStorageService {
     const srcFile = await getOrCreateFile(dir, relativePath, false);
 
     if (srcFile) {
-      // ── Source is a FILE ──
       const content = await readFileText(dir, relativePath);
       const parts = relativePath.split('/').filter(Boolean);
       parts.pop();
       const finalName = newName.endsWith('.md') ? newName : `${newName}.md`;
       const newPath = parts.length > 0 ? `${parts.join('/')}/${finalName}` : finalName;
 
-      // Prevent renaming to the exact same path
       if (relativePath === newPath) return;
 
       await writeFileText(dir, newPath, content);
-      await this.deleteFileByPath(dir, relativePath);
+      await deleteFileByPath(dir, relativePath);
+      invalidateNoteMetaCache(relativePath);
+      invalidateNoteMetaCache(newPath);
     } else {
-      // ── Source is a DIRECTORY ──
       const cleanNewName = newName.replace(/\.md$/, '').trim();
       const srcParts = relativePath.split('/').filter(Boolean);
-      srcParts.pop(); // Remove old folder name to get parent
+      srcParts.pop();
       const newPath = srcParts.length > 0 ? `${srcParts.join('/')}/${cleanNewName}` : cleanNewName;
 
-      // Prevent renaming to the exact same path
       if (relativePath === newPath) return;
 
-      // 1. Get source directory handle
       let currentSrc = dir;
       for (const part of relativePath.split('/').filter(Boolean)) {
         currentSrc = await currentSrc.getDirectoryHandle(part);
       }
 
-      // 2. Create destination directory handle
       let currentDest = dir;
       for (const part of newPath.split('/').filter(Boolean)) {
         currentDest = await currentDest.getDirectoryHandle(part, { create: true });
       }
 
-      // 3. Copy directory contents recursively
-      await this.copyDirRecursive(currentSrc, currentDest);
-
-      // 4. Delete old directory
-      await this.deleteFileByPath(dir, relativePath);
+      await copyDirRecursive(currentSrc, currentDest);
+      await deleteFileByPath(dir, relativePath);
+      invalidateNoteMetaCache();
     }
   }
 
@@ -521,19 +300,7 @@ export class BrowserStorage implements IStorageService {
 
   async getGlobalTasks(): Promise<TaskInfo[]> {
     await ensureWasmLoaded();
-    const dir = this.getDir();
-    const files = await listAllMdFiles(dir);
-
-    const taskArrays = await Promise.all(
-      files.map(async (f) => {
-        const content = await readFileText(dir, f.relativePath);
-        const noteId = normalizeNoteId(f.relativePath);
-        const fileTasks: TaskInfo[] = wasm_parse_tasks_from_content(content, noteId) || [];
-        return fileTasks;
-      })
-    );
-
-    return taskArrays.flat();
+    return getGlobalTasksBatched(this.getDir());
   }
 
   async getTaskRegistry(): Promise<TaskRegistry> {
@@ -609,19 +376,7 @@ export class BrowserStorage implements IStorageService {
 
   async getGlobalDecisions(): Promise<DecisionInfo[]> {
     await ensureWasmLoaded();
-    const dir = this.getDir();
-    const files = await listAllMdFiles(dir);
-
-    const decisionArrays = await Promise.all(
-      files.map(async (f) => {
-        const content = await readFileText(dir, f.relativePath);
-        const noteId = normalizeNoteId(f.relativePath);
-        const fileDecisions: DecisionInfo[] = wasm_parse_decisions_from_content(content, noteId) || [];
-        return fileDecisions;
-      })
-    );
-
-    return decisionArrays.flat();
+    return getGlobalDecisionsBatched(this.getDir());
   }
 
   async getDecisionRegistry(): Promise<DecisionRegistry> {
@@ -670,169 +425,29 @@ export class BrowserStorage implements IStorageService {
 
   async getBacklinks(targetNoteId: string): Promise<BacklinkInfo[]> {
     await ensureWasmLoaded();
-    const dir = this.getDir();
-    const files = await listAllMdFiles(dir);
-
-    const backlinkArrays = await Promise.all(
-      files.map(async (f) => {
-        const noteId = normalizeNoteId(f.relativePath);
-        if (noteId.toLowerCase() === targetNoteId.toLowerCase()) return [];
-
-        const content = await readFileText(dir, f.relativePath);
-        const links: BacklinkInfo[] = wasm_find_backlinks(content, noteId, targetNoteId) || [];
-        return links;
-      })
-    );
-
-    return backlinkArrays.flat();
+    return getBacklinksBatched(this.getDir(), targetNoteId);
   }
 
   // ── Assets / Images ──
 
   async saveImageBytes(relativeNoteId: string, fileName: string, bytes: Uint8Array): Promise<string> {
-    const dir = this.getDir();
-    const parentDir = relativeNoteId.includes('/')
-      ? relativeNoteId.split('/').slice(0, -1).join('/')
-      : '';
-
-    const attachmentsPath = parentDir
-      ? `${parentDir}/.attachments`
-      : '.attachments';
-
-    let current = dir;
-    for (const part of attachmentsPath.split('/').filter(Boolean)) {
-      current = await current.getDirectoryHandle(part, { create: true });
-    }
-
-    const fileHandle = await current.getFileHandle(fileName, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
-    await writable.close();
-
-    const relPath = parentDir ? `${parentDir}/.attachments/${fileName}` : `.attachments/${fileName}`;
-    imageCache.delete(relPath);
-    imageCache.delete(fileName);
-    imageCache.delete(`/${relPath}`);
-
-    return relPath;
+    return saveImageBytes(this.getDir(), relativeNoteId, fileName, bytes);
   }
 
   async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {
-    const dir = this.getDir();
-    const parentDir = relativeNoteId.includes('/')
-      ? relativeNoteId.split('/').slice(0, -1).join('/')
-      : '';
-
-    const attachmentsPath = parentDir
-      ? `${parentDir}/.attachments`
-      : '.attachments';
-
-    let current = dir;
-    for (const part of attachmentsPath.split('/').filter(Boolean)) {
-      current = await current.getDirectoryHandle(part, { create: true });
-    }
-
-    const fileHandle = await current.getFileHandle(fileName, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(content);
-    await writable.close();
-
-    const relPath = parentDir
-      ? `${parentDir}/.attachments/${fileName}`
-      : `.attachments/${fileName}`;
-
-    // Invalidate / update memory cache immediately
-    imageCache.delete(relPath);
-    imageCache.delete(fileName);
-
-    return relPath;
+    return saveTextAsset(this.getDir(), relativeNoteId, fileName, content);
   }
 
   async readTextAsset(relativePath: string): Promise<string> {
-    const dir = this.getDir();
-    const parts = relativePath.split('/').filter(Boolean);
-    const fileName = parts.pop();
-    if (!fileName) throw new Error('Invalid path');
-
-    let current = dir;
-    for (const part of parts) {
-      current = await current.getDirectoryHandle(part);
-    }
-
-    const fileHandle = await current.getFileHandle(fileName);
-    const file = await fileHandle.getFile();
-    return file.text();
+    return readTextAsset(this.getDir(), relativePath);
   }
 
   async getImageDataUrl(relativePath: string): Promise<string> {
-    if (imageCache.has(relativePath)) {
-      return imageCache.get(relativePath)!;
-    }
+    return getAssetUrl(this.getDir(), relativePath);
+  }
 
-    const dir = this.getDir();
-    const parts = relativePath.split('/').filter(Boolean);
-    const fileName = parts.pop();
-    if (!fileName) throw new Error('Invalid path');
-
-    let current: FileSystemDirectoryHandle = dir;
-    let found = true;
-    for (const part of parts) {
-      try {
-        current = await current.getDirectoryHandle(part);
-      } catch {
-        found = false;
-        break;
-      }
-    }
-
-    if (found) {
-      try {
-        const fileHandle = await current.getFileHandle(fileName);
-        const file = await fileHandle.getFile();
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const res = reader.result as string;
-            imageCache.set(relativePath, res);
-            resolve(res);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      } catch {
-        // Fallback to recursive search
-      }
-    }
-
-    // Recursive search fallback in case path was just the filename or relative to subfolder
-    async function searchInDir(d: FileSystemDirectoryHandle, target: string): Promise<File | null> {
-      for await (const entry of (d as any).values()) {
-        if (entry.kind === 'file' && entry.name === target) {
-          return (entry as FileSystemFileHandle).getFile();
-        }
-        if (entry.kind === 'directory') {
-          const sub = await searchInDir(entry as FileSystemDirectoryHandle, target);
-          if (sub) return sub;
-        }
-      }
-      return null;
-    }
-
-    const file = await searchInDir(dir, fileName);
-    if (!file) {
-      throw new Error(`File not found in vault: ${relativePath}`);
-    }
-
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const res = reader.result as string;
-        imageCache.set(relativePath, res);
-        resolve(res);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  async getImageBytes(relativePath: string): Promise<Uint8Array> {
+    return getAssetBytes(this.getDir(), relativePath);
   }
 
   async resolveAssetUrl(_currentNoteId: string, assetPath: string): Promise<string> {
@@ -842,47 +457,19 @@ export class BrowserStorage implements IStorageService {
   // ── Generic Vault Files (.han_history, configs, etc.) ──
 
   async readVaultFile(relativePath: string): Promise<string> {
-    const dir = this.getDir();
-    return readFileText(dir, relativePath);
+    return readFileText(this.getDir(), relativePath);
   }
 
   async writeVaultFile(relativePath: string, content: string): Promise<void> {
-    const dir = this.getDir();
-    await writeFileText(dir, relativePath, content);
+    await writeFileText(this.getDir(), relativePath, content);
   }
 
   async vaultFileExists(relativePath: string): Promise<boolean> {
     try {
-      const dir = this.getDir();
-      const file = await getOrCreateFile(dir, relativePath, false);
+      const file = await getOrCreateFile(this.getDir(), relativePath, false);
       return file !== null;
     } catch {
       return false;
-    }
-  }
-
-  private async deleteFileByPath(dir: FileSystemDirectoryHandle, path: string): Promise<void> {
-    clearFileTextCache(path);
-    clearFileTextCache(toNoteFilePath(path));
-    clearFileTextCache(normalizeNoteId(path));
-
-    const parts = path.split('/').filter(Boolean);
-    const targetName = parts.pop();
-    if (!targetName) return;
-
-    let current = dir;
-    for (const part of parts) {
-      try {
-        current = await current.getDirectoryHandle(part);
-      } catch {
-        return;
-      }
-    }
-
-    try {
-      await current.removeEntry(targetName, { recursive: true });
-    } catch {
-      // Entry might not exist
     }
   }
 }

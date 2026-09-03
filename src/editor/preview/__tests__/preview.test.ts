@@ -28,7 +28,7 @@ import assert from 'node:assert/strict';
 import { Text } from '@codemirror/state';
 import type { DecItem } from '../types.ts';
 import { applyInlineDecorations } from '../inlineDeco.ts';
-import { hideFrontmatter, applyLineStyles } from '../blockDeco.ts';
+import { hideFrontmatter, applyLineStyles, processFencedCodeLine } from '../blockDeco.ts';
 import { parseCachedMeta, getCachedWidget } from '../cache.ts';
 import { buildDecorationSet } from '../builder.ts';
 import { WidgetType } from '@codemirror/view';
@@ -114,6 +114,33 @@ describe('preview/blockDeco', () => {
     const isHR = applyLineStyles(hrLine, (item) => itemsHR.push(item));
     assert.equal(isHR, true);
     assert.equal(itemsHR.length, 2);
+  });
+
+  it('should recognize mermaid blocks with |width=513, |513, and width=513', () => {
+    const docText = [
+      '```mermaid|width=513',
+      'graph TD',
+      '  A --> B',
+      '```',
+    ].join('\n');
+    const doc = Text.of(docText.split('\n'));
+    const fencedRanges = [{ from: 0, to: docText.length }];
+    const items: DecItem[] = [];
+
+    const nextLine = processFencedCodeLine(
+      doc,
+      1,
+      { from: 0, to: 20, text: '```mermaid|width=513' },
+      fencedRanges,
+      (item) => items.push(item)
+    );
+
+    assert.equal(nextLine, 5);
+    assert.ok(items.length > 0);
+    // Ensure widget key contains customWidth 513
+    const widgetDec = items.find((i) => i.dec.spec?.widget);
+    assert.ok(widgetDec);
+    assert.equal((widgetDec.dec.spec?.widget as any)?.width, 513);
   });
 });
 

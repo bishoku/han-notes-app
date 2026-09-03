@@ -58,14 +58,18 @@ function createTextChunk(keyword: string, text: string): Uint8Array {
 }
 
 /**
- * Injects compressed JSON metadata into a PNG ArrayBuffer.
+ * Injects compressed JSON metadata into a PNG buffer or Uint8Array.
  */
-export function injectPngMetadata(pngBuffer: ArrayBuffer, keyword: string, projectData: unknown): Uint8Array {
+export function injectPngMetadata(
+  pngData: ArrayBufferLike | Uint8Array,
+  keyword: string,
+  projectData: unknown
+): Uint8Array {
   const jsonStr = typeof projectData === 'string' ? projectData : JSON.stringify(projectData);
   const compressed = LZString.compressToBase64(jsonStr);
   const textChunk = createTextChunk(keyword, compressed);
 
-  const src = new Uint8Array(pngBuffer);
+  const src = pngData instanceof Uint8Array ? pngData : new Uint8Array(pngData);
 
   // Check PNG signature: 89 50 4E 47 0D 0A 1A 0A
   if (
@@ -82,7 +86,7 @@ export function injectPngMetadata(pngBuffer: ArrayBuffer, keyword: string, proje
   }
 
   // Find the end of the IHDR chunk (typically offset 8 + 4(len) + 4(type) + 13(IHDR data) + 4(crc) = 33)
-  const ihdrLenView = new DataView(pngBuffer, 8, 4);
+  const ihdrLenView = new DataView(src.buffer, src.byteOffset + 8, 4);
   const ihdrDataLen = ihdrLenView.getUint32(0, false);
   const ihdrEndOffset = 8 + 4 + 4 + ihdrDataLen + 4;
 
@@ -96,11 +100,14 @@ export function injectPngMetadata(pngBuffer: ArrayBuffer, keyword: string, proje
 }
 
 /**
- * Extracts and decodes JSON metadata embedded within a PNG ArrayBuffer for a given keyword.
+ * Extracts and decodes JSON metadata embedded within a PNG buffer or Uint8Array for a given keyword.
  */
-export function extractPngMetadata(pngBuffer: ArrayBuffer, targetKeyword: string): any | null {
-  const bytes = new Uint8Array(pngBuffer);
-  const view = new DataView(pngBuffer);
+export function extractPngMetadata(
+  pngData: ArrayBufferLike | Uint8Array,
+  targetKeyword: string
+): any | null {
+  const bytes = pngData instanceof Uint8Array ? pngData : new Uint8Array(pngData);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
   // Check PNG signature
   if (
@@ -160,4 +167,36 @@ export function extractPngMetadata(pngBuffer: ArrayBuffer, targetKeyword: string
   }
 
   return null;
+}
+
+/**
+ * Resolves binary Uint8Array bytes from a URL (blob:, http:, https:, data:) or raw base64 string.
+ */
+export async function resolveBinaryBytes(dataOrUrl: string): Promise<Uint8Array> {
+  if (dataOrUrl.startsWith('blob:') || dataOrUrl.startsWith('http://') || dataOrUrl.startsWith('https://')) {
+    const res = await fetch(dataOrUrl);
+    const buf = await res.arrayBuffer();
+    return new Uint8Array(buf);
+  }
+  if (dataOrUrl.includes('base64,')) {
+    const base64 = dataOrUrl.split('base64,')[1];
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  try {
+    const binary = atob(dataOrUrl);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    const res = await fetch(dataOrUrl);
+    const buf = await res.arrayBuffer();
+    return new Uint8Array(buf);
+  }
 }

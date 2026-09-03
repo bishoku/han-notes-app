@@ -278,7 +278,7 @@ export function processFencedCodeLine(
 
   if (isOpeningFence && targetRange) {
     const langText = text.replace(/^```/, '').trim();
-    const mermaidMatch = langText.match(/^mermaid(?:\|(\d+))?$/i);
+    const mermaidMatch = langText.match(/^mermaid(?:\|(?:width=)?(\d+)|\s+(?:width=)?(\d+))?$/i);
 
     const openingLineNum = doc.lineAt(targetRange.from).number;
     const closingLineNum = doc.lineAt(targetRange.to).number;
@@ -291,7 +291,8 @@ export function processFencedCodeLine(
 
     // ─── Special Render for Mermaid Diagrams ───
     if (mermaidMatch) {
-      const customWidth = mermaidMatch[1] ? parseInt(mermaidMatch[1], 10) : null;
+      const widthStr = mermaidMatch[1] || mermaidMatch[2];
+      const customWidth = widthStr ? parseInt(widthStr, 10) : null;
 
       collect({
         from: line.from,

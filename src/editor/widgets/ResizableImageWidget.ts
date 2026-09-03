@@ -68,24 +68,16 @@ export class ResizableImageWidget extends WidgetType {
     let isSimulation = false;
     let iframe: HTMLIFrameElement | null = null;
 
-    // Helper to generate the YADA Embed URL from embedded PNG metadatata
+    // Helper to generate the YADA Embed URL from embedded PNG metadata
     const getYadaEmbedUrl = async (): Promise<string> => {
       const YADA_URL = (import.meta as any).env?.VITE_YADA_URL || 'https://bishoku.github.io/yada/';
       const { theme, language } = useUiStore.getState();
       try {
-        const dataUrl = await storage.getImageDataUrl(this.relPath);
-        if (dataUrl && dataUrl.includes('base64,')) {
-          const base64 = dataUrl.split('base64,')[1];
-          const binary = atob(base64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-          }
-          const projectData = extractPngMetadata(bytes.buffer, YADA_METADATA_KEYWORD);
-          if (projectData) {
-            const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(projectData));
-            return `${YADA_URL}?embed=true&theme=${theme}&lang=${language}#share=${compressed}`;
-          }
+        const bytes = await storage.getImageBytes(this.relPath);
+        const projectData = extractPngMetadata(bytes, YADA_METADATA_KEYWORD);
+        if (projectData) {
+          const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(projectData));
+          return `${YADA_URL}?embed=true&theme=${theme}&lang=${language}#share=${compressed}`;
         }
       } catch (err) {
         console.warn('Failed to extract embedded YADA diagram for simulation:', err);

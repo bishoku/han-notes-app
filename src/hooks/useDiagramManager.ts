@@ -54,14 +54,8 @@ export function useDiagramManager(
           : '';
         const targetPath = explicitRelPath || (parentDir ? `${parentDir}/.attachments/${fileNamePng}` : `.attachments/${fileNamePng}`);
 
-        const dataUrl = await storage.getImageDataUrl(targetPath);
-        const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-        const binaryStr = atob(base64Data);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const meta = extractPngMetadata(bytes.buffer, YADA_METADATA_KEYWORD);
+        const bytes = await storage.getImageBytes(targetPath);
+        const meta = extractPngMetadata(bytes, YADA_METADATA_KEYWORD);
         setDiagramInitialMetadata(meta);
         setEditingDiagramId(cleanId);
         editingDiagramIdRef.current = cleanId;
@@ -77,7 +71,7 @@ export function useDiagramManager(
       editingDiagramIdRef.current = null;
     }
     setDiagramModalOpen(true);
-  }, [currentNoteId]);
+  }, [currentNoteId, editorRef]);
 
   const openExcalidrawEditor = useCallback(async (sketchId?: string, explicitRelPath?: string, targetPos?: number) => {
     if (typeof targetPos === 'number') {
@@ -96,14 +90,8 @@ export function useDiagramManager(
           : '';
         const targetPath = explicitRelPath || (parentDir ? `${parentDir}/.attachments/${fileNamePng}` : `.attachments/${fileNamePng}`);
 
-        const dataUrl = await storage.getImageDataUrl(targetPath);
-        const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-        const binaryStr = atob(base64Data);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const meta = extractPngMetadata(bytes.buffer, EXCALIDRAW_METADATA_KEYWORD);
+        const bytes = await storage.getImageBytes(targetPath);
+        const meta = extractPngMetadata(bytes, EXCALIDRAW_METADATA_KEYWORD);
         setSketchInitialData(meta);
         setEditingSketchId(cleanId);
         editingSketchIdRef.current = cleanId;
@@ -119,7 +107,7 @@ export function useDiagramManager(
       editingSketchIdRef.current = null;
     }
     setExcalidrawModalOpen(true);
-  }, [currentNoteId]);
+  }, [currentNoteId, editorRef]);
 
   // Listen for custom edit-diagram events dispatched from image widgets
   useEffect(() => {
@@ -167,7 +155,7 @@ export function useDiagramManager(
         };
 
         // Guarantee PNG metadata injection on the HAN side
-        const enrichedBytes = injectPngMetadata(rawBytes.buffer, YADA_METADATA_KEYWORD, projectPayload);
+        const enrichedBytes = injectPngMetadata(rawBytes, YADA_METADATA_KEYWORD, projectPayload);
         const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, enrichedBytes as any);
 
         const language = useUiStore.getState().language;

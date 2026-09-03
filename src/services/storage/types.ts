@@ -135,6 +135,7 @@ export interface IStorageService {
   saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string>;
   readTextAsset(relativePath: string): Promise<string>;
   getImageDataUrl(relativePath: string): Promise<string>;
+  getImageBytes(relativePath: string): Promise<Uint8Array>;
 
   // ── Generic Vault Files (.han_history, configs, etc.) ──
   readVaultFile(relativePath: string): Promise<string>;

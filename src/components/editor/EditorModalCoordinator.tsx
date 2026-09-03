@@ -81,6 +81,7 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
   const [mermaidModalData, setMermaidModalData] = useState<{
     isOpen: boolean;
     initialCode?: string;
+    code?: string;
     width?: number | null;
     from?: number;
     to?: number;
@@ -153,7 +154,16 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
   useEffect(() => {
     const unbindMedia = eventBus.on('modal:open-media-fullscreen', (payload) => setFullscreenMedia(payload));
     const unbindDeleteImg = eventBus.on('modal:request-delete-image', (payload) => setConfirmDeleteImage(payload));
-    const unbindMermaid = eventBus.on('modal:edit-mermaid', (payload) => setMermaidModalData({ isOpen: true, ...payload }));
+    const unbindMermaid = eventBus.on('modal:edit-mermaid', (payload) =>
+      setMermaidModalData({
+        isOpen: true,
+        initialCode: payload.code,
+        code: payload.code,
+        width: payload.width,
+        from: payload.from,
+        to: payload.to,
+      })
+    );
     const unbindDeleteMermaid = eventBus.on('modal:request-delete-mermaid', (payload) => setConfirmDeleteMermaid(payload));
     const unbindCode = eventBus.on('modal:edit-code-block', (payload) => setCodeModalData({ isOpen: true, ...payload }));
     const unbindDeleteCode = eventBus.on('modal:request-delete-code-block', (payload) => setConfirmDeleteCodeBlock(payload));
@@ -182,7 +192,15 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
     // Window events for backward compatibility
     const handleFullscreenWin = (e: CustomEvent) => setFullscreenMedia(e.detail);
     const handleDeleteWin = (e: CustomEvent) => setConfirmDeleteImage(e.detail);
-    const handleMermaidWin = (e: CustomEvent) => setMermaidModalData({ isOpen: true, ...e.detail });
+    const handleMermaidWin = (e: CustomEvent) =>
+      setMermaidModalData({
+        isOpen: true,
+        initialCode: e.detail.code ?? e.detail.initialCode,
+        code: e.detail.code ?? e.detail.initialCode,
+        width: e.detail.width,
+        from: e.detail.from,
+        to: e.detail.to,
+      });
     const handleDeleteMermaidWin = (e: CustomEvent) => setConfirmDeleteMermaid(e.detail);
     const handleCodeWin = (e: CustomEvent) => setCodeModalData({ isOpen: true, initialCode: e.detail.code, initialLang: e.detail.lang, from: e.detail.from, to: e.detail.to });
     const handleDeleteCodeWin = (e: CustomEvent) => setConfirmDeleteCodeBlock(e.detail);
@@ -360,6 +378,7 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
       <MermaidEditorModal
         isOpen={mermaidModalData.isOpen}
         initialCode={mermaidModalData.initialCode}
+        code={mermaidModalData.code}
         width={mermaidModalData.width}
         from={mermaidModalData.from}
         to={mermaidModalData.to}
