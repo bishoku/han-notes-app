@@ -1,10 +1,57 @@
 import { WidgetType } from "@codemirror/view";
 import type { EditorView } from "@codemirror/view";
+import { marked } from "marked";
+import { storage } from "@/services/storage";
+import { useNoteStore } from "@/store/noteStore";
 
 export interface ParsedTable {
   headers: string[];
   alignments: Array<'left' | 'center' | 'right'>;
   rows: string[][];
+}
+
+/**
+ * Safely splits a Markdown table row by pipe `|` characters,
+ * respecting escaped pipes `\|`, code spans `` `...` ``, and link wrappers `[...]`.
+ */
+export function splitTableRow(line: string): string[] {
+  let text = line.trim();
+  if (text.startsWith('|')) text = text.slice(1);
+  if (text.endsWith('|')) text = text.slice(0, -1);
+
+  const cells: string[] = [];
+  let current = '';
+  let inBacktick = false;
+  let inLink = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (char === '\\' && i + 1 < text.length) {
+      // Escaped character, e.g. \|
+      current += char + text[++i];
+      continue;
+    }
+
+    if (char === '`') {
+      inBacktick = !inBacktick;
+      current += char;
+    } else if (!inBacktick && (char === '[' || char === '(')) {
+      inLink++;
+      current += char;
+    } else if (!inBacktick && (char === ']' || char === ')')) {
+      if (inLink > 0) inLink--;
+      current += char;
+    } else if (char === '|' && !inBacktick && inLink === 0) {
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  cells.push(current.trim());
+  return cells;
 }
 
 export function parseMarkdownTable(text: string): ParsedTable | null {
@@ -17,15 +64,8 @@ export function parseMarkdownTable(text: string): ParsedTable | null {
     return null;
   }
 
-  const parseLine = (line: string) => {
-    let content = line;
-    if (content.startsWith('|')) content = content.slice(1);
-    if (content.endsWith('|')) content = content.slice(0, -1);
-    return content.split('|').map(cell => cell.trim());
-  };
-
-  const headers = parseLine(lines[0]);
-  const sepCells = parseLine(separatorLine);
+  const headers = splitTableRow(lines[0]);
+  const sepCells = splitTableRow(separatorLine);
 
   const alignments: Array<'left' | 'center' | 'right'> = sepCells.map(cell => {
     if (cell.startsWith(':') && cell.endsWith(':')) return 'center';
@@ -36,7 +76,7 @@ export function parseMarkdownTable(text: string): ParsedTable | null {
   const rows: string[][] = [];
   for (let i = 2; i < lines.length; i++) {
     if (!lines[i].includes('|')) continue;
-    rows.push(parseLine(lines[i]));
+    rows.push(splitTableRow(lines[i]));
   }
 
   return { headers, alignments, rows };
@@ -58,6 +98,25 @@ export function formatTableToMarkdown(parsed: ParsedTable): string {
   );
 
   return [headerLine, sepLine, ...rowLines].join('\n');
+}
+
+/**
+ * Renders inline Markdown (images, links, bold/italic, code, wikilinks) for table cell preview.
+ */
+function renderCellMarkdown(md: string): string {
+  if (!md || !md.trim()) return '&nbsp;';
+
+  // Handle wikilinks [[Target|Display]] or [[Target]]
+  const withWikilinks = md.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, target, alias) => {
+    const display = alias || target;
+    return `<span class="cm-wikilink text-mac-accent font-medium hover:underline cursor-pointer" data-target="${target}">${display}</span>`;
+  });
+
+  try {
+    return marked.parseInline(withWikilinks) as string;
+  } catch {
+    return withWikilinks;
+  }
 }
 
 export class TableWidget extends WidgetType {
@@ -86,7 +145,7 @@ export class TableWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const container = document.createElement("div");
-    container.className = "my-1 select-none group/table relative max-w-full inline-block w-full";
+    container.className = "my-2 select-text group/table relative max-w-full inline-block w-full";
 
     const parsed = parseMarkdownTable(this.tableText);
     if (!parsed) {
@@ -107,6 +166,192 @@ export class TableWidget extends WidgetType {
       });
     };
 
+    const allEditableCells: HTMLSpanElement[] = [];
+
+    // Helper to create a live editable/previewable cell span
+    const createCellSpan = (
+      initialText: string,
+      isHeader: boolean,
+      colIdx: number,
+      rowIdx?: number
+    ): HTMLSpanElement => {
+      const span = document.createElement("span");
+      span.contentEditable = "true";
+      span.className =
+        "outline-none focus:ring-1 focus:ring-mac-accent/50 rounded px-1.5 py-0.5 inline-block w-full min-w-[40px] break-words align-middle text-sm transition-all";
+
+      let currentVal = initialText || "";
+
+      const renderPreview = () => {
+        span.innerHTML = renderCellMarkdown(currentVal);
+
+        // Format and resolve images
+        const imgs = span.querySelectorAll("img");
+        imgs.forEach((img) => {
+          img.className =
+            "max-h-24 max-w-full object-contain rounded my-1 inline-block align-middle border border-gray-200/60 dark:border-zinc-700/60 shadow-2xs";
+          img.setAttribute("loading", "lazy");
+
+          const src = img.getAttribute("src");
+          if (src && !src.startsWith("http") && !src.startsWith("data:")) {
+            storage
+              .getImageDataUrl(src)
+              .then((dataUrl) => {
+                img.src = dataUrl;
+              })
+              .catch(() => {});
+          }
+        });
+
+        // Format and hook links
+        const links = span.querySelectorAll("a");
+        links.forEach((a) => {
+          a.className =
+            "text-mac-accent hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer";
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+
+          a.onmouseenter = () => {
+            const href = a.getAttribute("href");
+            if (!href) return;
+            const rect = a.getBoundingClientRect();
+            window.dispatchEvent(
+              new CustomEvent("show-link-preview", {
+                detail: {
+                  url: href,
+                  label: a.textContent || href,
+                  rect: {
+                    top: rect.top,
+                    bottom: rect.bottom,
+                    left: rect.left,
+                    right: rect.right,
+                    width: rect.width,
+                    height: rect.height,
+                  },
+                },
+              })
+            );
+          };
+        });
+      };
+
+      // Initial render as rich preview
+      renderPreview();
+
+      // Intercept clicks on links and wikilinks so they open instead of just entering edit mode
+      span.addEventListener("click", (e) => {
+        const link = (e.target as HTMLElement)?.closest("a");
+        if (link && link.getAttribute("href")) {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(link.getAttribute("href")!, "_blank", "noopener,noreferrer");
+          return;
+        }
+
+        const wikilink = (e.target as HTMLElement)?.closest(".cm-wikilink");
+        if (wikilink) {
+          e.preventDefault();
+          e.stopPropagation();
+          const target = wikilink.getAttribute("data-target") || wikilink.textContent?.trim();
+          if (target) {
+            const cleanTitle = target.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
+            const { notes, selectNote, createNote } = useNoteStore.getState();
+            const targetNote = notes.find(
+              (n) =>
+                n.id.toLowerCase() === cleanTitle.toLowerCase() ||
+                n.title.toLowerCase() === cleanTitle.toLowerCase() ||
+                n.id.toLowerCase().endsWith(`/${cleanTitle.toLowerCase()}`)
+            );
+            if (targetNote) {
+              selectNote(targetNote.id);
+              window.location.hash = `/notes/${encodeURIComponent(targetNote.id)}`;
+            } else {
+              createNote(cleanTitle).then((newId) => {
+                selectNote(newId);
+                window.location.hash = `/notes/${encodeURIComponent(newId)}`;
+              });
+            }
+          }
+          return;
+        }
+      });
+
+      // On focus: switch to raw Markdown text so user can edit cleanly
+      span.addEventListener("focus", () => {
+        span.textContent = currentVal;
+        try {
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(span);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        } catch {
+          // Ignore selection positioning error on focus
+        }
+      });
+
+      // On blur: save changes and re-render preview
+      span.addEventListener("blur", () => {
+        const raw = isHeader
+          ? span.textContent?.trim() || `Kolon ${colIdx + 1}`
+          : span.textContent || "";
+        if (raw !== currentVal) {
+          currentVal = raw;
+          if (isHeader) {
+            parsed.headers[colIdx] = raw;
+          } else if (rowIdx !== undefined && parsed.rows[rowIdx]) {
+            parsed.rows[rowIdx][colIdx] = raw;
+          }
+          updateDoc(parsed);
+        }
+        renderPreview();
+      });
+
+      // Keyboard navigation
+      span.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (isHeader) {
+            span.blur();
+          } else if (rowIdx !== undefined) {
+            span.blur();
+            const isLastRow = rowIdx === parsed.rows.length - 1;
+            if (isLastRow) {
+              parsed.rows.push(new Array(parsed.headers.length).fill(""));
+              updateDoc(parsed);
+            } else {
+              const currentCellIndex = allEditableCells.indexOf(span);
+              const nextRowCellIndex = currentCellIndex + parsed.headers.length;
+              if (allEditableCells[nextRowCellIndex]) {
+                allEditableCells[nextRowCellIndex].focus();
+              }
+            }
+          }
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          span.blur();
+          const currentCellIndex = allEditableCells.indexOf(span);
+          if (e.shiftKey) {
+            if (currentCellIndex > 0) {
+              allEditableCells[currentCellIndex - 1].focus();
+            }
+          } else {
+            if (currentCellIndex < allEditableCells.length - 1) {
+              allEditableCells[currentCellIndex + 1].focus();
+            } else {
+              parsed.rows.push(new Array(parsed.headers.length).fill(""));
+              updateDoc(parsed);
+            }
+          }
+        } else if (e.key === "Escape") {
+          span.blur();
+        }
+      });
+
+      return span;
+    };
+
     // Header
     const thead = document.createElement("thead");
     thead.className = "bg-gray-50/90 dark:bg-zinc-800/90 border-b border-gray-200 dark:border-zinc-700/80 text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider";
@@ -117,27 +362,7 @@ export class TableWidget extends WidgetType {
       th.className = "px-3 py-2 border-r last:border-r-0 border-gray-200/60 dark:border-zinc-700/60 relative group/col";
       th.style.textAlign = parsed.alignments[colIdx] || "left";
 
-      // Editable span inside TH
-      const span = document.createElement("span");
-      span.contentEditable = "true";
-      span.className = "outline-none focus:ring-1 focus:ring-mac-accent/50 rounded px-1 py-0.5 inline-block w-full min-w-[40px]";
-      span.textContent = h;
-
-      span.addEventListener("blur", () => {
-        const val = span.textContent?.trim() || `Kolon ${colIdx + 1}`;
-        if (val !== parsed.headers[colIdx]) {
-          parsed.headers[colIdx] = val;
-          updateDoc(parsed);
-        }
-      });
-
-      span.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          span.blur();
-        }
-      });
-
+      const span = createCellSpan(h, true, colIdx);
       th.appendChild(span);
 
       // Delete Column Button (if > 1 columns)
@@ -166,8 +391,6 @@ export class TableWidget extends WidgetType {
     const tbody = document.createElement("tbody");
     tbody.className = "divide-y divide-gray-100 dark:divide-zinc-800/80";
 
-    const allEditableCells: HTMLSpanElement[] = [];
-
     parsed.rows.forEach((row, rowIdx) => {
       const tr = document.createElement("tr");
       tr.className = "hover:bg-gray-50/50 dark:hover:bg-zinc-800/40 transition-colors group/row relative";
@@ -177,58 +400,8 @@ export class TableWidget extends WidgetType {
         td.className = "px-3 py-1.5 border-r last:border-r-0 border-gray-100 dark:border-zinc-800 text-gray-800 dark:text-gray-200 font-normal relative";
         td.style.textAlign = parsed.alignments[colIdx] || "left";
 
-        const span = document.createElement("span");
-        span.contentEditable = "true";
-        span.className = "outline-none focus:ring-1 focus:ring-mac-accent/50 rounded px-1 py-0.5 inline-block w-full min-w-[40px]";
-        span.textContent = row[colIdx] || "";
-
+        const span = createCellSpan(row[colIdx] || "", false, colIdx, rowIdx);
         allEditableCells.push(span);
-
-        span.addEventListener("blur", () => {
-          const val = span.textContent || "";
-          if (val !== (parsed.rows[rowIdx][colIdx] || "")) {
-            parsed.rows[rowIdx][colIdx] = val;
-            updateDoc(parsed);
-          }
-        });
-
-        span.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            const currentCellIndex = allEditableCells.indexOf(span);
-            const isLastRow = rowIdx === parsed.rows.length - 1;
-            
-            if (isLastRow) {
-              // On last row Enter, save and add a new row
-              parsed.rows[rowIdx][colIdx] = span.textContent || "";
-              parsed.rows.push(new Array(parsed.headers.length).fill(""));
-              updateDoc(parsed);
-            } else {
-              // Move focus to same column in next row
-              const nextRowCellIndex = currentCellIndex + parsed.headers.length;
-              if (allEditableCells[nextRowCellIndex]) {
-                allEditableCells[nextRowCellIndex].focus();
-              }
-            }
-          } else if (e.key === "Tab") {
-            e.preventDefault();
-            const currentCellIndex = allEditableCells.indexOf(span);
-            if (e.shiftKey) {
-              if (currentCellIndex > 0) {
-                allEditableCells[currentCellIndex - 1].focus();
-              }
-            } else {
-              if (currentCellIndex < allEditableCells.length - 1) {
-                allEditableCells[currentCellIndex + 1].focus();
-              } else {
-                // Add new row on Tab from last cell
-                parsed.rows[rowIdx][colIdx] = span.textContent || "";
-                parsed.rows.push(new Array(parsed.headers.length).fill(""));
-                updateDoc(parsed);
-              }
-            }
-          }
-        });
 
         td.appendChild(span);
         tr.appendChild(td);

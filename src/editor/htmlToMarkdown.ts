@@ -5,6 +5,7 @@
 import TurndownService from 'turndown';
 // @ts-ignore — turndown-plugin-gfm does not provide bundled types
 import { gfm } from 'turndown-plugin-gfm';
+import { convertTableElementToMarkdown } from '@/services/clipper/webClipperService';
 
 // 1. Initialize Turndown with clean Markdown defaults
 const turndownService = new TurndownService({
@@ -23,6 +24,14 @@ try {
 } catch (err) {
   console.warn('Failed to load turndown-plugin-gfm:', err);
 }
+
+// 2.1. Advanced HTML Table conversion
+turndownService.addRule('advancedTable', {
+  filter: 'table',
+  replacement: function (_content, node) {
+    return convertTableElementToMarkdown(node as HTMLElement);
+  },
+});
 
 // 3. Custom Rule: Medium & Web Code Blocks (<pre>, <pre><code>)
 turndownService.addRule('fencedCodeBlock', {

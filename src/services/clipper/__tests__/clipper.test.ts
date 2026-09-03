@@ -154,4 +154,54 @@ describe('Web Clipper: webClipperService convertHtmlToMarkdown', () => {
     assert.ok(result.markdown.includes('Yalnızca kısa bir duyuru metni.'));
     assert.ok(result.markdown.includes('source: "https://example.com/kisa"'));
   });
+
+  it('correctly converts HTML tables (with or without thead, multi-line cells, colspans and pipes)', () => {
+    if (typeof (globalThis as any).DOMParser === 'undefined') return;
+
+    const tableHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head><title>Tablo Testi</title></head>
+        <body>
+          <article>
+            <h1>Tablo Testi</h1>
+            <!-- Table 1: No thead/th, only td elements -->
+            <table>
+              <tr><td>Öğe</td><td>Fiyat</td><td>Stok</td></tr>
+              <tr><td>Kitap</td><td>150 TL</td><td>Var</td></tr>
+              <tr><td>Kalem</td><td>25 TL</td><td>Yok</td></tr>
+            </table>
+
+            <!-- Table 2: Alignment, code with pipes, and multiline paragraph cells -->
+            <table>
+              <thead>
+                <tr><th align="center">Özellik</th><th align="right">Detay</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>a | b</code> veya c | d</td>
+                  <td>
+                    <p>Satır 1</p>
+                    <p>Satır 2</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+        </body>
+      </html>
+    `;
+
+    const result = convertHtmlToMarkdown(tableHtml, 'https://example.com/tablolar');
+
+    // Verify Table 1 was converted to Markdown table
+    assert.ok(result.markdown.includes('| Öğe | Fiyat | Stok |'), 'Table 1 header converted');
+    assert.ok(result.markdown.includes('| Kitap | 150 TL | Var |'), 'Table 1 row 1 converted');
+    assert.ok(result.markdown.includes('| Kalem | 25 TL | Yok |'), 'Table 1 row 2 converted');
+
+    // Verify Table 2 has alignments and handled multi-line cells and pipes
+    assert.ok(result.markdown.includes('| :-: | --: |'), 'Table 2 alignments preserved');
+    assert.ok(result.markdown.includes('`a | b` veya c \\| d'), 'Pipes escaped outside code');
+    assert.ok(result.markdown.includes('Satır 1<br>Satır 2'), 'Multiline cells converted to <br>');
+  });
 });

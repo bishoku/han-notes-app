@@ -186,3 +186,38 @@ describe('preview/builder', () => {
     assert.ok(decSet);
   });
 });
+
+import { parseMarkdownTable, splitTableRow } from '../../widgets/TableWidget.ts';
+
+describe('preview/TableWidget parser', () => {
+  it('safely splits table rows without breaking on escaped pipes or links', () => {
+    const rowWithImageLink = '| [![](https://example.com/logo.png)](https://example.com)Java | Detail |';
+    const cells1 = splitTableRow(rowWithImageLink);
+    assert.equal(cells1.length, 2);
+    assert.equal(cells1[0], '[![](https://example.com/logo.png)](https://example.com)Java');
+    assert.equal(cells1[1], 'Detail');
+
+    const rowWithPipes = '| `a | b` | c \\| d |';
+    const cells2 = splitTableRow(rowWithPipes);
+    assert.equal(cells2.length, 2);
+    assert.equal(cells2[0], '`a | b`');
+    assert.equal(cells2[1], 'c \\| d');
+  });
+
+  it('correctly parses markdown table containing links, images, and multiple columns', () => {
+    const tableText = [
+      '| [![](https://example.com/logo.png)](https://example.com)Java logosu |   |',
+      '| --- | --- |',
+      '| [Paradigması](https://example.com/paradigma "Paradigma") | [Nesne yönelimli](https://example.com/oop), [fonksiyonel](https://example.com/fp) |',
+    ].join('\n');
+
+    const parsed = parseMarkdownTable(tableText);
+    assert.ok(parsed);
+    assert.equal(parsed.headers.length, 2);
+    assert.equal(parsed.rows.length, 1);
+    assert.ok(parsed.headers[0].includes('Java logosu'));
+    assert.ok(parsed.rows[0][0].includes('Paradigması'));
+    assert.ok(parsed.rows[0][1].includes('fonksiyonel'));
+  });
+});
+

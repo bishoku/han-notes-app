@@ -25,6 +25,173 @@ export interface ConvertResult {
 }
 
 /**
+ * Cleans the HTML content of a table cell and converts it into a single-line Markdown string.
+ * Converts <br>, <p>, <div>, and list items into <br> tags, and escapes lone pipe characters.
+ */
+function cleanCellMarkdown(rawHtml: string, inlineTurndown: (html: string) => string): string {
+  if (!rawHtml || !rawHtml.trim()) return ' ';
+
+  // Pre-process block line breaks inside cells
+  let html = rawHtml
+    .replace(/<\s*br\s*\/?>/gi, ' HTMLBRPLACEHOLDER ')
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, ' HTMLBRPLACEHOLDER ')
+    .replace(/<\s*(p|div|li|h[1-6])[^>]*>/gi, '');
+
+  let md = inlineTurndown(html);
+
+  // Replace placeholders with <br>
+  md = md.replace(/\s*HTMLBRPLACEHOLDER\s*/g, '<br>');
+
+  // Collapse multiple consecutive <br>s and whitespace
+  md = md.replace(/(<br>\s*)+/g, '<br>');
+  md = md.replace(/^<br>|<br>$/g, '');
+  // Remove any remaining raw newlines so the Markdown table row stays intact
+  md = md.replace(/\r?\n+/g, ' ');
+
+  // Escape pipe characters not inside backtick code spans
+  const parts = md.split(/(`[^`]*`)/);
+  for (let i = 0; i < parts.length; i += 2) {
+    parts[i] = parts[i].replace(/\|/g, '\\|');
+  }
+  md = parts.join('');
+
+  return md.trim() || ' ';
+}
+
+/**
+ * Robustly converts any HTML <table> element into a valid GitHub Flavored Markdown (GFM) table.
+ * Supports tables without <thead>/<th>, handles colspans, preserves alignments,
+ * converts multi-line cells using <br>, and escapes pipe characters.
+ */
+export function convertTableElementToMarkdown(
+  tableEl: HTMLElement,
+  inlineTurndown?: (html: string) => string
+): string {
+  const turndownFn =
+    inlineTurndown ||
+    ((h: string) => {
+      const inlineService = new TurndownService({
+        headingStyle: 'atx',
+        bulletListMarker: '-',
+        codeBlockStyle: 'fenced',
+        emDelimiter: '*',
+        strongDelimiter: '**',
+        linkStyle: 'inlined',
+      });
+      return inlineService.turndown(h);
+    });
+
+  // Find all tr elements that belong directly to this table (ignoring nested tables)
+  const allTrs = Array.from(
+    tableEl.querySelectorAll ? tableEl.querySelectorAll('tr') : tableEl.getElementsByTagName?.('tr') || []
+  );
+  const trs = allTrs.filter((tr) => {
+    let p = tr.parentNode;
+    while (p && p !== tableEl) {
+      if (p.nodeName === 'TABLE') return false; // belongs to a nested table
+      p = p.parentNode;
+    }
+    return true;
+  });
+
+  if (trs.length === 0) return '';
+
+  const tableMatrix: string[][] = [];
+  const columnAlignments: string[] = [];
+
+  for (let r = 0; r < trs.length; r++) {
+    const tr = trs[r];
+    const cells = Array.from(tr.childNodes).filter(
+      (n: any) => n.nodeName === 'TH' || n.nodeName === 'TD'
+    ) as HTMLElement[];
+    if (cells.length === 0) continue;
+
+    const row: string[] = [];
+
+    for (let c = 0; c < cells.length; c++) {
+      const cell = cells[c];
+      const colspan = Math.max(1, parseInt(cell.getAttribute ? cell.getAttribute('colspan') || '1' : '1', 10) || 1);
+
+      const cellHtml = cell.innerHTML || cell.textContent || '';
+      const cellText = cleanCellMarkdown(cellHtml, turndownFn);
+
+      row.push(cellText);
+
+      // Handle colspan by adding placeholder spaces
+      for (let s = 1; s < colspan; s++) {
+        row.push(' ');
+      }
+
+      // Detect alignments
+      const dataAlign = (cell.getAttribute ? cell.getAttribute('data-align') || '' : '').toLowerCase();
+      const alignAttr = (cell.getAttribute ? cell.getAttribute('align') || '' : '').toLowerCase();
+      const styleAttr = (cell.getAttribute ? cell.getAttribute('style') || '' : '').toLowerCase();
+      let align = 'left';
+      if (
+        dataAlign === 'center' ||
+        alignAttr === 'center' ||
+        styleAttr.includes('text-align: center') ||
+        styleAttr.includes('text-align:center')
+      ) {
+        align = 'center';
+      } else if (
+        dataAlign === 'right' ||
+        alignAttr === 'right' ||
+        styleAttr.includes('text-align: right') ||
+        styleAttr.includes('text-align:right')
+      ) {
+        align = 'right';
+      }
+
+      const currentTargetCol = row.length - 1;
+      if (!columnAlignments[currentTargetCol] || align !== 'left') {
+        columnAlignments[currentTargetCol] = align;
+      }
+    }
+
+    tableMatrix.push(row);
+  }
+
+  if (tableMatrix.length === 0) return '';
+
+  const maxCols = Math.max(...tableMatrix.map((r) => r.length));
+  if (maxCols === 0) return '';
+
+  // Pad each row to maxCols
+  for (const row of tableMatrix) {
+    while (row.length < maxCols) {
+      row.push(' ');
+    }
+  }
+
+  // Header row
+  const headerRow = tableMatrix[0];
+  let bodyRows = tableMatrix.slice(1);
+
+  // If table only had 1 row, synthesize an empty data row
+  if (bodyRows.length === 0) {
+    bodyRows = [new Array(maxCols).fill(' ')];
+  }
+
+  // Generate separator row
+  const separatorCells: string[] = [];
+  for (let i = 0; i < maxCols; i++) {
+    const align = columnAlignments[i] || 'left';
+    if (align === 'center') separatorCells.push(':-:');
+    else if (align === 'right') separatorCells.push('--:');
+    else separatorCells.push('---');
+  }
+
+  const lines = [
+    '| ' + headerRow.join(' | ') + ' |',
+    '| ' + separatorCells.join(' | ') + ' |',
+    ...bodyRows.map((r) => '| ' + r.join(' | ') + ' |'),
+  ];
+
+  return '\n\n' + lines.join('\n') + '\n\n';
+}
+
+/**
  * Creates and configures a TurndownService instance with GFM and web article rules.
  */
 function createClipperTurndownService(): TurndownService {
@@ -44,6 +211,15 @@ function createClipperTurndownService(): TurndownService {
   } catch (err) {
     console.warn('[webClipperService] Failed to load turndown-plugin-gfm:', err);
   }
+
+  // Rule: Advanced HTML Table to GFM Markdown converter
+  // Overrides default fragile table rules to guarantee tables convert properly
+  service.addRule('advancedTable', {
+    filter: 'table',
+    replacement: function (_content, node) {
+      return convertTableElementToMarkdown(node as HTMLElement);
+    },
+  });
 
   // Rule: Fenced Code Blocks (<pre>, <pre><code>)
   service.addRule('fencedCodeBlock', {
@@ -175,17 +351,65 @@ export function resolveRelativeUrls(doc: Document, pageUrl: string): void {
 
     if (src && !src.startsWith('data:')) {
       try {
-        const absoluteUrl = new URL(src, baseUrl).href;
-        img.setAttribute('src', absoluteUrl);
+        const u = new URL(src, baseUrl);
+        u.searchParams.delete('utm_source');
+        u.searchParams.delete('utm_medium');
+        u.searchParams.delete('utm_campaign');
+        u.searchParams.delete('utm_term');
+        u.searchParams.delete('utm_content');
+        img.setAttribute('src', u.href);
       } catch {
         // Keep original
       }
     } else if (dataSrc && !img.getAttribute('src')) {
       try {
-        img.setAttribute('src', new URL(dataSrc, baseUrl).href);
+        const u = new URL(dataSrc, baseUrl);
+        u.searchParams.delete('utm_source');
+        u.searchParams.delete('utm_medium');
+        u.searchParams.delete('utm_campaign');
+        u.searchParams.delete('utm_term');
+        u.searchParams.delete('utm_content');
+        img.setAttribute('src', u.href);
       } catch {
         // Keep original
       }
+    }
+  });
+}
+
+/**
+ * Preserves table cell alignments as data-align attributes before Readability
+ * strips presentational attributes (align, style, etc.).
+ */
+export function preserveTableAlignments(doc: Document): void {
+  const allCells: HTMLElement[] = doc.querySelectorAll
+    ? (Array.from(doc.querySelectorAll('th, td')) as HTMLElement[])
+    : ([
+        ...Array.from(doc.getElementsByTagName?.('th') || []),
+        ...Array.from(doc.getElementsByTagName?.('td') || []),
+      ] as HTMLElement[]);
+
+  allCells.forEach((cell) => {
+    const alignAttr = (cell.getAttribute?.('align') || '').toLowerCase();
+    const styleAttr = (cell.getAttribute?.('style') || '').toLowerCase();
+    if (
+      alignAttr === 'center' ||
+      styleAttr.includes('text-align: center') ||
+      styleAttr.includes('text-align:center')
+    ) {
+      cell.setAttribute('data-align', 'center');
+    } else if (
+      alignAttr === 'right' ||
+      styleAttr.includes('text-align: right') ||
+      styleAttr.includes('text-align:right')
+    ) {
+      cell.setAttribute('data-align', 'right');
+    } else if (
+      alignAttr === 'left' ||
+      styleAttr.includes('text-align: left') ||
+      styleAttr.includes('text-align:left')
+    ) {
+      cell.setAttribute('data-align', 'left');
     }
   });
 }
@@ -217,8 +441,9 @@ export function convertHtmlToMarkdown(htmlString: string, pageUrl: string): Conv
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString || '', 'text/html');
 
-  // 1. Resolve relative URLs to absolute URLs
+  // 1. Pre-process DOM: resolve relative URLs and preserve table alignments
   resolveRelativeUrls(doc, pageUrl);
+  preserveTableAlignments(doc);
 
   const docTitle = doc.title?.trim() || '';
 
