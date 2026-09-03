@@ -19,9 +19,12 @@ import type { ExcalidrawSavePayload } from '@/components/ExcalidrawEditorModal';
  */
 export function useDiagramManager(
   currentNoteId: string | null,
-  onInsertText: (text: string) => void,
+  onInsertText: (text: string, atPos?: number) => void,
   editorRef?: React.RefObject<EditorView | null>
 ) {
+  // Captured insertion position for when modal saves
+  const insertPosRef = useRef<number | null>(null);
+
   // Diagram Modal state (YADA)
   const [diagramModalOpen, setDiagramModalOpen] = useState(false);
   const [diagramInitialMetadata, setDiagramInitialMetadata] = useState<{ logicalData?: any; visualData?: any } | null>(null);
@@ -34,7 +37,14 @@ export function useDiagramManager(
   const [, setEditingSketchId] = useState<string | null>(null);
   const editingSketchIdRef = useRef<string | null>(null);
 
-  const openDiagramEditor = useCallback(async (diagramId?: string, explicitRelPath?: string) => {
+  const openDiagramEditor = useCallback(async (diagramId?: string, explicitRelPath?: string, targetPos?: number) => {
+    if (typeof targetPos === 'number') {
+      insertPosRef.current = targetPos;
+    } else if (editorRef?.current) {
+      insertPosRef.current = editorRef.current.state.selection.main.head;
+    } else {
+      insertPosRef.current = null;
+    }
     if (diagramId && currentNoteId) {
       try {
         const cleanId = diagramId.replace(/^diagram-/, '');
@@ -69,7 +79,14 @@ export function useDiagramManager(
     setDiagramModalOpen(true);
   }, [currentNoteId]);
 
-  const openExcalidrawEditor = useCallback(async (sketchId?: string, explicitRelPath?: string) => {
+  const openExcalidrawEditor = useCallback(async (sketchId?: string, explicitRelPath?: string, targetPos?: number) => {
+    if (typeof targetPos === 'number') {
+      insertPosRef.current = targetPos;
+    } else if (editorRef?.current) {
+      insertPosRef.current = editorRef.current.state.selection.main.head;
+    } else {
+      insertPosRef.current = null;
+    }
     if (sketchId && currentNoteId) {
       try {
         const cleanId = sketchId.replace(/^sketch-/, '');
@@ -158,7 +175,7 @@ export function useDiagramManager(
         const aiCommentBlock = formatDiagramAiComment(fileNamePng, aiSummary);
 
         if (!isEditing) {
-          onInsertText(`\n![${fileNamePng}](${relPathPng})\n${aiCommentBlock}\n`);
+          onInsertText(`![${fileNamePng}](${relPathPng})\n${aiCommentBlock}\n`, insertPosRef.current ?? undefined);
         } else {
           // Sync AI comment in document when editing existing diagram
           if (editorRef?.current) {
@@ -192,6 +209,7 @@ export function useDiagramManager(
       console.error('Failed to save diagram', err);
     } finally {
       setEditingDiagramId(null);
+      insertPosRef.current = null;
     }
   }, [currentNoteId, onInsertText, editorRef]);
 
@@ -215,7 +233,7 @@ export function useDiagramManager(
       const relPathPng = await storage.saveImageBytes(currentNoteId, fileNamePng, bytes);
 
       if (!isEditing) {
-        onInsertText(`\n![${fileNamePng}](${relPathPng})\n`);
+        onInsertText(`![${fileNamePng}](${relPathPng})\n`, insertPosRef.current ?? undefined);
       }
 
       window.dispatchEvent(
@@ -227,6 +245,7 @@ export function useDiagramManager(
       console.error('Failed to save Excalidraw sketch:', err);
     } finally {
       setEditingSketchId(null);
+      insertPosRef.current = null;
     }
   }, [currentNoteId, onInsertText]);
 

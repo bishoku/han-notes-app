@@ -8,6 +8,7 @@
     "build:wasm": "wasm-pack build ./han-core --target web --out-dir ../src/wasm/han-core",
     "build": "npm run build:wasm && tsc -b && vite build",
     "lint": "oxlint",
+    "test": "NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/editor/preview/__tests__/preview.test.ts",
     "preview": "vite preview",
     "tauri": "tauri"
   },

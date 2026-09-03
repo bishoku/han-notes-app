@@ -61,19 +61,24 @@ export const MainEditor: React.FC = () => {
 
   // Stable insertText helper for quotes, diagrams & asset hooks
   const insertText = useCallback(
-    (text: string) => {
+    (text: string, explicitPos?: number) => {
       if (editorRef.current) {
         const view = editorRef.current;
-        const hasActiveSelection = view.hasFocus && view.state.selection?.main;
-        const targetPos = hasActiveSelection
-          ? view.state.selection.main.head
-          : view.state.doc.length;
+        const targetPos = typeof explicitPos === 'number' && explicitPos >= 0 && explicitPos <= view.state.doc.length
+          ? explicitPos
+          : view.state.selection?.main?.head ?? view.state.doc.length;
 
         let textToInsert = text;
-        if (!hasActiveSelection && view.state.doc.length > 0) {
-          const lastChar = view.state.doc.sliceString(view.state.doc.length - 1);
-          if (lastChar !== '\n') {
+        if (targetPos > 0) {
+          const prevChar = view.state.doc.sliceString(targetPos - 1, targetPos);
+          if (prevChar !== '\n' && !textToInsert.startsWith('\n')) {
             textToInsert = '\n' + textToInsert;
+          }
+        }
+        if (targetPos < view.state.doc.length) {
+          const nextChar = view.state.doc.sliceString(targetPos, targetPos + 1);
+          if (nextChar !== '\n' && !textToInsert.endsWith('\n')) {
+            textToInsert = textToInsert + '\n';
           }
         }
 
@@ -126,6 +131,18 @@ export const MainEditor: React.FC = () => {
   }>({ isOpen: false, top: 0 });
 
   // Image Upload Handler
+  const imageInsertPosRef = useRef<number | null>(null);
+  const handleOpenImagePicker = useCallback((targetPos?: number) => {
+    if (typeof targetPos === 'number') {
+      imageInsertPosRef.current = targetPos;
+    } else if (editorRef.current) {
+      imageInsertPosRef.current = editorRef.current.state.selection.main.head;
+    } else {
+      imageInsertPosRef.current = null;
+    }
+    fileInputRef.current?.click();
+  }, [editorRef]);
+
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentNoteId || !editorRef.current) return;
@@ -134,10 +151,11 @@ export const MainEditor: React.FC = () => {
       const buffer = await file.arrayBuffer();
       const relativePath = await storage.saveImageBytes(currentNoteId, file.name, new Uint8Array(buffer));
       const markdownImage = `![${file.name}](${relativePath})\n`;
-      insertText(markdownImage);
+      insertText(markdownImage, imageInsertPosRef.current ?? undefined);
     } catch (err) {
       console.error('Failed to save image attachment:', err);
     } finally {
+      imageInsertPosRef.current = null;
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -363,7 +381,7 @@ export const MainEditor: React.FC = () => {
               otherNotes={otherNotes}
               onOpenDiagramEditor={openDiagramEditor}
               onOpenExcalidrawEditor={openExcalidrawEditor}
-              onOpenImagePicker={() => fileInputRef.current?.click()}
+              onOpenImagePicker={handleOpenImagePicker}
               onOpenTaskModal={handleOpenTaskModal}
               onOpenDecisionModal={handleOpenDecisionModal}
               onOpenMermaidModal={() => eventBus.emit('modal:edit-mermaid', { code: '' })}
