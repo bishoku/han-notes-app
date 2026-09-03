@@ -5,9 +5,11 @@ import {
   FolderPlus,
   FilePlus,
   FileUp,
+  Globe,
   PanelLeftClose,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { eventBus } from '@/lib/eventBus';
 
 interface SidebarHeaderProps {
   activeFolderPath: string | null;
@@ -53,6 +55,13 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
             title="PDF İçe Aktar (Smart PDF Import)"
           >
             <FileUp size={15} />
+          </button>
+          <button
+            onClick={() => eventBus.emit('clipper:open-modal')}
+            className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+            title="Web Clipper (Yer İmi ile İçe Aktar)"
+          >
+            <Globe size={15} />
           </button>
           <button
             onClick={onCollapseSidebar}

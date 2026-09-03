@@ -5,7 +5,12 @@ import { TasksView } from '@/components/TasksView';
 import { DecisionsView } from '@/components/DecisionsView';
 import { MindmapView } from '@/components/MindmapView';
 import { SearchView } from '@/components/search/SearchView';
+import { ClipperImportHandler } from '@/components/clipper/ClipperImportHandler';
 import { PwaUpdateBanner } from '@/components/PwaUpdateBanner';
+
+if (typeof window !== 'undefined' && !window.name) {
+  window.name = 'han_notes_app';
+}
 
 function App() {
   return (
@@ -19,6 +24,7 @@ function App() {
           <Route path="/decisions" element={<DecisionsView />} />
           <Route path="/mindmap" element={<MindmapView />} />
           <Route path="/search" element={<SearchView />} />
+          <Route path="/import-clip" element={<ClipperImportHandler />} />
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/notes" replace />} />
         </Route>

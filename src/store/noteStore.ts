@@ -71,7 +71,7 @@ interface NoteState {
   loadVaultTags: () => Promise<void>;
   setActiveTagFilter: (tag: string | null) => void;
   updateNoteTags: (id: string, tags: string[]) => Promise<void>;
-  selectNote: (id: string) => Promise<void>;
+  selectNote: (id: string, force?: boolean) => Promise<void>;
   setActiveFolder: (path: string | null) => void;
   updateNote: (content: string) => Promise<void>;
   createNote: (title: string, parentPath?: string) => Promise<string>;
@@ -166,19 +166,25 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     set({ activeFolderPath: path });
   },
 
-  selectNote: async (id: string) => {
+  selectNote: async (id: string, force = false) => {
     try {
       const cleanId = normalizeNoteId(id);
       const prevId = get().currentNoteId;
       const prevContent = get().currentNoteContent;
 
-      if (prevId === cleanId && get().currentNoteContent) return;
+      if (!force && prevId === cleanId && get().currentNoteContent) return;
 
       // 1. Read note and update UI state immediately
       const content = await storage.readNote(cleanId);
       const parentDir = extractFolderFromId(cleanId);
 
       set({ currentNoteId: cleanId, currentNoteContent: content, activeFolderPath: parentDir });
+      eventBus.emit('note:reloaded', { noteId: cleanId, content });
+      window.dispatchEvent(
+        new CustomEvent('han-note-content-reloaded', {
+          detail: { noteId: cleanId, content },
+        })
+      );
       get().loadBacklinks(cleanId);
 
       // 2. Synchronize note-scoped AI chat session

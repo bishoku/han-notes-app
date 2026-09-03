@@ -6,6 +6,7 @@ import { useNoteStore } from '@/store/noteStore';
 import type { AppTheme } from '@/utils/theme';
 import { IntegrationsSettingsTab } from '@/components/settings/IntegrationsSettingsTab';
 import { GitSyncSettingsTab } from '@/components/settings/GitSyncSettingsTab';
+import { WebClipperSettingsTab } from '@/components/settings/WebClipperSettingsTab';
 import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot, GitBranch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +68,7 @@ export const SettingsModal: React.FC = () => {
   const { isSettingsModalOpen, setSettingsModalOpen, theme, setTheme, language, setLanguage } = useUiStore();
   const { vaultPath, switchVault } = useNoteStore();
   const [isSwitching, setIsSwitching] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'git'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'git' | 'clipper'>('general');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -139,6 +140,19 @@ export const SettingsModal: React.FC = () => {
               <GitBranch size={13} />
               <span>{t('gitSyncTab')}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('clipper')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
+                activeTab === 'clipper'
+                  ? "bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              )}
+            >
+              <Globe size={13} />
+              <span>Web Clipper</span>
+            </button>
           </div>
 
           <button
@@ -156,6 +170,8 @@ export const SettingsModal: React.FC = () => {
             <GitSyncSettingsTab />
           ) : activeTab === 'integrations' ? (
             <IntegrationsSettingsTab />
+          ) : activeTab === 'clipper' ? (
+            <WebClipperSettingsTab />
           ) : (
             <>
               {/* Workspace / Vault Folder Selection */}

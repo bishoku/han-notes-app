@@ -573,5 +573,11 @@
   "createNew": "Yeni oluştur",
   "back": "Geri",
   "syntaxError": "Sözdizimi Hatası",
-  "aiInlineError": "Üretim sırasında bir hata oluştu."
+  "aiInlineError": "Üretim sırasında bir hata oluştu.",
+  "webClipper": "Web Clipper",
+  "webClipperDesc": "Herhangi bir web sayfasını tek tıkla temiz Markdown olarak kasanıza kaydedin.",
+  "webClipperSave": "Han Notes'a Kaydet",
+  "webClipperInstructions": "Bu butonu tarayıcınızın yer imleri çubuğuna sürükleyip bırakın. İstediğiniz bir web sayfasındayken bu butona tıklayarak içeriği tek tıkla notlarınıza Markdown olarak aktarabilirsiniz.",
+  "webClipperCopyCode": "Yer İmi Kodunu Kopyala",
+  "webClipperCodeCopied": "Yer İmi Kodu Kopyalandı!"
 }

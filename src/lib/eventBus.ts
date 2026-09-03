@@ -22,6 +22,7 @@ export interface AppEvents {
   'preview:hide-link': void;
   'modal:open-weblink-fullscreen': WebLinkFullscreenData;
   'modal:pdf-import': { file: File; buffer: ArrayBuffer };
+  'clipper:open-modal': void;
 }
 
 type EventHandler<T> = (payload: T) => void;

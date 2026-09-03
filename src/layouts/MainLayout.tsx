@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sidebar } from '@/components/Sidebar';
 import { RightPanel } from '@/components/RightPanel';
@@ -20,6 +20,8 @@ import { FolderOpen, FolderCheck, Loader2 } from 'lucide-react';
 import { useGitStore } from '@/store/gitStore';
 import { SettingsModal } from '@/components/SettingsModal';
 import { NoteHistoryDrawer } from '@/components/git/NoteHistoryDrawer';
+import { WebClipperModal } from '@/components/clipper/WebClipperModal';
+import { eventBus } from '@/lib/eventBus';
 import { applyAppTheme } from '@/utils/theme';
 
 /**
@@ -31,6 +33,7 @@ function isTauri(): boolean {
 
 export const MainLayout: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const location = useLocation();
   const isNotesRoute = location.pathname === '/' || location.pathname.startsWith('/notes');
 
@@ -46,6 +49,47 @@ export const MainLayout: React.FC = () => {
   const [savedDirName, setSavedDirName] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [clipperModalOpen, setClipperModalOpen] = useState(false);
+
+  // ── Clipper Cross-Tab Synchronization ──
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+
+    const channel = new BroadcastChannel('han_clipper_channel');
+    channel.onmessage = (event) => {
+      // Only respond as an active main tab if we are NOT on the /import-clip route
+      const isImportRoute =
+        window.location.hash.includes('import-clip') ||
+        window.location.pathname.includes('import-clip');
+
+      if (event.data?.type === 'CLIPPER_PING' && !isImportRoute) {
+        channel.postMessage({ type: 'CLIPPER_PONG' });
+      } else if (event.data?.type === 'OPEN_IMPORTED_NOTE' && !isImportRoute) {
+        const { noteId } = event.data;
+        if (noteId) {
+          useNoteStore.getState().loadVault().then(() => {
+            useNoteStore.getState().selectNote(noteId, true);
+            navigate(`/notes/${encodeURIComponent(noteId)}`);
+          });
+          try {
+            window.focus();
+          } catch {}
+        }
+      }
+    };
+
+    return () => {
+      channel.close();
+    };
+  }, [navigate]);
+
+  // ── Web Clipper Modal Event Listener ──
+  useEffect(() => {
+    const unsub = eventBus.on('clipper:open-modal', () => {
+      setClipperModalOpen(true);
+    });
+    return () => unsub();
+  }, []);
 
   // ── Global Keyboard Shortcuts (Cmd+K / Ctrl+K, Cmd+S / Ctrl+S) ──
   useEffect(() => {
@@ -234,6 +278,10 @@ export const MainLayout: React.FC = () => {
       <QuickSearchModal />
       <SettingsModal />
       <NoteHistoryDrawer />
+      <WebClipperModal
+        isOpen={clipperModalOpen}
+        onClose={() => setClipperModalOpen(false)}
+      />
     </div>
   );
 };

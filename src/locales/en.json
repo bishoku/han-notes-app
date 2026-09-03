@@ -573,5 +573,11 @@
   "createNew": "Create new",
   "back": "Back",
   "syntaxError": "Syntax Error",
-  "aiInlineError": "An error occurred during generation."
+  "aiInlineError": "An error occurred during generation.",
+  "webClipper": "Web Clipper",
+  "webClipperDesc": "Save any web page to your vault as clean Markdown with a single click.",
+  "webClipperSave": "Save to Han Notes",
+  "webClipperInstructions": "Drag and drop this button to your browser's bookmarks bar. Click it on any web page to import the content directly into your notes as Markdown.",
+  "webClipperCopyCode": "Copy Bookmarklet Code",
+  "webClipperCodeCopied": "Bookmarklet Code Copied!"
 }
