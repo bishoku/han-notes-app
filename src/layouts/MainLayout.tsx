@@ -216,11 +216,11 @@ export const MainLayout: React.FC = () => {
 
   // ── Main App Layout with Outlet and Bottom AppStatusBar ──
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden antialiased text-gray-900 dark:text-gray-100 bg-mac-mainLight dark:bg-mac-mainDark selection:bg-mac-accent/30">
+    <div className="flex flex-col h-screen w-full overflow-hidden antialiased text-gray-900 dark:text-gray-100 bg-mac-mainLight dark:bg-mac-mainDark selection:bg-mac-accent/30 print:h-auto print:overflow-visible print:bg-white print:block">
       {/* Workspace Body: Sidebar + Dynamic Route Outlet + RightPanel + ChatDrawer */}
-      <div className="flex-1 flex min-h-0 w-full overflow-hidden">
+      <div className="flex-1 flex min-h-0 w-full overflow-hidden print:h-auto print:overflow-visible print:block">
         <Sidebar />
-        <div className="flex-1 flex min-w-0 h-full overflow-hidden relative">
+        <div className="flex-1 flex min-w-0 h-full overflow-hidden relative print:h-auto print:overflow-visible print:static print:block">
           <Outlet />
         </div>
         {isNotesRoute && rightPanelOpen && <RightPanel />}

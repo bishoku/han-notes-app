@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Eye,
   FileCode,
+  Printer,
 } from 'lucide-react';
 
 import { useUiStore } from '@/store/uiStore';
@@ -73,8 +74,20 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
     return () => window.removeEventListener('keydown', handleNavShortcuts);
   }, [navigate]);
 
+  // PDF Export using native print engine
+  const handleExportPdf = () => {
+    if (!currentNoteId) return;
+    const noteTitle = currentNoteId.replace(/\.md$/, '').split('/').pop() || 'note';
+    const originalTitle = document.title;
+    document.title = noteTitle;
+    window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
+  };
+
   return (
-    <header className="h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none overflow-hidden">
+    <header className="print:hidden h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none overflow-hidden">
       {/* ── Left Side: Back/Forward, Note Title, Tags ── */}
       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0 flex-1 overflow-hidden">
         {/* Expand Sidebar Button (Visible when sidebar is collapsed) */}
@@ -243,6 +256,17 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             title={t('versionHistoryAndDiff')}
           >
             <History size={15} />
+          </button>
+        )}
+
+        {/* PDF Export Button */}
+        {currentNoteId && (
+          <button
+            onClick={handleExportPdf}
+            className="p-1.5 rounded-md hover:bg-purple-500/10 text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
+            title={t('exportPdf', 'PDF Olarak Dışa Aktar')}
+          >
+            <Printer size={15} />
           </button>
         )}
 

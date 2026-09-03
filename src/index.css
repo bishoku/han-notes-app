@@ -995,3 +995,184 @@
 .ai-wikilink:hover {
   opacity: 0.8;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Print & PDF Export Stylesheet (@media print)
+   Produces clean, high-fidelity, vector-sharp document prints
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* Page geometry & margins */
+  @page {
+    margin: 15mm 20mm;
+    size: auto;
+  }
+
+  /* Completely eradicate all scrollbars on print pages */
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  *::-webkit-scrollbar,
+  ::-webkit-scrollbar,
+  *::-webkit-scrollbar-thumb,
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    max-width: 0 !important;
+    max-height: 0 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  /* Force light background and sharp contrast for print */
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body,
+  #root,
+  #root > div,
+  main,
+  main > div,
+  .cm-scroller,
+  .cm-content,
+  .cm-line,
+  .cm-editor {
+    background: #ffffff !important;
+    color: #111827 !important;
+    contain: none !important;
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Hide app chrome: sidebar, right panel, status bar, chat drawer, modals, overlays, floating menus, code buttons */
+  header,
+  aside,
+  footer,
+  .print\:hidden,
+  [class*="print:hidden"],
+  .status-bar,
+  [role="dialog"],
+  .fixed,
+  .cm-floating-menu,
+  .cm-selection-bubble,
+  .cm-slash-menu,
+  .group\/codeblock .opacity-0,
+  .cm-codeblock-actions,
+  .cm-codeblock-actions *,
+  .cm-codeblock-header button,
+  .cm-codeblock-expand-btn,
+  .cm-codeblock-wrap button,
+  .cm-codeblock-header .cursor-pointer {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Live Preview wrapper: remove screen editing paddings on paper */
+  .cm-preview-mode {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Code Blocks: Expand fully, preserve line numbers, syntax highlighting, avoid splitting */
+  .cm-codeblock-wrap {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    border: 1px solid #d1d5db !important;
+    background-color: #f9fafb !important;
+    box-shadow: none !important;
+    margin: 1rem 0 !important;
+  }
+
+  .cm-codeblock-body {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .cm-codeblock-pre {
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+  }
+
+  .cm-codeblock-code {
+    white-space: pre-wrap !important;
+  }
+
+  .cm-codeblock-gutter {
+    border-right: 1px solid #e5e7eb !important;
+    color: #9ca3af !important;
+  }
+
+  /* Tables: Avoid splitting across pages, clean paper borders */
+  .cm-table-widget,
+  .cm-table-container,
+  table {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th,
+  td {
+    border: 1px solid #d1d5db !important;
+  }
+
+  /* Mermaid & Diagrams: Center, preserve vector sharp SVG, avoid splitting */
+  .cm-mermaid-container,
+  .cm-mermaid-container svg,
+  .mermaid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    max-width: 100% !important;
+  }
+
+  /* Callouts & Quotes: Keep decorative left bar, avoid splitting */
+  .cm-callout,
+  blockquote {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Images: avoid breaking across pages, fit on paper */
+  img {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Headings: Keep with the following paragraph (avoid orphan headings at bottom of page) */
+  h1, h2, h3, h4, h5, h6,
+  .cm-h1, .cm-h2, .cm-h3, .cm-h4 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+}

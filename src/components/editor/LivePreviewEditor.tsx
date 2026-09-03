@@ -187,10 +187,10 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
   }, [isDarkTheme]);
 
   return (
-    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain print:h-auto print:overflow-visible print:block">
       <div
         ref={wrapperRef}
-        className="py-12 relative pr-8 md:pr-12 pl-14 cm-preview-mode w-full max-w-full overflow-x-hidden box-border"
+        className="py-12 relative pr-8 md:pr-12 pl-14 cm-preview-mode w-full max-w-full overflow-x-hidden box-border print:h-auto print:overflow-visible print:p-0 print:block"
       >
         <FloatingBlockMenu
           menuPos={menuPos}

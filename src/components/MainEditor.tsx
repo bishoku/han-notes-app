@@ -118,7 +118,7 @@ export const MainEditor: React.FC = () => {
   }
 
   return (
-    <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 ease-mac-ease flex-1 min-h-0 overflow-hidden">
+    <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 ease-mac-ease flex-1 min-h-0 overflow-hidden print:h-auto print:overflow-visible print:block">
       {/* Hidden File Input for Image Upload */}
       <input
         type="file"

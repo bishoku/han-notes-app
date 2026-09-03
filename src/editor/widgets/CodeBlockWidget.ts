@@ -81,7 +81,7 @@ export class CodeBlockWidget extends WidgetType {
 
     // ─── Compact Header Bar (26px height, unselectable) ───
     const header = document.createElement("div");
-    header.className = "flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-[#16171b]/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px] cursor-default w-full max-w-full box-border";
+    header.className = "cm-codeblock-header flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-[#16171b]/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px] cursor-default w-full max-w-full box-border";
     header.style.userSelect = "none";
     (header.style as any).WebkitUserSelect = "none";
 
@@ -151,7 +151,7 @@ export class CodeBlockWidget extends WidgetType {
 
     // Right: Action toolbar buttons
     const actions = document.createElement("div");
-    actions.className = "flex items-center gap-0.5 leading-none select-none";
+    actions.className = "cm-codeblock-actions flex items-center gap-0.5 leading-none select-none";
 
     // 1. Edit Button
     const editBtn = document.createElement("button");
