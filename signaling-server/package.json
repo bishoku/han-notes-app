@@ -1,0 +1,19 @@
+{
+  "name": "han-signaling-server",
+  "version": "1.0.0",
+  "description": "Ephemeral WebSocket signaling relay using Cloudflare Workers and Durable Objects for H.A.N. Notes P2P sync",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "keywords": ["webrtc", "signaling", "cloudflare-workers", "durable-objects"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240903.0",
+    "typescript": "^5.5.4",
+    "wrangler": "^3.75.0"
+  }
+}

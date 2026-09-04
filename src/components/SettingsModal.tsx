@@ -7,7 +7,8 @@ import type { AppTheme } from '@/utils/theme';
 import { IntegrationsSettingsTab } from '@/components/settings/IntegrationsSettingsTab';
 import { GitSyncSettingsTab } from '@/components/settings/GitSyncSettingsTab';
 import { WebClipperSettingsTab } from '@/components/settings/WebClipperSettingsTab';
-import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot, GitBranch } from 'lucide-react';
+import { SyncSettingsTab } from '@/components/settings/SyncSettingsTab';
+import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot, GitBranch, ArrowDownUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ThemeOption {
@@ -68,7 +69,7 @@ export const SettingsModal: React.FC = () => {
   const { isSettingsModalOpen, setSettingsModalOpen, theme, setTheme, language, setLanguage } = useUiStore();
   const { vaultPath, switchVault } = useNoteStore();
   const [isSwitching, setIsSwitching] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'git' | 'clipper'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'git' | 'clipper' | 'sync'>('general');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -153,6 +154,19 @@ export const SettingsModal: React.FC = () => {
               <Globe size={13} />
               <span>{t('webClipperTab')}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('sync')}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
+                activeTab === 'sync'
+                  ? "bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              )}
+            >
+              <ArrowDownUp size={13} />
+              <span>{t('syncSettingsTab')}</span>
+            </button>
           </div>
 
           <button
@@ -172,6 +186,8 @@ export const SettingsModal: React.FC = () => {
             <IntegrationsSettingsTab />
           ) : activeTab === 'clipper' ? (
             <WebClipperSettingsTab />
+          ) : activeTab === 'sync' ? (
+            <SyncSettingsTab />
           ) : (
             <>
               {/* Workspace / Vault Folder Selection */}

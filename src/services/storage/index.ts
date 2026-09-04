@@ -11,6 +11,7 @@
 import type { IStorageService } from './types';
 import { TauriStorage } from './TauriStorage';
 import { BrowserStorage } from './BrowserStorage';
+import { IndexedDBStorage } from './IndexedDBStorage';
 
 // Re-export all types for convenience
 export type {
@@ -25,24 +26,37 @@ export type {
   DecisionRegistry,
 } from './types';
 
+export { IndexedDBStorage };
+
 /**
  * Detect if we're running inside a Tauri desktop app.
  * Tauri injects `__TAURI_INTERNALS__` into the window object.
  */
-function isTauriEnvironment(): boolean {
+export function isTauriEnvironment(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/** Check if File System Access API is available in the browser */
+export function isFileSystemAccessSupported(): boolean {
+  return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+}
+
 /**
- * Create the appropriate storage provider based on runtime environment.
+ * Create the appropriate storage provider based on runtime environment:
+ * 1. Tauri Desktop -> TauriStorage (native Rust file I/O)
+ * 2. Desktop Browsers supporting showDirectoryPicker -> BrowserStorage (local disk .md)
+ * 3. Mobile / Unsupported Browsers -> IndexedDBStorage (client-side DB fallback)
  */
 function createStorage(): IStorageService {
   if (isTauriEnvironment()) {
     console.log('[Storage] Tauri environment detected — using native backend');
     return new TauriStorage();
-  } else {
+  } else if (isFileSystemAccessSupported()) {
     console.log('[Storage] Browser environment detected — using File System Access API');
     return new BrowserStorage();
+  } else {
+    console.log('[Storage] Unsupported or mobile browser detected — falling back to IndexedDB');
+    return new IndexedDBStorage();
   }
 }
 
@@ -99,7 +113,12 @@ export async function clearSavedDirectoryHandle(): Promise<void> {
   }
 }
 
-/** Check if File System Access API is available in the browser */
-export function isFileSystemAccessSupported(): boolean {
-  return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+/**
+ * Initialize IndexedDB storage (used on mobile / fallback environments).
+ */
+export async function initIndexedDbStorage(): Promise<void> {
+  if (storage instanceof IndexedDBStorage) {
+    await storage.getDb();
+  }
 }
+

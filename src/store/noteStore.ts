@@ -11,6 +11,7 @@ import {
   extractTitleFromId,
   extractFolderFromId,
 } from '@/utils/pathUtils';
+import { syncStorageAdapter } from '@/services/sync/syncStorageAdapter';
 import type { FileNode, NoteInfo, TagCount, BacklinkInfo } from '@/services/storage';
 
 // Re-export types for backward compatibility with existing component imports
@@ -371,6 +372,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   deleteNode: async (relPath: string) => {
     try {
+      await syncStorageAdapter.recordTombstone(relPath);
       await storage.deleteNode(relPath);
       useGraphStore.getState().removeNoteFromGraph(relPath);
       if (get().currentNoteId === relPath || get().currentNoteId?.startsWith(relPath + '/')) {

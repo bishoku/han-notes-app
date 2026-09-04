@@ -18,6 +18,7 @@ import {
   Eye,
   FileCode,
 } from 'lucide-react';
+import { SyncStatusBadge } from '@/components/sync/SyncStatusBadge';
 import { cn } from '@/lib/utils';
 
 export const AppStatusBar: React.FC = () => {
@@ -154,23 +155,33 @@ export const AppStatusBar: React.FC = () => {
                 <span>{t('statusHistory')}</span>
               </button>
             )}
+
+            <span className="text-gray-300 dark:text-zinc-700">|</span>
+
+            {/* P2P Sync Trigger */}
+            <SyncStatusBadge variant="statusbar" />
           </>
         ) : (
-          <button
-            onClick={async () => {
-              try {
-                await initRepo();
-              } catch {
-                setFeedback(t('error'));
-                setTimeout(() => setFeedback(null), 2500);
-              }
-            }}
-            className="flex items-center gap-1 text-gray-500 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors"
-            title={t('gitSyncDesc')}
-          >
-            <GitBranch className="w-3 h-3 text-gray-400 dark:text-zinc-500" />
-            <span>{t('statusGitNotInit')}</span>
-          </button>
+          <>
+            <button
+              onClick={async () => {
+                try {
+                  await initRepo();
+                } catch {
+                  setFeedback(t('error'));
+                  setTimeout(() => setFeedback(null), 2500);
+                }
+              }}
+              className="flex items-center gap-1 text-gray-500 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors"
+              title={t('gitSyncDesc')}
+            >
+              <GitBranch className="w-3 h-3 text-gray-400 dark:text-zinc-500" />
+              <span>{t('statusGitNotInit')}</span>
+            </button>
+
+            <span className="text-gray-300 dark:text-zinc-700">|</span>
+            <SyncStatusBadge variant="statusbar" />
+          </>
         )}
       </div>
 

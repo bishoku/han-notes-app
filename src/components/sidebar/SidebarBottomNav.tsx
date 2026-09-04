@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckCircle, FileCheck, Network, Sparkles, Settings } from 'lucide-react';
+import { SyncStatusBadge } from '@/components/sync/SyncStatusBadge';
 import { cn } from '@/lib/utils';
 
 interface SidebarBottomNavProps {
@@ -85,6 +86,8 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
         </div>
         {isAiEnabled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
       </button>
+
+      <SyncStatusBadge variant="sidebar" />
 
       <button
         onClick={onOpenSettings}

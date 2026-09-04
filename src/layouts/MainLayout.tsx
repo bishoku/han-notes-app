@@ -10,6 +10,8 @@ import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
 import {
   initBrowserStorage,
+  initIndexedDbStorage,
+  isFileSystemAccessSupported,
   pickBrowserDirectory,
   getSavedDirectoryName,
   requestSavedDirectoryPermission,
@@ -21,6 +23,8 @@ import { useGitStore } from '@/store/gitStore';
 import { SettingsModal } from '@/components/SettingsModal';
 import { NoteHistoryDrawer } from '@/components/git/NoteHistoryDrawer';
 import { WebClipperModal } from '@/components/clipper/WebClipperModal';
+import { P2PSyncModal } from '@/components/sync/P2PSyncModal';
+import { useSyncStore } from '@/store/syncStore';
 import { eventBus } from '@/lib/eventBus';
 import { applyAppTheme } from '@/utils/theme';
 
@@ -91,6 +95,22 @@ export const MainLayout: React.FC = () => {
     return () => unsub();
   }, []);
 
+  // ── Automatic QR Code Pairing Link Handler (#sync=...&key=...) ──
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkHashSync = () => {
+      const hash = window.location.hash;
+      if (hash.includes('sync=') && hash.includes('key=')) {
+        useSyncStore.getState().openModal('scan');
+        useSyncStore.getState().startPeerSession(hash);
+      }
+    };
+
+    checkHashSync();
+    window.addEventListener('hashchange', checkHashSync);
+    return () => window.removeEventListener('hashchange', checkHashSync);
+  }, []);
+
   // ── Global Keyboard Shortcuts (Cmd+K / Ctrl+K, Cmd+S / Ctrl+S) ──
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -127,6 +147,16 @@ export const MainLayout: React.FC = () => {
         // Tauri: no directory picker needed, load directly
         setStorageReady(true);
         await loadVault();
+      } else if (!isFileSystemAccessSupported()) {
+        // Mobile or unsupported browser: automatically initialize IndexedDB storage
+        try {
+          await initIndexedDbStorage();
+          setStorageReady(true);
+          await loadVault();
+        } catch (err: any) {
+          console.error('[MainLayout] IndexedDB init failed:', err);
+          setStorageError(err?.message || t('directoryRestoreError'));
+        }
       } else {
         // Browser: try to reuse saved handle silently (no user gesture needed for that)
         try {
@@ -149,7 +179,7 @@ export const MainLayout: React.FC = () => {
     const disableContextMenu = (e: MouseEvent) => { e.preventDefault(); };
     window.addEventListener('contextmenu', disableContextMenu);
     return () => window.removeEventListener('contextmenu', disableContextMenu);
-  }, [loadVault]);
+  }, [loadVault, t]);
 
   // Handler to restore permission on previously chosen directory (requires user click)
   const handleRestoreDirectory = async () => {
@@ -282,6 +312,7 @@ export const MainLayout: React.FC = () => {
         isOpen={clipperModalOpen}
         onClose={() => setClipperModalOpen(false)}
       />
+      <P2PSyncModal />
     </div>
   );
 };
