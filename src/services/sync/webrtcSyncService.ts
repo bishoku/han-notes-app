@@ -59,6 +59,8 @@ export class WebRtcSyncService {
 
   private connectionTimeout: any = null;
   private rejectDataChannelPromise: ((err: Error) => void) | null = null;
+  private isSyncProtocolDone = false;
+  private currentReport: SyncReport | null = null;
 
   constructor(
     roomId: string,
@@ -81,6 +83,8 @@ export class WebRtcSyncService {
    */
   async start(): Promise<SyncReport> {
     this.isCancelled = false;
+    this.isSyncProtocolDone = false;
+    this.currentReport = null;
     this.setState('connecting_signaling');
 
     try {
@@ -104,7 +108,9 @@ export class WebRtcSyncService {
       this.pc.oniceconnectionstatechange = () => {
         console.log('[WebRTC] ICE Connection State:', this.pc?.iceConnectionState);
         if (this.pc?.iceConnectionState === 'failed') {
-          this.setState('error', 'P2P Connection failed to establish via ICE.');
+          if (!this.isSyncProtocolDone) {
+            this.setState('error', 'P2P Connection failed to establish via ICE.');
+          }
         }
       };
 
@@ -195,6 +201,8 @@ export class WebRtcSyncService {
 
       // 7. Perform bi-directional state diffing and note transfer
       const report = await this.performSyncProtocol(channel);
+      this.currentReport = report;
+      this.isSyncProtocolDone = true;
 
       this.setState('completed');
 
@@ -211,8 +219,24 @@ export class WebRtcSyncService {
         console.warn('[Sync] Vault reload error:', err);
       }
 
+      // 10. Brief graceful linger so the remote peer receives final packets
+      await new Promise((r) => setTimeout(r, 400));
+
       return report;
     } catch (err: any) {
+      if (this.currentReport && (this.currentReport.receivedNotesCount > 0 || this.currentReport.deletedNotesCount > 0)) {
+        try {
+          clearFileTextCache();
+          await useNoteStore.getState().loadVault();
+        } catch {}
+      }
+
+      if (this.isSyncProtocolDone && this.currentReport) {
+        console.log('[Sync] Remote disconnected after protocol completion — treating as success.');
+        this.setState('completed');
+        return this.currentReport;
+      }
+
       if (!this.isCancelled) {
         this.setState('error', err?.message || 'Sync failed');
       }
@@ -457,6 +481,43 @@ export class WebRtcSyncService {
       }
     }
 
+    // Immediately reload vault so all incoming notes are visible in memory
+    clearFileTextCache();
+    try {
+      await useNoteStore.getState().loadVault();
+      if (useNoteStore.getState().currentNoteId) {
+        await useNoteStore.getState().refreshCurrentNote();
+      }
+    } catch (err) {
+      console.warn('[Sync] Early vault reload error:', err);
+    }
+
+    // 6. Send SYNC_ACK confirming we received all peer's notes
+    try {
+      await this.sendEncryptedMessage(channel, { type: 'SYNC_ACK' });
+    } catch (err) {
+      console.warn('[Sync] Could not send SYNC_ACK (channel may already be closing):', err);
+    }
+
+    this.isSyncProtocolDone = true;
+    this.currentReport = report;
+
+    // 7. Wait for peer's SYNC_ACK confirming peer received all our notes (with 4s timeout)
+    try {
+      await Promise.race([
+        this.waitForMessage('SYNC_ACK'),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('SYNC_ACK timeout')), 4000)
+        ),
+      ]);
+      console.log('[Sync] Remote peer confirmed receipt with SYNC_ACK.');
+    } catch (err: any) {
+      console.log('[Sync] SYNC_ACK wait ended:', err?.message);
+    }
+
+    // Small delay to allow any pending outgoing TCP/SCTP packets to drain
+    await new Promise((r) => setTimeout(r, 300));
+
     this.onProgress?.({
       stage: 'finalizing',
       totalNotes: totalTransferNotes,
@@ -490,6 +551,10 @@ export class WebRtcSyncService {
 
     channel.addEventListener('close', () => {
       console.log('[WebRTC] DataChannel closed.');
+      if (this.isSyncProtocolDone) {
+        console.log('[WebRTC] DataChannel closed after sync protocol finished. Normal termination.');
+        return;
+      }
       this.rejectPendingWaiters(new Error('DataChannel closed'));
     });
   }

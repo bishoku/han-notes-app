@@ -180,9 +180,9 @@ export const P2PSyncModal: React.FC = () => {
     }
   }, [cameraFacing, scanQrCodeLoop, t, isModalOpen, activeTab]);
 
-  // Reset hasScannedRef when opening modal or switching back to scan tab in idle/error state
+  // Reset hasScannedRef when opening modal or switching back to scan tab in idle state
   useEffect(() => {
-    if (isModalOpen && activeTab === 'scan' && (syncState === 'idle' || syncState === 'error')) {
+    if (isModalOpen && activeTab === 'scan' && syncState === 'idle') {
       hasScannedRef.current = false;
     }
   }, [isModalOpen, activeTab, syncState]);
@@ -190,7 +190,7 @@ export const P2PSyncModal: React.FC = () => {
   // ── Camera Scanner Lifecycle for Scan Tab ──
   useEffect(() => {
     const isScanTabActive = isModalOpen && activeTab === 'scan';
-    const isWaitingForScan = syncState === 'idle' || syncState === 'error';
+    const isWaitingForScan = syncState === 'idle';
     const shouldCameraRun = isScanTabActive && isWaitingForScan && !hasScannedRef.current;
 
     if (!shouldCameraRun) {

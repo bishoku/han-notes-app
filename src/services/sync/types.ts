@@ -72,6 +72,7 @@ export type P2PMessage =
   | { type: 'MANIFEST_ACK' }
   | { type: 'NOTE_PAYLOAD'; note: CanonicalNote; index: number; total: number }
   | { type: 'SYNC_DONE'; sentCount: number }
+  | { type: 'SYNC_ACK' }
   | { type: 'ERROR'; message: string };
 
 // ── Signaling Protocol Messages (over ephemeral WebSocket) ───────────────────
