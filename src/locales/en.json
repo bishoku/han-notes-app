@@ -650,6 +650,7 @@
   "syncGeneratingPairing": "Generating ephemeral encryption key...",
   "syncShareInstructions": "Point your second device camera at this QR code to connect directly.",
   "syncCopyPairingLink": "Copy Pairing Link",
+  "syncRefreshQr": "Generate New Code",
   "syncFlipCamera": "Flip Camera",
   "syncCameraNotice": "Camera Access",
   "syncCameraNotSupported": "Camera access is not supported in this browser.",

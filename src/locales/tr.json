@@ -650,6 +650,7 @@
   "syncGeneratingPairing": "Geçici şifreleme anahtarı oluşturuluyor...",
   "syncShareInstructions": "Doğrudan bağlanmak için ikinci cihazınızın kamerasını bu QR koda tutun.",
   "syncCopyPairingLink": "Eşleşme Bağlantısını Kopyala",
+  "syncRefreshQr": "Yeni Kod Oluştur",
   "syncFlipCamera": "Kamerayı Çevir",
   "syncCameraNotice": "Kamera Erişimi",
   "syncCameraNotSupported": "Bu tarayıcıda kamera erişimi desteklenmiyor.",

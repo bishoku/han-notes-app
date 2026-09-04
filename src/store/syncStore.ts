@@ -49,7 +49,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
 
   openModal: (initialTab = 'share') => {
     set({ isModalOpen: true, activeTab: initialTab, error: null });
-    if (initialTab === 'share' && get().syncState === 'idle') {
+    if (initialTab === 'share' && get().syncState !== 'syncing') {
       get().startHostSession();
     }
   },
@@ -109,22 +109,30 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
         'host',
         signalingUrl,
         (state, error) => {
-          set({ syncState: state, error: error || null });
+          if (activeSyncService === service) {
+            set({ syncState: state, error: error || null });
+          }
         },
         (progress) => {
-          set({ progress });
+          if (activeSyncService === service) {
+            set({ progress });
+          }
         }
       );
 
       activeSyncService = service;
       const report = await service.start();
-      set({ lastReport: report, syncState: 'completed' });
+      if (activeSyncService === service) {
+        set({ lastReport: report, syncState: 'completed' });
+      }
     } catch (err: any) {
-      console.error('[SyncStore] Host session error:', err);
-      set({
-        syncState: 'error',
-        error: err?.message || 'Failed to start host sync session',
-      });
+      if (activeSyncService) {
+        console.error('[SyncStore] Host session error:', err);
+        set({
+          syncState: 'error',
+          error: err?.message || 'Failed to start host sync session',
+        });
+      }
     }
   },
 
@@ -159,29 +167,38 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
         'peer',
         signalingUrl,
         (state, error) => {
-          set({ syncState: state, error: error || null });
+          if (activeSyncService === service) {
+            set({ syncState: state, error: error || null });
+          }
         },
         (progress) => {
-          set({ progress });
+          if (activeSyncService === service) {
+            set({ progress });
+          }
         }
       );
 
       activeSyncService = service;
       const report = await service.start();
-      set({ lastReport: report, syncState: 'completed' });
+      if (activeSyncService === service) {
+        set({ lastReport: report, syncState: 'completed' });
+      }
     } catch (err: any) {
-      console.error('[SyncStore] Peer session error:', err);
-      set({
-        syncState: 'error',
-        error: err?.message || 'Failed to connect to host peer',
-      });
+      if (activeSyncService) {
+        console.error('[SyncStore] Peer session error:', err);
+        set({
+          syncState: 'error',
+          error: err?.message || 'Failed to connect to host peer',
+        });
+      }
     }
   },
 
   cancelSync: () => {
     if (activeSyncService) {
-      activeSyncService.cancel();
+      const s = activeSyncService;
       activeSyncService = null;
+      s.cancel();
     }
     set({
       syncState: 'idle',

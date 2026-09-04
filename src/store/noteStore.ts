@@ -10,6 +10,7 @@ import {
   normalizeNoteId,
   extractTitleFromId,
   extractFolderFromId,
+  isNoteIdMatch,
 } from '@/utils/pathUtils';
 import { syncStorageAdapter } from '@/services/sync/syncStorageAdapter';
 import type { FileNode, NoteInfo, TagCount, BacklinkInfo } from '@/services/storage';
@@ -119,9 +120,18 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       // 4. Non-blocking graph store sync
       useGraphStore.getState().buildFullGraph(notes);
 
-      // 5. Select first note if nothing is selected
+      // 5. Select first note if nothing is selected, or refresh current note if still exists
       if (notes.length > 0 && !get().currentNoteId) {
         await get().selectNote(notes[0].id);
+      } else if (get().currentNoteId) {
+        const stillExists = notes.some((n) => isNoteIdMatch(n.id, get().currentNoteId));
+        if (stillExists) {
+          await get().refreshCurrentNote();
+        } else if (notes.length > 0) {
+          await get().selectNote(notes[0].id, true);
+        } else {
+          set({ currentNoteId: null, currentNoteContent: '' });
+        }
       }
 
       // 6. Non-blocking Git status refresh
@@ -175,7 +185,24 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       const prevId = get().currentNoteId;
       const prevContent = get().currentNoteContent;
 
-      if (!force && prevId === cleanId && get().currentNoteContent) return;
+      if (!force && prevId === cleanId && get().currentNoteContent) {
+        // Even if same note is re-clicked, check if content changed on disk (e.g. after sync or git)
+        try {
+          const diskContent = await storage.readNote(cleanId);
+          if (diskContent === prevContent) {
+            return;
+          }
+          set({ currentNoteContent: diskContent });
+          eventBus.emit('note:reloaded', { noteId: cleanId, content: diskContent });
+          window.dispatchEvent(
+            new CustomEvent('han-note-content-reloaded', {
+              detail: { noteId: cleanId, content: diskContent },
+            })
+          );
+          get().loadBacklinks(cleanId);
+        } catch {}
+        return;
+      }
 
       // 1. Read note and update UI state immediately
       const content = await storage.readNote(cleanId);
@@ -519,3 +546,13 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     }
   },
 }));
+
+// Synchronize noteStore's active note content whenever note:reloaded is fired externally (e.g. sync)
+eventBus.on('note:reloaded', ({ noteId, content }) => {
+  const currentId = useNoteStore.getState().currentNoteId;
+  if (currentId && isNoteIdMatch(currentId, noteId)) {
+    if (useNoteStore.getState().currentNoteContent !== content) {
+      useNoteStore.setState({ currentNoteContent: content });
+    }
+  }
+});

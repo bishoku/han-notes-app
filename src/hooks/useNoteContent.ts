@@ -79,6 +79,11 @@ export function useNoteContent() {
       clearLivePreviewCaches();
       setLocalContent(currentNoteContent || '');
       localContentRef.current = currentNoteContent || '';
+    } else if (currentNoteContent !== localContentRef.current && !saveTimerRef.current) {
+      // Note content in noteStore was refreshed externally (e.g. by sync/git)
+      clearLivePreviewCaches();
+      setLocalContent(currentNoteContent || '');
+      localContentRef.current = currentNoteContent || '';
     }
   }, [currentNoteId, currentNoteContent, updateNote]);
 

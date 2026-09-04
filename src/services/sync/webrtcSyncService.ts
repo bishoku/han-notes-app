@@ -7,6 +7,7 @@
  * Ephemeral signaling: WebSocket is terminated the moment DataChannel is open.
  */
 import { useNoteStore } from '@/store/noteStore';
+import { clearFileTextCache } from '@/services/storage/browser/fileOps';
 import { encryptPayload, decryptPayload } from './crypto';
 import {
   splitIntoChunks,
@@ -55,6 +56,9 @@ export class WebRtcSyncService {
     reject: (err: any) => void;
     filter?: (msg: P2PMessage) => boolean;
   }> = [];
+
+  private connectionTimeout: any = null;
+  private rejectDataChannelPromise: ((err: Error) => void) | null = null;
 
   constructor(
     roomId: string,
@@ -106,12 +110,21 @@ export class WebRtcSyncService {
 
       // 3. Setup DataChannel depending on role
       const dataChannelPromise = new Promise<RTCDataChannel>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('WebRTC DataChannel connection timed out after 30s.'));
-        }, 30000);
+        this.rejectDataChannelPromise = reject;
+
+        // Host has a generous 3-minute window for peer to scan QR code
+        // Peer has a 45s window to negotiate handshake
+        const initialTimeoutMs = this.role === 'host' ? 180000 : 45000;
+        const initialTimeoutMsg =
+          this.role === 'host'
+            ? 'Pairing session timed out after 3 minutes. Please refresh QR code.'
+            : 'WebRTC DataChannel connection timed out after 45s.';
+
+        this.setConnectionTimeout(initialTimeoutMs, initialTimeoutMsg);
 
         const onOpen = (channel: RTCDataChannel) => {
-          clearTimeout(timeout);
+          this.clearConnectionTimeout();
+          this.rejectDataChannelPromise = null;
           console.log(`[WebRTC] DataChannel OPEN on ${this.role}!`);
           resolve(channel);
         };
@@ -131,7 +144,11 @@ export class WebRtcSyncService {
           } else {
             channel.onopen = () => onOpen(channel);
           }
-          channel.onerror = (e) => reject(e);
+          channel.onerror = (e) => {
+            this.clearConnectionTimeout();
+            this.rejectDataChannelPromise = null;
+            reject(e);
+          };
         } else {
           // Peer awaits DataChannel from host
           this.pc!.ondatachannel = (event) => {
@@ -146,7 +163,11 @@ export class WebRtcSyncService {
             } else {
               channel.onopen = () => onOpen(channel);
             }
-            channel.onerror = (e) => reject(e);
+            channel.onerror = (e) => {
+              this.clearConnectionTimeout();
+              this.rejectDataChannelPromise = null;
+              reject(e);
+            };
           };
         }
       });
@@ -177,9 +198,15 @@ export class WebRtcSyncService {
 
       this.setState('completed');
 
-      // 8. Refresh noteStore vault and file tree
+      // 8. Invalidate file text cache so disk reads reflect newly written notes
+      clearFileTextCache();
+
+      // 9. Refresh noteStore vault, file tree and active note
       try {
         await useNoteStore.getState().loadVault();
+        if (useNoteStore.getState().currentNoteId) {
+          await useNoteStore.getState().refreshCurrentNote();
+        }
       } catch (err) {
         console.warn('[Sync] Vault reload error:', err);
       }
@@ -195,6 +222,25 @@ export class WebRtcSyncService {
     }
   }
 
+  private setConnectionTimeout(durationMs: number, errorMessage: string) {
+    this.clearConnectionTimeout();
+    this.connectionTimeout = setTimeout(() => {
+      this.connectionTimeout = null;
+      if (this.rejectDataChannelPromise) {
+        const reject = this.rejectDataChannelPromise;
+        this.rejectDataChannelPromise = null;
+        reject(new Error(errorMessage));
+      }
+    }, durationMs);
+  }
+
+  private clearConnectionTimeout() {
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+  }
+
   /**
    * Sets up signaling message handlers for SDP and ICE candidates.
    */
@@ -205,15 +251,24 @@ export class WebRtcSyncService {
       if (this.isCancelled || !this.pc) return;
 
       try {
-        if (msg.type === 'ready' && this.role === 'host') {
-          // Peer connected to room — create and send SDP offer
-          this.setState('connecting_peer');
-          const offer = await this.pc.createOffer();
-          await this.pc.setLocalDescription(offer);
-          this.signaling?.send({
-            type: 'offer',
-            sdp: offer.sdp || '',
-          });
+        if (msg.type === 'ready') {
+          if (this.role === 'host') {
+            // Peer connected to room — reset timeout to 45s for active WebRTC negotiation!
+            this.setConnectionTimeout(45000, 'WebRTC connection timed out during handshake (45s).');
+            this.setState('connecting_peer');
+            const offer = await this.pc.createOffer();
+            await this.pc.setLocalDescription(offer);
+            this.signaling?.send({
+              type: 'offer',
+              sdp: offer.sdp || '',
+            });
+          } else if (this.role === 'peer' && msg.role === 'host') {
+            // Host joined or re-announced — reply with peer ready so host initiates offer
+            this.signaling?.send({
+              type: 'ready',
+              role: 'peer',
+            });
+          }
         } else if (msg.type === 'offer' && this.role === 'peer') {
           // Peer received SDP offer — set remote description and send answer
           await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: msg.sdp }));
@@ -550,6 +605,12 @@ export class WebRtcSyncService {
 
   cancel(): void {
     this.isCancelled = true;
+    this.clearConnectionTimeout();
+    if (this.rejectDataChannelPromise) {
+      const reject = this.rejectDataChannelPromise;
+      this.rejectDataChannelPromise = null;
+      reject(new Error('Sync session cancelled by user'));
+    }
     this.rejectPendingWaiters(new Error('Sync cancelled by user'));
     this.cleanup();
   }
@@ -559,6 +620,8 @@ export class WebRtcSyncService {
   }
 
   private cleanup(): void {
+    this.clearConnectionTimeout();
+    this.rejectDataChannelPromise = null;
     this.rejectPendingWaiters(new Error('Sync session ended'));
     this.reassembler.clear();
     this.messageQueue = [];

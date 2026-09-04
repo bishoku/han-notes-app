@@ -9,6 +9,7 @@
  */
 import { storage } from '@/services/storage';
 import { normalizeNoteId, toNoteFilePath, extractTitleFromId, extractFolderFromId } from '@/utils/pathUtils';
+import { eventBus } from '@/lib/eventBus';
 import { computeContentHash } from './crypto';
 import type { CanonicalNote, NoteSummary, SyncManifest, VaultSyncMetadata } from './types';
 
@@ -268,6 +269,15 @@ export class SyncStorageAdapter {
       delete meta.tombstones[cleanId];
       await this.saveMetadata();
 
+      eventBus.emit('note:reloaded', { noteId: cleanId, content: incoming.content });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('han-note-content-reloaded', {
+            detail: { noteId: cleanId, content: incoming.content },
+          })
+        );
+      }
+
       return { status: 'created' };
     }
 
@@ -292,6 +302,15 @@ export class SyncStorageAdapter {
       };
       delete meta.tombstones[cleanId];
       await this.saveMetadata();
+
+      eventBus.emit('note:reloaded', { noteId: cleanId, content: incoming.content });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('han-note-content-reloaded', {
+            detail: { noteId: cleanId, content: incoming.content },
+          })
+        );
+      }
 
       return { status: 'updated' };
     }

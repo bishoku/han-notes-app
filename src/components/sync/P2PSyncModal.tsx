@@ -333,16 +333,27 @@ export const P2PSyncModal: React.FC = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 max-w-xs">{t('syncShareInstructions')}</p>
               </div>
 
-              {/* Copy Link Button */}
+              {/* Copy Link & Refresh Buttons */}
               {pairingUrl && (
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="w-full inline-flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 text-xs font-semibold transition-all cursor-pointer"
-                >
-                  {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                  <span>{copied ? t('copied') : t('syncCopyPairingLink')}</span>
-                </button>
+                <div className="flex gap-2 w-full">
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                    <span>{copied ? t('copied') : t('syncCopyPairingLink')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startHostSession()}
+                    className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                    title={t('syncRefreshQr')}
+                  >
+                    <RefreshCw size={14} />
+                    <span className="hidden sm:inline">{t('syncRefreshQr')}</span>
+                  </button>
+                </div>
               )}
             </div>
           ) : (

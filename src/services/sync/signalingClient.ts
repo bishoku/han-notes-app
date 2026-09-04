@@ -41,6 +41,25 @@ export class SignalingClient {
     return new Promise((resolve, reject) => {
       this.isExplicitlyClosed = false;
 
+      let isSettled = false;
+      let connectionTimeout: any = null;
+
+      const safeResolve = () => {
+        if (!isSettled) {
+          isSettled = true;
+          if (connectionTimeout) clearTimeout(connectionTimeout);
+          resolve();
+        }
+      };
+
+      const safeReject = (err: Error) => {
+        if (!isSettled) {
+          isSettled = true;
+          if (connectionTimeout) clearTimeout(connectionTimeout);
+          reject(err);
+        }
+      };
+
       // Construct clean WebSocket URL
       // If serverUrl is http(s), convert to ws(s)
       let url = this.serverUrl.replace(/^http/, 'ws');
@@ -49,24 +68,25 @@ export class SignalingClient {
 
       try {
         this.ws = new WebSocket(wsUrl);
-      } catch (err) {
-        reject(err);
+      } catch (err: any) {
+        safeReject(err instanceof Error ? err : new Error(String(err)));
         return;
       }
 
-      const connectionTimeout = setTimeout(() => {
+      connectionTimeout = setTimeout(() => {
         if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
-          this.ws.close();
-          reject(new Error('Signaling connection timed out after 10s'));
+          try {
+            this.ws.close();
+          } catch {}
+          safeReject(new Error('Signaling connection timed out after 10s'));
         }
       }, 10000);
 
       this.ws.onopen = () => {
-        clearTimeout(connectionTimeout);
         this.notifyStatus('connected');
         // Announce ready state to peer in room
         this.send({ type: 'ready', role: this.role });
-        resolve();
+        safeResolve();
       };
 
       this.ws.onmessage = (event) => {
@@ -81,14 +101,14 @@ export class SignalingClient {
       };
 
       this.ws.onerror = (event) => {
-        clearTimeout(connectionTimeout);
         this.notifyStatus('error', event);
+        safeReject(new Error('Signaling server connection error'));
       };
 
       this.ws.onclose = () => {
-        clearTimeout(connectionTimeout);
         if (!this.isExplicitlyClosed) {
           this.notifyStatus('disconnected');
+          safeReject(new Error('Signaling server connection closed unexpectedly'));
         }
       };
     });

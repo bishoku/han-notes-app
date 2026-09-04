@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import { syncStorageAdapter } from '../syncStorageAdapter';
+import { eventBus } from '@/lib/eventBus';
 import type { CanonicalNote, SyncManifest } from '../types';
 
 describe('Sync Manifest Diffing & Tombstone Resolution', () => {
@@ -188,6 +190,44 @@ describe('Sync Manifest Diffing & Tombstone Resolution', () => {
         const shouldDeleteOnPeer = localEntry.updatedAt > peerEntry.updatedAt;
         assert.strictEqual(shouldDeleteOnPeer, true);
       }
+    }
+  });
+
+  it('should emit note:reloaded on eventBus when an updated canonical note is applied', async () => {
+    const { storage } = await import('@/services/storage');
+    const origWriteNote = storage.writeNote;
+    const origReadNote = storage.readNote;
+    const origWriteVaultFile = storage.writeVaultFile;
+
+    (storage as any).writeNote = async () => {};
+    (storage as any).readNote = async () => null;
+    (storage as any).writeVaultFile = async () => {};
+
+    let reloadedPayload: { noteId: string; content: string } | null = null;
+    const unbind = eventBus.on('note:reloaded', (payload) => {
+      reloadedPayload = payload;
+    });
+
+    const incoming: CanonicalNote = {
+      id: 'SyncTestNote',
+      path: 'SyncTestNote.md',
+      content: '# Sync Updated Content\nThis was updated from peer.',
+      updatedAt: Date.now() + 100000,
+      deleted: false,
+      hash: 'hash_incoming_sync_test',
+    };
+
+    try {
+      const res = await syncStorageAdapter.applyCanonicalNote(incoming);
+      assert.ok(res.status === 'created' || res.status === 'updated');
+      assert.ok(reloadedPayload !== null);
+      assert.strictEqual((reloadedPayload as any)?.noteId, 'SyncTestNote');
+      assert.strictEqual((reloadedPayload as any)?.content, incoming.content);
+    } finally {
+      unbind();
+      (storage as any).writeNote = origWriteNote;
+      (storage as any).readNote = origReadNote;
+      (storage as any).writeVaultFile = origWriteVaultFile;
     }
   });
 });
