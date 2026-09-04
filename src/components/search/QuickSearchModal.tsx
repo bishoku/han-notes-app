@@ -193,9 +193,9 @@ export const QuickSearchModal: React.FC = () => {
       onClick={(e) => {
         if (e.target === e.currentTarget) handleClose();
       }}
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-16 sm:pt-24 p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-2 sm:pt-24 p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 select-none pt-safe"
     >
-      <div className="w-full max-w-2xl bg-white dark:bg-zinc-900 border border-gray-200/90 dark:border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 text-xs">
+      <div className="w-full max-w-2xl max-h-[88vh] bg-white dark:bg-zinc-900 border border-gray-200/90 dark:border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 text-xs">
         {/* 1. Search Header Input */}
         <div className="p-3.5 px-4 border-b border-gray-100 dark:border-zinc-800 flex items-center gap-3">
           <div className="text-gray-400 dark:text-gray-500 shrink-0">

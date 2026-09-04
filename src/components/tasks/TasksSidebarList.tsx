@@ -55,7 +55,7 @@ export const TasksSidebarList: React.FC<TasksSidebarListProps> = ({
   };
 
   return (
-    <aside className="w-[30%] min-w-[320px] max-w-[400px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark flex flex-col border-l border-gray-200 dark:border-zinc-800">
+    <aside className="w-full md:w-[30%] md:min-w-[320px] md:max-w-[400px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark flex flex-col border-l-0 md:border-l border-gray-200 dark:border-zinc-800">
       {/* Filters Area */}
       <div className="p-4 border-b border-gray-200 dark:border-zinc-800 flex flex-col gap-3 shrink-0">
         <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">

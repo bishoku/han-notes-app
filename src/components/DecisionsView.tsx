@@ -6,7 +6,7 @@ import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
 import { DecisionEditModal } from '@/components/DecisionEditModal';
 import type { DecisionEditData } from '@/components/DecisionEditModal';
-import { FileCheck } from 'lucide-react';
+import { FileCheck, Menu } from 'lucide-react';
 import { useDecisionAnalytics } from './decisions/useDecisionAnalytics';
 import { DecisionsStats } from './decisions/DecisionsStats';
 import { DecisionsHeader } from './decisions/DecisionsHeader';
@@ -19,6 +19,7 @@ export const DecisionsView: React.FC = () => {
   const { decisions, registry, loadDecisions, updateDecisionMetadata } = useDecisionStore();
   const selectNote = useNoteStore(state => state.selectNote);
   const setViewMode = useUiStore(state => state.setViewMode);
+  const setSidebarOpen = useUiStore(state => state.setSidebarOpen);
   const [editingDecision, setEditingDecision] = useState<DecisionEditData | null>(null);
 
   useEffect(() => {
@@ -64,7 +65,20 @@ export const DecisionsView: React.FC = () => {
   };
 
   return (
-    <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 flex-1 p-8 overflow-y-auto select-none min-h-0">
+    <main className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 flex-1 p-4 md:p-8 overflow-y-auto select-none min-h-0 pt-safe pb-safe">
+      {/* Mobile Top Bar */}
+      <div className="md:hidden flex items-center gap-2 mb-4 -mt-1">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer -ml-1"
+          title={t('expandSidebar')}
+        >
+          <Menu size={18} />
+        </button>
+        <span className="font-semibold text-xs text-gray-500 uppercase tracking-wider">
+          {t('decisions', 'Kararlar')}
+        </span>
+      </div>
       {/* Header Bar & Filter Controls */}
       <DecisionsHeader
         viewStyle={viewStyle}

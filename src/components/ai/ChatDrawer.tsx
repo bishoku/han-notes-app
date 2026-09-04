@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Edit2,
   Check,
+  Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownMessage } from './MarkdownMessage';
@@ -182,14 +183,26 @@ export const ChatDrawer: React.FC = () => {
   };
 
   return (
-    <aside
-      className={cn(
-        "h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-l border-gray-200/80 dark:border-zinc-800/80 flex flex-col z-20 shadow-md shrink-0 transition-all duration-200 select-none",
-        isExpanded ? "w-full sm:w-[580px] md:w-[680px]" : "w-80 sm:w-96 md:w-[440px]"
-      )}
-    >
-      {/* 1. Header Bar */}
-      <div className="p-3 px-4 border-b border-gray-100 dark:border-zinc-800/80 flex flex-col gap-2.5 bg-gray-50/50 dark:bg-zinc-900/50 shrink-0">
+    <>
+      {/* Mobile Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs md:hidden animate-in fade-in duration-200"
+        onClick={() => setChatDrawerOpen(false)}
+      />
+      <aside
+        className={cn(
+          "h-full flex flex-col bg-white dark:bg-zinc-900 md:bg-white/95 md:dark:bg-zinc-900/95 md:backdrop-blur-xl border-l border-gray-200/80 dark:border-zinc-800/80 shadow-2xl md:shadow-md transition-all duration-200 select-none shrink-0",
+          "fixed inset-0 z-50 md:relative md:inset-auto md:z-20 pt-safe",
+          isExpanded ? "md:w-[680px]" : "w-full md:w-[440px]"
+        )}
+      >
+        {/* Mobile Pull Handle */}
+        <div className="flex md:hidden justify-center pt-2 pb-1 bg-gray-50/50 dark:bg-zinc-900/50 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-zinc-700" />
+        </div>
+
+        {/* 1. Header Bar */}
+        <div className="p-3 px-4 border-b border-gray-100 dark:border-zinc-800/80 flex flex-col gap-2.5 bg-gray-50/50 dark:bg-zinc-900/50 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-2 rounded-xl bg-gradient-to-tr from-mac-accent to-purple-600 text-white shadow-xs">
@@ -539,6 +552,37 @@ export const ChatDrawer: React.FC = () => {
                       <span className="w-1.5 h-1.5 rounded-full bg-mac-accent animate-bounce [animation-delay:0.4s]" />
                     </span>
                   ) : null}
+
+                  {/* Message Actions for AI responses */}
+                  {!isUser && !isStreaming && msg.content && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-gray-200/50 dark:border-zinc-700/50">
+                      {currentNoteId && (
+                        <button
+                          onClick={async () => {
+                            const noteStore = useNoteStore.getState();
+                            const currentContent = noteStore.currentNoteContent || '';
+                            const updated = (currentContent ? currentContent + '\n\n' : '') + msg.content;
+                            await noteStore.updateNote(updated);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-black/5 dark:bg-white/5 hover:bg-mac-accent hover:text-white text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+                          title={t('aiInsertIntoNote', 'Nota Ekle')}
+                        >
+                          <Plus size={11} />
+                          <span>{t('aiInsertIntoNote', 'Nota Ekle')}</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(msg.content);
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
+                        title={t('copy', 'Kopyala')}
+                      >
+                        <Copy size={11} />
+                        <span>{t('copy', 'Kopyala')}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Citations / Source Notes Badges */}
@@ -570,7 +614,7 @@ export const ChatDrawer: React.FC = () => {
       </div>
 
       {/* 4. Input Footer */}
-      <div className="p-3 border-t border-gray-100 dark:border-zinc-800/80 bg-gray-50/50 dark:bg-zinc-900/50">
+      <div className="p-3 border-t border-gray-100 dark:border-zinc-800/80 bg-gray-50/50 dark:bg-zinc-900/50 pb-safe">
         <div className="flex items-end gap-2 bg-white dark:bg-zinc-800 p-2.5 rounded-2xl border border-gray-200/80 dark:border-zinc-700/80 focus-within:ring-2 focus-within:ring-mac-accent/40 focus-within:border-mac-accent transition-all shadow-xs">
           <textarea
             ref={textareaRef}
@@ -607,5 +651,6 @@ export const ChatDrawer: React.FC = () => {
         </div>
       </div>
     </aside>
+  </>
   );
 };

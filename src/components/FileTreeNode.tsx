@@ -156,11 +156,14 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
             selectNote(cleanRelPath);
             setViewMode('notes');
             navigate(`/notes/${encodeURIComponent(cleanRelPath)}`);
+            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+              useUiStore.getState().setSidebarOpen(false);
+            }
           }
         }}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         className={cn(
-          "flex items-center gap-2 py-1.5 px-2 rounded-md text-xs cursor-pointer select-none transition-colors group",
+          "flex items-center gap-2 py-2 md:py-1.5 px-2.5 md:px-2 rounded-lg md:rounded-md text-xs cursor-pointer select-none transition-colors group min-h-[38px] md:min-h-0",
           isSelected && "bg-mac-accent text-white font-medium",
           isFolderActive && !isSelected && "bg-mac-accent/15 text-mac-accent font-semibold",
           !isSelected && !isFolderActive && "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300",

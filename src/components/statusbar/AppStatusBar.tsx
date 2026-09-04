@@ -85,7 +85,7 @@ export const AppStatusBar: React.FC = () => {
   };
 
   return (
-    <footer className="h-6.5 min-h-[26px] max-h-[26px] bg-gray-100/90 dark:bg-zinc-950/90 border-t border-gray-200 dark:border-zinc-800/80 px-3 flex items-center justify-between text-[11px] text-gray-600 dark:text-zinc-400 select-none z-30 shrink-0 backdrop-blur-xs font-sans">
+    <footer className="hidden md:flex h-6.5 min-h-[26px] max-h-[26px] bg-gray-100/90 dark:bg-zinc-950/90 border-t border-gray-200 dark:border-zinc-800/80 px-3 items-center justify-between text-[11px] text-gray-600 dark:text-zinc-400 select-none z-30 shrink-0 backdrop-blur-xs font-sans">
       {/* ── Left: Git Branch, Status & Sync ── */}
       <div className="flex items-center gap-2 min-w-0">
         {isInitialized ? (

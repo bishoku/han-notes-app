@@ -75,7 +75,7 @@ const initialLang = getInitialLanguage();
 const initialFontSize = getInitialFontSize();
 
 export const useUiStore = create<UiState>((set, get) => ({
-  sidebarOpen: true,
+  sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   rightPanelOpen: false,
   isSettingsModalOpen: false,
   isSearchModalOpen: false,

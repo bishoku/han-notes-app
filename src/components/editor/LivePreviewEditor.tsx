@@ -28,6 +28,9 @@ import { FloatingBlockMenu } from '@/components/FloatingBlockMenu';
 import { SelectionBubbleMenu, type FormatType } from '@/components/SelectionBubbleMenu';
 import { SlashCommandMenu } from '@/components/SlashCommandMenu';
 import { EmojiPickerPopover } from '@/components/ui/EmojiPickerPopover';
+import { MobileEditorToolbar } from './MobileEditorToolbar';
+import { useAiStore } from '@/store/aiStore';
+import { useUiStore } from '@/store/uiStore';
 
 interface LivePreviewEditorProps {
   value: string;
@@ -176,6 +179,97 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
     applyTextFormat(editorRef.current, selectionBubble, type, payload);
   }, [editorRef, selectionBubble]);
 
+  // Mobile Toolbar Handlers
+  const isAiEnabled = useAiStore((s) => s.settings.enabled);
+  const isChatDrawerOpen = useAiStore((s) => s.isChatDrawerOpen);
+  const setChatDrawerOpen = useAiStore((s) => s.setChatDrawerOpen);
+  const setSettingsModalOpen = useUiStore((s) => s.setSettingsModalOpen);
+
+  const handleInsertHeading = useCallback((level: 1 | 2) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    const prefix = level === 1 ? '# ' : '## ';
+    view.dispatch({
+      changes: { from: line.from, insert: prefix },
+      selection: { anchor: pos + prefix.length },
+    });
+    view.focus();
+  }, [editorRef]);
+
+  const handleInsertBold = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const { from, to } = view.state.selection.main;
+    if (from !== to) {
+      const selected = view.state.sliceDoc(from, to);
+      view.dispatch({
+        changes: { from, to, insert: `**${selected}**` },
+        selection: { anchor: from + selected.length + 4 },
+      });
+    } else {
+      view.dispatch({
+        changes: { from, insert: '****' },
+        selection: { anchor: from + 2 },
+      });
+    }
+    view.focus();
+  }, [editorRef]);
+
+  const handleInsertItalic = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const { from, to } = view.state.selection.main;
+    if (from !== to) {
+      const selected = view.state.sliceDoc(from, to);
+      view.dispatch({
+        changes: { from, to, insert: `*${selected}*` },
+        selection: { anchor: from + selected.length + 2 },
+      });
+    } else {
+      view.dispatch({
+        changes: { from, insert: '**' },
+        selection: { anchor: from + 1 },
+      });
+    }
+    view.focus();
+  }, [editorRef]);
+
+  const handleInsertTask = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    const prefix = '- [ ] ';
+    view.dispatch({
+      changes: { from: line.from, insert: prefix },
+      selection: { anchor: pos + prefix.length },
+    });
+    view.focus();
+  }, [editorRef]);
+
+  const handleInsertBullet = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    const prefix = '- ';
+    view.dispatch({
+      changes: { from: line.from, insert: prefix },
+      selection: { anchor: pos + prefix.length },
+    });
+    view.focus();
+  }, [editorRef]);
+
+  const handleToggleAiToolbar = useCallback(() => {
+    if (isAiEnabled) {
+      setChatDrawerOpen(!isChatDrawerOpen);
+    } else {
+      setSettingsModalOpen(true);
+    }
+  }, [isAiEnabled, isChatDrawerOpen, setChatDrawerOpen, setSettingsModalOpen]);
+
   // CodeMirror Extensions Memo
   const isDarkTheme = ['dark', 'dracula', 'synthwave'].includes(theme);
   const extensions = useMemo(() => {
@@ -192,80 +286,96 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
   }, [isDarkTheme]);
 
   return (
-    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain print:h-auto print:overflow-visible print:block">
-      <div
-        ref={wrapperRef}
-        className="py-12 relative pr-8 md:pr-12 pl-14 cm-preview-mode w-full max-w-full overflow-x-hidden box-border print:h-auto print:overflow-visible print:p-0 print:block"
-      >
-        <FloatingBlockMenu
-          menuPos={menuPos}
-          showOptions={showOptions}
-          showNotePicker={showNotePicker}
-          taskEditBtn={taskEditBtn}
-          decisionEditBtn={decisionEditBtn}
-          notes={otherNotes}
-          onToggleOptions={() => { setShowOptions(!showOptions); setShowNotePicker(false); }}
-          onToggleNotePicker={() => setShowNotePicker(!showNotePicker)}
-          onInsertText={insertText}
-          onOpenTaskModal={() => onOpenTaskModal(taskEditBtn)}
-          onOpenDecisionModal={() => onOpenDecisionModal(decisionEditBtn)}
-          onOpenImagePicker={() => onOpenImagePicker(menuPosRef.current.lineFrom)}
-          onOpenPdfPicker={() => onOpenPdfPicker(menuPosRef.current.lineFrom)}
-          onOpenDiagramEditor={() => onOpenDiagramEditor(undefined, undefined, menuPosRef.current.lineFrom)}
-          onOpenExcalidrawEditor={() => onOpenExcalidrawEditor(undefined, undefined, menuPosRef.current.lineFrom)}
-          onOpenInlineAi={() => onOpenInlineAi(menuPos.top, menuPos.lineFrom)}
-        />
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain print:h-auto print:overflow-visible print:block">
+        <div
+          ref={wrapperRef}
+          className="py-4 md:py-12 relative px-4 md:pl-14 md:pr-12 cm-preview-mode w-full max-w-full overflow-x-hidden box-border print:h-auto print:overflow-visible print:p-0 print:block"
+        >
+          <div className="hidden md:block">
+            <FloatingBlockMenu
+              menuPos={menuPos}
+              showOptions={showOptions}
+              showNotePicker={showNotePicker}
+              taskEditBtn={taskEditBtn}
+              decisionEditBtn={decisionEditBtn}
+              notes={otherNotes}
+              onToggleOptions={() => { setShowOptions(!showOptions); setShowNotePicker(false); }}
+              onToggleNotePicker={() => setShowNotePicker(!showNotePicker)}
+              onInsertText={insertText}
+              onOpenTaskModal={() => onOpenTaskModal(taskEditBtn)}
+              onOpenDecisionModal={() => onOpenDecisionModal(decisionEditBtn)}
+              onOpenImagePicker={() => onOpenImagePicker(menuPosRef.current.lineFrom)}
+              onOpenPdfPicker={() => onOpenPdfPicker(menuPosRef.current.lineFrom)}
+              onOpenDiagramEditor={() => onOpenDiagramEditor(undefined, undefined, menuPosRef.current.lineFrom)}
+              onOpenExcalidrawEditor={() => onOpenExcalidrawEditor(undefined, undefined, menuPosRef.current.lineFrom)}
+              onOpenInlineAi={() => onOpenInlineAi(menuPos.top, menuPos.lineFrom)}
+            />
+          </div>
 
-        <SelectionBubbleMenu
-          bubbleState={selectionBubble}
-          onFormat={handleFormat}
-        />
-
-        <CodeMirror
-          value={value}
-          onChange={onChange}
-          onCreateEditor={(view) => {
-            if (editorRef) {
-              (editorRef as React.MutableRefObject<any>).current = view;
-            }
-          }}
-          onUpdate={handleEditorUpdate}
-          extensions={extensions}
-          theme={isDarkTheme ? 'dark' : 'light'}
-          className={cn(
-            "text-gray-800 dark:text-gray-200 cm-theme-han",
-            fontSize === 'sm' && "cm-fontsize-sm",
-            fontSize === 'md' && "cm-fontsize-md",
-            fontSize === 'lg' && "cm-fontsize-lg"
-          )}
-          basicSetup={{
-            lineNumbers: false,
-            foldGutter: false,
-            dropCursor: false,
-            allowMultipleSelections: false,
-            indentOnInput: false,
-            highlightActiveLine: false,
-            highlightActiveLineGutter: false,
-          }}
-        />
-
-        {/* Floating Slash Command Menu */}
-        {slashMenuState.show && (
-          <SlashCommandMenu
-            query={slashMenuState.query}
-            anchorRect={slashMenuState.anchorRect}
-            commands={slashCommands}
-            onClose={() => setSlashMenuState((prev) => ({ ...prev, show: false }))}
+          <SelectionBubbleMenu
+            bubbleState={selectionBubble}
+            onFormat={handleFormat}
           />
-        )}
 
-        {/* Visual Emoji Picker Popover */}
-        <EmojiPickerPopover
-          isOpen={emojiPickerOpen}
-          onClose={() => setEmojiPickerOpen(false)}
-          onSelectEmoji={(emoji) => insertText(emoji + ' ')}
-        />
+          <CodeMirror
+            value={value}
+            onChange={onChange}
+            onCreateEditor={(view) => {
+              if (editorRef) {
+                (editorRef as React.MutableRefObject<any>).current = view;
+              }
+            }}
+            onUpdate={handleEditorUpdate}
+            extensions={extensions}
+            theme={isDarkTheme ? 'dark' : 'light'}
+            className={cn(
+              "text-gray-800 dark:text-gray-200 cm-theme-han",
+              fontSize === 'sm' && "cm-fontsize-sm",
+              fontSize === 'md' && "cm-fontsize-md",
+              fontSize === 'lg' && "cm-fontsize-lg"
+            )}
+            basicSetup={{
+              lineNumbers: false,
+              foldGutter: false,
+              dropCursor: false,
+              allowMultipleSelections: false,
+              indentOnInput: false,
+              highlightActiveLine: false,
+              highlightActiveLineGutter: false,
+            }}
+          />
+
+          {/* Floating Slash Command Menu */}
+          {slashMenuState.show && (
+            <SlashCommandMenu
+              query={slashMenuState.query}
+              anchorRect={slashMenuState.anchorRect}
+              commands={slashCommands}
+              onClose={() => setSlashMenuState((prev) => ({ ...prev, show: false }))}
+            />
+          )}
+
+          {/* Visual Emoji Picker Popover */}
+          <EmojiPickerPopover
+            isOpen={emojiPickerOpen}
+            onClose={() => setEmojiPickerOpen(false)}
+            onSelectEmoji={(emoji) => insertText(emoji + ' ')}
+          />
+        </div>
       </div>
+
+      {/* Docked Mobile Toolbar */}
+      <MobileEditorToolbar
+        onInsertHeading={handleInsertHeading}
+        onInsertBold={handleInsertBold}
+        onInsertItalic={handleInsertItalic}
+        onInsertTask={handleInsertTask}
+        onInsertBullet={handleInsertBullet}
+        onOpenImagePicker={() => onOpenImagePicker()}
+        onOpenExcalidraw={() => onOpenExcalidrawEditor()}
+        onToggleAi={handleToggleAiToolbar}
+      />
     </div>
   );
 };

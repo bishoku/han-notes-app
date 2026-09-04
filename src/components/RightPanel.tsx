@@ -21,6 +21,7 @@ import {
   User,
   Tag,
   AlignLeft,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +37,7 @@ export const RightPanel: React.FC = () => {
 
   // Individual Zustand selectors — only subscribe to fields we actually use
   const rightPanelOpen = useUiStore((s) => s.rightPanelOpen);
+  const toggleRightPanel = useUiStore((s) => s.toggleRightPanel);
   const setViewMode = useUiStore((s) => s.setViewMode);
   const backlinks = useNoteStore((s) => s.backlinks);
   const selectNote = useNoteStore((s) => s.selectNote);
@@ -108,40 +110,53 @@ export const RightPanel: React.FC = () => {
   }
 
   return (
-    <aside className="w-[25%] min-w-[250px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-l border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease">
-      {/* Tabs */}
-      <div className="flex items-center p-2 border-b border-mac-borderLight dark:border-mac-borderDark gap-1 shrink-0">
-        <button
-          onClick={() => setActiveTab('links')}
-          className={cn(
-            'flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150 relative cursor-pointer',
-            activeTab === 'links'
-              ? 'bg-white dark:bg-zinc-800 shadow-mac-panel text-mac-accent font-medium'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          )}
-          title={t('backlinks')}
-        >
-          <Link2 size={16} />
-          {backlinks.length > 0 && (
-            <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-mac-accent" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('outline')}
-          className={cn(
-            'flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150 relative cursor-pointer',
-            activeTab === 'outline'
-              ? 'bg-white dark:bg-zinc-800 shadow-mac-panel text-gray-900 dark:text-gray-100'
-              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          )}
-          title={t('outline')}
-        >
-          <List size={16} />
-          {(headings.length > 0 || noteTasks.length > 0) && (
-            <span className="absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
-          )}
-        </button>
-      </div>
+    <>
+      {/* Mobile Drawer Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs md:hidden animate-in fade-in duration-200"
+        onClick={() => toggleRightPanel()}
+      />
+      <aside className="fixed inset-y-0 right-0 z-50 w-[85%] max-w-[340px] md:relative md:inset-auto md:z-auto md:w-[25%] md:min-w-[250px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-l border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease shadow-2xl md:shadow-none animate-in slide-in-from-right duration-200 pt-safe pb-safe">
+        {/* Tabs */}
+        <div className="flex items-center p-2 border-b border-mac-borderLight dark:border-mac-borderDark gap-1 shrink-0">
+          <button
+            onClick={() => setActiveTab('links')}
+            className={cn(
+              'flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150 relative cursor-pointer',
+              activeTab === 'links'
+                ? 'bg-white dark:bg-zinc-800 shadow-mac-panel text-mac-accent font-medium'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            )}
+            title={t('backlinks')}
+          >
+            <Link2 size={16} />
+            {backlinks.length > 0 && (
+              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-mac-accent" />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('outline')}
+            className={cn(
+              'flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150 relative cursor-pointer',
+              activeTab === 'outline'
+                ? 'bg-white dark:bg-zinc-800 shadow-mac-panel text-gray-900 dark:text-gray-100'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            )}
+            title={t('outline')}
+          >
+            <List size={16} />
+            {(headings.length > 0 || noteTasks.length > 0) && (
+              <span className="absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
+            )}
+          </button>
+          <button
+            onClick={toggleRightPanel}
+            className="md:hidden p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md cursor-pointer ml-1"
+            title={t('close')}
+          >
+            <X size={16} />
+          </button>
+        </div>
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col select-none">
@@ -405,5 +420,6 @@ export const RightPanel: React.FC = () => {
         />
       )}
     </aside>
+  </>
   );
 };

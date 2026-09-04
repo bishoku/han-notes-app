@@ -23,8 +23,10 @@ import {
   Layers,
   Sparkles,
   FolderTree,
+  Menu,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUiStore } from '@/store/uiStore';
 
 interface MindmapToolbarProps {
   onZoomIn: () => void;
@@ -62,11 +64,20 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
   const edgesCount = edges.length;
 
   return (
-    <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2.5 pointer-events-none">
+    <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2.5 pointer-events-none pt-safe">
       {/* Left Group: Search & Mode Filters */}
-      <div className="flex items-center gap-2 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-gray-200/80 dark:border-zinc-800/80 shadow-lg pointer-events-auto">
+      <div className="flex items-center gap-1.5 sm:gap-2 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-gray-200/80 dark:border-zinc-800/80 shadow-lg pointer-events-auto">
+        {/* Mobile Sidebar Button */}
+        <button
+          onClick={() => useUiStore.getState().setSidebarOpen(true)}
+          className="md:hidden p-1.5 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer shrink-0"
+          title={t('expandSidebar')}
+        >
+          <Menu size={16} />
+        </button>
+
         {/* Search Box */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100/90 dark:bg-zinc-800/90 rounded-xl border border-gray-200/60 dark:border-zinc-700/60 text-xs w-48 sm:w-60 focus-within:ring-2 focus-within:ring-mac-accent/40 focus-within:border-mac-accent/50 transition-all">
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100/90 dark:bg-zinc-800/90 rounded-xl border border-gray-200/60 dark:border-zinc-700/60 text-xs w-36 sm:w-60 focus-within:ring-2 focus-within:ring-mac-accent/40 focus-within:border-mac-accent/50 transition-all">
           <Search size={13} className="text-gray-400 shrink-0" />
           <input
             type="text"

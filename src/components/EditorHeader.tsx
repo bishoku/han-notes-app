@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { TagCount } from '@/store/noteStore';
 import { MultiBadgeSelect } from '@/components/MultiBadgeSelect';
 import { useGitStore } from '@/store/gitStore';
+import { useAiStore } from '@/store/aiStore';
 import {
   PanelRightClose,
   PanelRightOpen,
@@ -17,6 +18,10 @@ import {
   Eye,
   FileCode,
   Printer,
+  Menu,
+  MoreVertical,
+  Sparkles,
+  List,
 } from 'lucide-react';
 
 import { useUiStore } from '@/store/uiStore';
@@ -55,6 +60,21 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   const setEditorMode = useUiStore(s => s.setEditorMode);
   const sidebarOpen = useUiStore(s => s.sidebarOpen);
   const setSidebarOpen = useUiStore(s => s.setSidebarOpen);
+  const setSettingsModalOpen = useUiStore(s => s.setSettingsModalOpen);
+
+  const isAiEnabled = useAiStore(s => s.settings.enabled);
+  const isChatDrawerOpen = useAiStore(s => s.isChatDrawerOpen);
+  const setChatDrawerOpen = useAiStore(s => s.setChatDrawerOpen);
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleToggleAi = () => {
+    if (isAiEnabled) {
+      setChatDrawerOpen(!isChatDrawerOpen);
+    } else {
+      setSettingsModalOpen(true);
+    }
+  };
 
   // Navigation shortcuts: Alt+Left / Alt+Right or Cmd+[ / Cmd+]
   useEffect(() => {
@@ -90,19 +110,28 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
     <header className="print:hidden h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none z-30">
       {/* ── Left Side: Back/Forward, Note Title, Tags ── */}
       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0 flex-1">
-        {/* Expand Sidebar Button (Visible when sidebar is collapsed) */}
+        {/* Mobile Sidebar Open Button */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden p-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1"
+          title={t('expandSidebar')}
+        >
+          <Menu size={18} />
+        </button>
+
+        {/* Desktop Expand Sidebar Button (Visible when sidebar is collapsed) */}
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1 rounded-md text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 transition-colors cursor-pointer shrink-0 mr-0.5"
+            className="hidden md:inline-flex p-1 rounded-md text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 transition-colors cursor-pointer shrink-0 mr-0.5"
             title={t('expandSidebar')}
           >
             <PanelLeftOpen size={16} />
           </button>
         )}
 
-        {/* Navigation Arrows */}
-        <div className="flex items-center gap-0.5 pr-1.5 border-r border-gray-200 dark:border-zinc-800 shrink-0">
+        {/* Desktop Navigation Arrows */}
+        <div className="hidden md:flex items-center gap-0.5 pr-1.5 border-r border-gray-200 dark:border-zinc-800 shrink-0">
           <button
             onClick={() => navigate(-1)}
             className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
@@ -125,8 +154,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           <span className="truncate text-gray-700 dark:text-gray-300 font-semibold">{currentNoteId}</span>
         </div>
         
-        {/* Note Tags Badges & Popover Trigger */}
-        <div className="relative flex items-center gap-1.5 border-l border-gray-200 dark:border-zinc-800 pl-2 shrink-0">
+        {/* Desktop Note Tags Badges & Popover Trigger */}
+        <div className="hidden md:flex relative items-center gap-1.5 border-l border-gray-200 dark:border-zinc-800 pl-2 shrink-0">
           <div className="hidden lg:flex items-center gap-1 max-w-[200px] overflow-hidden truncate">
             {currentTags.map((tag: string) => (
               <span 
@@ -183,8 +212,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </div>
       </div>
 
-      {/* ── Right Side: Mode Switcher, Font Size (a/A/A), History, Right Panel ── */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* ── Desktop Right Side: Mode Switcher, Font Size (a/A/A), History, Right Panel ── */}
+      <div className="hidden md:flex items-center gap-1.5 shrink-0">
         {/* Editor Mode Segmented Control: Önizleme vs Ham Metin */}
         <div className="flex items-center bg-gray-100/90 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 select-none">
           <button
@@ -285,6 +314,99 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         >
           {rightPanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
         </button>
+      </div>
+
+      {/* ── Mobile Right Side: AI Assistant Sparkle + More Actions ── */}
+      <div className="flex md:hidden items-center gap-1 shrink-0">
+        <button
+          onClick={handleToggleAi}
+          className={cn(
+            "p-1.5 rounded-lg transition-colors cursor-pointer",
+            isChatDrawerOpen
+              ? "bg-purple-600 text-white shadow-xs"
+              : "text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+          )}
+          title={t('aiAssistantTitle')}
+        >
+          <Sparkles size={18} className={isAiEnabled ? "animate-pulse" : ""} />
+        </button>
+
+        <div className="relative">
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            title={t('moreOptions', 'Daha Fazla')}
+          >
+            <MoreVertical size={18} />
+          </button>
+
+          {mobileMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <div className="absolute right-0 top-9 z-50 w-60 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 text-xs animate-in fade-in zoom-in-95">
+                {/* Note Tags */}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onToggleTagPopover();
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors text-left"
+                >
+                  <Tag size={15} className="text-purple-500 shrink-0" />
+                  <span>{currentTags.length === 0 ? t('addTag') : `${currentTags.length} ${t('noteTags')}`}</span>
+                </button>
+
+                {/* Font Size Selector */}
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 dark:bg-zinc-800/50">
+                  <span className="text-gray-500 font-medium">{t('fontSize', 'Yazı')}</span>
+                  <div className="flex items-center gap-1">
+                    {(['sm', 'md', 'lg'] as const).map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => setFontSize(size)}
+                        className={cn(
+                          "w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs cursor-pointer transition-all",
+                          fontSize === size
+                            ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-xs"
+                            : "text-gray-400 hover:text-gray-700"
+                        )}
+                      >
+                        {size === 'sm' ? 'a' : size === 'md' ? 'A' : 'A+'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Outline & Backlinks */}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onToggleRightPanel();
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors text-left"
+                >
+                  <List size={15} className="text-blue-500 shrink-0" />
+                  <span>{t('outline', 'Başlıklar')} & {t('backlinks', 'Bağlantılar')}</span>
+                </button>
+
+                {/* Export PDF */}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleExportPdf();
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors text-left"
+                >
+                  <Printer size={15} className="text-gray-500 shrink-0" />
+                  <span>{t('exportPdf', 'PDF Olarak Dışa Aktar')}</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

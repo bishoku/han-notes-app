@@ -6,6 +6,7 @@ import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
 import { FileTreeNode } from '@/components/FileTreeNode';
 import { normalizeNoteId } from '@/utils/pathUtils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +48,7 @@ export const Sidebar: React.FC = () => {
   const [isRootDragOver, setIsRootDragOver] = useState(false);
   const [rootContextMenu, setRootContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [inputDialog, setInputDialog] = useState<InputDialogState | null>(null);
+  const isMobile = useIsMobile();
 
   const pathname = location.pathname;
   const isNotesActive = pathname === '/' || pathname.startsWith('/notes');
@@ -134,6 +136,9 @@ export const Sidebar: React.FC = () => {
   }, [fileTree, notes, activeTagFilter]);
 
   if (!sidebarOpen) {
+    if (isMobile) {
+      return <InputDialogModal dialog={inputDialog} onClose={() => setInputDialog(null)} />;
+    }
     return (
       <>
         <SidebarCollapsed
@@ -175,9 +180,24 @@ export const Sidebar: React.FC = () => {
   }
 
   return (
-    <aside className="w-[20%] min-w-[220px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease relative select-none shrink-0">
-      {/* Vault Header & Quick Actions */}
-      <SidebarHeader
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {isMobile && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs md:hidden animate-in fade-in duration-200"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <aside
+        className={cn(
+          "h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-r border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease select-none shrink-0",
+          isMobile
+            ? "fixed inset-y-0 left-0 z-50 w-[85%] max-w-[320px] shadow-2xl animate-in slide-in-from-left duration-200 pt-safe pb-safe"
+            : "w-[20%] min-w-[220px] relative"
+        )}
+      >
+        {/* Vault Header & Quick Actions */}
+        <SidebarHeader
         activeFolderPath={activeFolderPath}
         isSearchActive={isSearchActive}
         onOpenNewNote={() => openNewNoteDialog()}
@@ -274,20 +294,30 @@ export const Sidebar: React.FC = () => {
         onNavigateTasks={() => {
           setViewMode('tasks');
           navigate('/tasks');
+          if (isMobile) setSidebarOpen(false);
         }}
         onNavigateDecisions={() => {
           setViewMode('decisions');
           navigate('/decisions');
+          if (isMobile) setSidebarOpen(false);
         }}
         onNavigateMindmap={() => {
           setViewMode('mindmap');
           navigate('/mindmap');
+          if (isMobile) setSidebarOpen(false);
         }}
-        onToggleAi={handleToggleAi}
-        onOpenSettings={() => setSettingsModalOpen(true)}
+        onToggleAi={() => {
+          handleToggleAi();
+          if (isMobile) setSidebarOpen(false);
+        }}
+        onOpenSettings={() => {
+          setSettingsModalOpen(true);
+          if (isMobile) setSidebarOpen(false);
+        }}
       />
 
       <InputDialogModal dialog={inputDialog} onClose={() => setInputDialog(null)} />
     </aside>
+  </>
   );
 };

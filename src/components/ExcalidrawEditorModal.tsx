@@ -115,9 +115,9 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="relative w-[96vw] h-[96vh] bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl border border-gray-200 dark:border-zinc-800 flex flex-col">
+      <div className="relative w-full h-full md:w-[96vw] md:h-[96vh] bg-white dark:bg-zinc-900 md:rounded-2xl overflow-hidden shadow-2xl md:border border-gray-200 dark:border-zinc-800 flex flex-col pt-safe pb-safe">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-2.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-gray-200 dark:border-zinc-800 shrink-0 select-none">
+        <div className="flex items-center justify-between px-3 md:px-5 py-2 md:py-2.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-gray-200 dark:border-zinc-800 shrink-0 select-none">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500">
               <Sparkles size={16} />
@@ -149,7 +149,7 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
         </div>
 
         {/* Excalidraw Canvas Area */}
-        <div className="w-full relative overflow-hidden bg-gray-50 dark:bg-zinc-950" style={{ height: 'calc(96vh - 54px)' }}>
+        <div className="flex-1 w-full relative overflow-hidden bg-gray-50 dark:bg-zinc-950">
           <Suspense
             fallback={
               <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500">
