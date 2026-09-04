@@ -26,6 +26,7 @@ export const P2PSyncModal: React.FC = () => {
     activeTab,
     setActiveTab,
     syncState,
+    role,
     pairingUrl,
     qrCodeDataUrl,
     progress,
@@ -45,6 +46,8 @@ export const P2PSyncModal: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const hasScannedRef = useRef(false);
+  const isStartingCameraRef = useRef(false);
 
   // ── Keyboard Escape Handler ──
   useEffect(() => {
@@ -63,15 +66,26 @@ export const P2PSyncModal: React.FC = () => {
       animationFrameRef.current = null;
     }
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      try {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (err) {
+        console.warn('[SyncModal] Error stopping tracks:', err);
+      }
       mediaStreamRef.current = null;
     }
     if (videoRef.current) {
-      videoRef.current.srcObject = null;
+      try {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      } catch (err) {
+        // Ignore video pause errors during teardown
+      }
     }
   }, []);
 
   const scanQrCodeLoop = React.useCallback(() => {
+    if (hasScannedRef.current) return;
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
@@ -92,10 +106,13 @@ export const P2PSyncModal: React.FC = () => {
         inversionAttempts: 'dontInvert',
       });
 
-      if (code && code.data && (code.data.includes('#sync=') || code.data.includes('sync='))) {
+      if (code && code.data && code.data.includes('sync=') && code.data.includes('key=')) {
+        hasScannedRef.current = true;
         // Haptic feedback if available
         if (typeof navigator.vibrate === 'function') {
-          navigator.vibrate(80);
+          try {
+            navigator.vibrate(80);
+          } catch {}
         }
         stopCamera();
         startPeerSession(code.data);
@@ -103,11 +120,16 @@ export const P2PSyncModal: React.FC = () => {
       }
     }
 
-    animationFrameRef.current = requestAnimationFrame(scanQrCodeLoop);
+    if (!hasScannedRef.current) {
+      animationFrameRef.current = requestAnimationFrame(scanQrCodeLoop);
+    }
   }, [startPeerSession, stopCamera]);
 
   const startCamera = React.useCallback(async () => {
+    if (isStartingCameraRef.current) return;
+    isStartingCameraRef.current = true;
     setCameraError(null);
+
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setCameraError(t('syncCameraNotSupported'));
@@ -119,23 +141,59 @@ export const P2PSyncModal: React.FC = () => {
         audio: false,
       });
 
+      // If user closed modal, changed tab, or QR code was detected while waiting for camera permission
+      if (hasScannedRef.current || !isModalOpen || activeTab !== 'scan') {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
       mediaStreamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
-        await videoRef.current.play();
-        scanQrCodeLoop();
+        videoRef.current.setAttribute('muted', 'true');
+        try {
+          await videoRef.current.play();
+        } catch (playErr: any) {
+          if (playErr?.name === 'AbortError') {
+            return;
+          }
+          throw playErr;
+        }
+
+        if (!hasScannedRef.current) {
+          animationFrameRef.current = requestAnimationFrame(scanQrCodeLoop);
+        }
       }
     } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return;
+      }
       console.warn('[SyncModal] Camera access error:', err);
       setCameraError(err?.message || t('syncCameraPermissionDenied'));
+    } finally {
+      isStartingCameraRef.current = false;
     }
-  }, [cameraFacing, scanQrCodeLoop, t]);
+  }, [cameraFacing, scanQrCodeLoop, t, isModalOpen, activeTab]);
+
+  // Reset hasScannedRef when opening modal or switching back to scan tab in idle/error state
+  useEffect(() => {
+    if (isModalOpen && activeTab === 'scan' && (syncState === 'idle' || syncState === 'error')) {
+      hasScannedRef.current = false;
+    }
+  }, [isModalOpen, activeTab, syncState]);
 
   // ── Camera Scanner Lifecycle for Scan Tab ──
   useEffect(() => {
-    if (!isModalOpen || activeTab !== 'scan' || syncState === 'syncing' || syncState === 'completed') {
+    const isScanTabActive = isModalOpen && activeTab === 'scan';
+    const isWaitingForScan = syncState === 'idle' || syncState === 'error';
+    const shouldCameraRun = isScanTabActive && isWaitingForScan && !hasScannedRef.current;
+
+    if (!shouldCameraRun) {
       stopCamera();
       return;
     }
@@ -145,7 +203,7 @@ export const P2PSyncModal: React.FC = () => {
     return () => {
       stopCamera();
     };
-  }, [isModalOpen, activeTab, startCamera, stopCamera, syncState]);
+  }, [isModalOpen, activeTab, syncState, startCamera, stopCamera]);
 
   const handleCopyLink = async () => {
     if (!pairingUrl) return;
@@ -161,6 +219,7 @@ export const P2PSyncModal: React.FC = () => {
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualInput.trim()) return;
+    hasScannedRef.current = true;
     stopCamera();
     startPeerSession(manualInput.trim());
   };
@@ -202,8 +261,9 @@ export const P2PSyncModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('share')}
+            disabled={syncState === 'syncing' || syncState === 'connecting_signaling' || syncState === 'connecting_peer'}
             className={cn(
-              'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer',
+              'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed',
               activeTab === 'share'
                 ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
@@ -215,8 +275,9 @@ export const P2PSyncModal: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('scan')}
+            disabled={syncState === 'syncing' || syncState === 'connecting_signaling' || syncState === 'connecting_peer'}
             className={cn(
-              'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer',
+              'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed',
               activeTab === 'scan'
                 ? 'bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-xs'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
@@ -229,15 +290,21 @@ export const P2PSyncModal: React.FC = () => {
 
         {/* Content Body */}
         <div className="p-5 flex flex-col gap-4 overflow-y-auto">
-          {/* ── Active Transfer / Final Report Display ── */}
-          {syncState === 'syncing' ? (
+          {/* ── Active Transfer / Connecting Progress Display ── */}
+          {syncState === 'syncing' || (role === 'peer' && (syncState === 'connecting_signaling' || syncState === 'connecting_peer')) ? (
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4">
                 <RefreshCw size={26} className="animate-spin" />
               </div>
-              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">{t('syncInProgress')}</h3>
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">
+                {syncState === 'syncing' ? t('syncInProgress') : t('syncConnectingPeer')}
+              </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-xs">
-                {progress?.currentNoteTitle
+                {syncState === 'connecting_signaling'
+                  ? t('syncConnectingSignaling')
+                  : syncState === 'connecting_peer'
+                  ? t('syncPleaseWait')
+                  : progress?.currentNoteTitle
                   ? t('syncTransferringNote', { title: progress.currentNoteTitle })
                   : t('syncDiffingManifests')}
               </p>
@@ -260,6 +327,14 @@ export const P2PSyncModal: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={cancelSync}
+                className="mt-6 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-xs font-semibold text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+              >
+                {t('cancel')}
+              </button>
             </div>
           ) : syncState === 'completed' && lastReport ? (
             <div className="flex flex-col items-center text-center py-4">

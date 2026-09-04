@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 import { generatePairingKey, importPairingKey } from '@/services/sync/crypto';
 import { WebRtcSyncService } from '@/services/sync/webrtcSyncService';
 import { DEFAULT_SIGNALING_URL } from '@/services/sync/signalingClient';
+import { isTauriEnvironment } from '@/services/storage';
 import type { SyncProgress, SyncReport, SyncRole, SyncState } from '@/services/sync/types';
 
 interface SyncStoreState {
@@ -81,9 +82,19 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       const { key, keyBase64 } = await generatePairingKey();
 
       // 2. Build zero-knowledge pairing URL with hash fragment
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-      const pairingUrl = `${origin}${pathname}#sync=${encodeURIComponent(sessionId)}&key=${encodeURIComponent(keyBase64)}&role=peer`;
+      let baseUrl = 'https://bishoku.github.io/han-notes-app/';
+      if (
+        typeof window !== 'undefined' &&
+        !isTauriEnvironment() &&
+        window.location.protocol.startsWith('http') &&
+        !window.location.hostname.includes('tauri')
+      ) {
+        const origin = window.location.origin;
+        const pathname = window.location.pathname;
+        baseUrl = `${origin}${pathname}`;
+      }
+      const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+      const pairingUrl = `${cleanBase}#sync=${encodeURIComponent(sessionId)}&key=${encodeURIComponent(keyBase64)}&role=peer`;
 
       // 3. Generate QR code Data URL
       const qrCodeDataUrl = await QRCode.toDataURL(pairingUrl, {
@@ -126,13 +137,11 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
         set({ lastReport: report, syncState: 'completed' });
       }
     } catch (err: any) {
-      if (activeSyncService) {
-        console.error('[SyncStore] Host session error:', err);
-        set({
-          syncState: 'error',
-          error: err?.message || 'Failed to start host sync session',
-        });
-      }
+      console.error('[SyncStore] Host session error:', err);
+      set({
+        syncState: 'error',
+        error: err?.message || 'Failed to start host sync session',
+      });
     }
   },
 
@@ -142,11 +151,14 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
 
     try {
       // Parse pairing input (can be full URL with hash, or query string format)
-      let hash = pairingInput;
-      if (pairingInput.includes('#')) {
-        hash = pairingInput.split('#')[1];
-      } else if (pairingInput.includes('?')) {
-        hash = pairingInput.split('?')[1];
+      let hash = pairingInput.trim();
+      if (hash.includes('#')) {
+        hash = hash.split('#')[1];
+      } else if (hash.includes('?')) {
+        hash = hash.split('?')[1];
+      }
+      if (hash.startsWith('/')) {
+        hash = hash.slice(1);
       }
 
       const params = new URLSearchParams(hash);
@@ -154,7 +166,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       const keyBase64 = params.get('key');
 
       if (!sessionId || !keyBase64) {
-        throw new Error('Invalid pairing QR code or link: missing session ID or encryption key.');
+        throw new Error('Geçersiz eşleşme QR kodu veya bağlantısı: Oturum ID veya şifreleme anahtarı eksik.');
       }
 
       // Import the 256-bit AES-GCM decryption key
@@ -184,13 +196,11 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
         set({ lastReport: report, syncState: 'completed' });
       }
     } catch (err: any) {
-      if (activeSyncService) {
-        console.error('[SyncStore] Peer session error:', err);
-        set({
-          syncState: 'error',
-          error: err?.message || 'Failed to connect to host peer',
-        });
-      }
+      console.error('[SyncStore] Peer session error:', err);
+      set({
+        syncState: 'error',
+        error: err?.message || 'Failed to connect to host peer',
+      });
     }
   },
 
@@ -206,6 +216,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       pairingUrl: null,
       qrCodeDataUrl: null,
       progress: null,
+      error: null,
     });
   },
 
