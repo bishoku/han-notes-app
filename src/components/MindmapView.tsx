@@ -478,37 +478,39 @@ export const MindmapView: React.FC = () => {
       />
 
       {/* Mobile Dedicated Top Header */}
-      <div className="md:hidden h-11 min-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 shrink-0 bg-mac-mainLight/90 dark:bg-mac-mainDark/90 backdrop-blur-xs select-none z-30 pt-safe">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => useUiStore.getState().setSidebarOpen(true)}
-            className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1 min-w-[38px] min-h-[38px] flex items-center justify-center active:scale-95"
-            title={t('expandSidebar')}
-          >
-            <Menu size={20} />
-          </button>
-          <span className="font-semibold text-xs text-gray-800 dark:text-gray-200">
-            {t('knowledgeGraph', 'Bilgi Ağı')} ({nodes.filter((n) => !n.isGhost).length})
-          </span>
-        </div>
+      <header className="md:hidden shrink-0 pt-safe bg-mac-mainLight/90 dark:bg-mac-mainDark/90 backdrop-blur-xs border-b border-mac-borderLight dark:border-mac-borderDark z-30 select-none">
+        <div className="h-11 min-h-[44px] flex items-center justify-between px-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => useUiStore.getState().setSidebarOpen(true)}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1 min-w-[38px] min-h-[38px] flex items-center justify-center active:scale-95"
+              title={t('expandSidebar')}
+            >
+              <Menu size={20} />
+            </button>
+            <span className="font-semibold text-xs text-gray-800 dark:text-gray-200">
+              {t('knowledgeGraph', 'Bilgi Ağı')} ({nodes.filter((n) => !n.isGhost).length})
+            </span>
+          </div>
 
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleFit}
-            className="p-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title={t('mindmapFit')}
-          >
-            <Maximize2 size={16} />
-          </button>
-          <button
-            onClick={handleResetLayout}
-            className="p-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title={t('mindmapResetLayout')}
-          >
-            <RotateCcw size={16} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleFit}
+              className="p-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              title={t('mindmapFit')}
+            >
+              <Maximize2 size={16} />
+            </button>
+            <button
+              onClick={handleResetLayout}
+              className="p-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              title={t('mindmapResetLayout')}
+            >
+              <RotateCcw size={16} />
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Top Floating Toolbar */}
       <MindmapToolbar

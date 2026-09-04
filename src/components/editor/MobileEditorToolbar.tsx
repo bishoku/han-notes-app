@@ -36,7 +36,7 @@ export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="sticky bottom-0 inset-x-0 z-20 flex md:hidden items-center justify-between px-2 py-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-gray-200/80 dark:border-zinc-800/80 pb-safe shadow-md overflow-x-auto no-scrollbar gap-0.5 select-none shrink-0">
+    <div className="sticky bottom-0 inset-x-0 z-20 flex md:hidden items-center justify-between px-2 pt-1 pb-safe-area bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-gray-200/80 dark:border-zinc-800/80 shadow-md overflow-x-auto no-scrollbar gap-0.5 select-none shrink-0 min-h-[44px]">
       <div className="flex items-center gap-0.5 min-w-max">
         {/* H1 */}
         <button

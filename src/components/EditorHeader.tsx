@@ -107,9 +107,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   };
 
   return (
-    <header className="print:hidden min-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none z-30 pt-safe py-1">
-      {/* ── Left Side: Back/Forward, Note Title, Tags ── */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0 flex-1">
+    <header className="print:hidden shrink-0 pt-safe bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs border-b border-mac-borderLight dark:border-mac-borderDark z-30 select-none relative">
+      <div className="h-11 min-h-[44px] flex items-center justify-between px-3 md:px-4 gap-2">
+        {/* ── Left Side: Back/Forward, Note Title, Tags ── */}
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0 flex-1">
         {/* Mobile Sidebar Open Button */}
         <button
           onClick={() => setSidebarOpen(true)}
@@ -407,6 +408,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             </>
           )}
         </div>
+      </div>
       </div>
     </header>
   );

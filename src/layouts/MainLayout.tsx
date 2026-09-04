@@ -219,7 +219,7 @@ export const MainLayout: React.FC = () => {
   // ── Directory Picker Screen (Browser only, first visit or permission needed) ──
   if (needsDirectoryPick) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-6">
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-6">
         <div className="max-w-md w-full p-8 rounded-3xl bg-white/10 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/20 dark:border-zinc-700/50 shadow-2xl text-center text-white">
           <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
             <span className="text-2xl font-bold tracking-tight">H</span>
@@ -279,7 +279,7 @@ export const MainLayout: React.FC = () => {
   // ── Loading ──
   if (!storageReady) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-mac-mainLight dark:bg-mac-mainDark">
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-mac-mainLight dark:bg-mac-mainDark">
         <div className="text-center">
           <div className="text-4xl mb-3 animate-pulse">📝</div>
           <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{t('initializing')}</p>
@@ -290,7 +290,7 @@ export const MainLayout: React.FC = () => {
 
   // ── Main App Layout with Outlet and Bottom AppStatusBar ──
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden antialiased text-gray-900 dark:text-gray-100 bg-mac-mainLight dark:bg-mac-mainDark selection:bg-mac-accent/30 print:h-auto print:overflow-visible print:bg-white print:block">
+    <div className="flex flex-col h-full h-[100dvh] max-h-[100dvh] w-full overflow-hidden antialiased text-gray-900 dark:text-gray-100 bg-mac-mainLight dark:bg-mac-mainDark selection:bg-mac-accent/30 print:h-auto print:overflow-visible print:bg-white print:block">
       {/* Workspace Body: Sidebar + Dynamic Route Outlet + RightPanel + ChatDrawer */}
       <div className="flex-1 flex min-h-0 w-full overflow-hidden print:h-auto print:overflow-visible print:block">
         <Sidebar />

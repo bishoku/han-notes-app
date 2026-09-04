@@ -13,6 +13,7 @@ import {
   X,
   ExternalLink,
   ChevronRight,
+  Menu,
 } from 'lucide-react';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -31,6 +32,7 @@ export const SearchView: React.FC = () => {
   const searchQuery = useUiStore((s) => s.searchQuery);
   const setSearchQuery = useUiStore((s) => s.setSearchQuery);
   const setViewMode = useUiStore((s) => s.setViewMode);
+  const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
 
   const selectNote = useNoteStore((s) => s.selectNote);
   const notes = useNoteStore((s) => s.notes);
@@ -190,10 +192,19 @@ export const SearchView: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-mac-mainLight dark:bg-mac-mainDark select-none">
       {/* 1. Search Header Bar */}
-      <div className="p-4 px-6 border-b border-mac-borderLight dark:border-mac-borderDark bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md flex flex-col gap-3">
+      <div className="shrink-0 pt-safe bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border-b border-mac-borderLight dark:border-mac-borderDark flex flex-col gap-2.5 sm:gap-3 p-3 sm:p-4 px-3 sm:px-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+            {/* Mobile Sidebar Hamburger Toggle */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1 min-w-[38px] min-h-[38px] flex items-center justify-center active:scale-95"
+              title={t('expandSidebar')}
+            >
+              <Menu size={20} />
+            </button>
+
+            <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
               <Search size={16} />
             </div>
             <div>

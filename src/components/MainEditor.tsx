@@ -275,18 +275,20 @@ export const MainEditor: React.FC = () => {
         className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark flex-1 text-gray-500 relative select-none min-h-0"
       >
         {/* Mobile Top Header for Empty State (ensures Sidebar Menu is ALWAYS accessible) */}
-        <header className="h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs select-none z-30 pt-safe">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => useUiStore.getState().setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1 min-w-[36px] min-h-[36px] flex items-center justify-center active:scale-95"
-              title={t('expandSidebar')}
-            >
-              <Menu size={18} />
-            </button>
-            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-              {t('noNoteSelected')}
-            </span>
+        <header className="shrink-0 pt-safe bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs border-b border-mac-borderLight dark:border-mac-borderDark z-30 select-none">
+          <div className="h-11 min-h-[44px] flex items-center justify-between px-3 md:px-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => useUiStore.getState().setSidebarOpen(true)}
+                className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1 min-w-[38px] min-h-[38px] flex items-center justify-center active:scale-95"
+                title={t('expandSidebar')}
+              >
+                <Menu size={20} />
+              </button>
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                {t('noNoteSelected')}
+              </span>
+            </div>
           </div>
         </header>
 
