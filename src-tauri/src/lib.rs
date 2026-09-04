@@ -416,6 +416,7 @@ fn get_image_data_url(app: AppHandle, relative_path: String) -> Result<String, S
         "gif" => "image/gif",
         "webp" => "image/webp",
         "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
         _ => "image/png",
     };
 

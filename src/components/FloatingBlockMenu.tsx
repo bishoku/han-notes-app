@@ -40,6 +40,7 @@ interface FloatingBlockMenuProps {
   onOpenTaskModal: () => void;
   onOpenDecisionModal: () => void;
   onOpenImagePicker: () => void;
+  onOpenPdfPicker?: () => void;
   onOpenDiagramEditor?: () => void;
   onOpenExcalidrawEditor?: () => void;
   onOpenInlineAi?: () => void;
@@ -58,6 +59,7 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = React.memo(({
   onOpenTaskModal,
   onOpenDecisionModal,
   onOpenImagePicker,
+  onOpenPdfPicker,
   onOpenDiagramEditor,
   onOpenExcalidrawEditor,
   onOpenInlineAi,
@@ -217,6 +219,15 @@ export const FloatingBlockMenu: React.FC<FloatingBlockMenuProps> = React.memo(({
               >
                 <ImageIcon size={16} />
               </button>
+              {onOpenPdfPicker && (
+                <button 
+                  onClick={onOpenPdfPicker}
+                  className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md transition-colors cursor-pointer"
+                  title={t('insertPdf')}
+                >
+                  <FileText size={16} />
+                </button>
+              )}
               {onOpenDiagramEditor && (
                 <button 
                   onClick={onOpenDiagramEditor}

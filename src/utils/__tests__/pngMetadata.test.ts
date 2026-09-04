@@ -76,4 +76,20 @@ describe('pngMetadata and binary bytes utility', () => {
     assert.equal(bytes[0], 0x89);
     assert.equal(bytes[1], 0x50);
   });
+
+  it('formats PDF quote in Turkish when language is tr', async () => {
+    const { formatPdfQuote } = await import('../pdfQuoteFormatter.ts');
+    const quote = formatPdfQuote('Bu bir alıntı metnidir.', 4, 'belgeler/makale.pdf', 'tr');
+    assert.ok(quote.includes('> [!QUOTE] Alıntı (Sayfa 4)'));
+    assert.ok(quote.includes('> "Bu bir alıntı metnidir."'));
+    assert.ok(quote.includes('> — [[belgeler/makale.pdf#page=4]]'));
+  });
+
+  it('formats PDF quote in English when language is en', async () => {
+    const { formatPdfQuote } = await import('../pdfQuoteFormatter.ts');
+    const quote = formatPdfQuote('This is an extracted quote.', 4, 'documents/paper.pdf', 'en');
+    assert.ok(quote.includes('> [!QUOTE] Quote (Page 4)'));
+    assert.ok(quote.includes('> "This is an extracted quote."'));
+    assert.ok(quote.includes('> — [[documents/paper.pdf#page=4]]'));
+  });
 });

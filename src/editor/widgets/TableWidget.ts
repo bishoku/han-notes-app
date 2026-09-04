@@ -3,6 +3,7 @@ import type { EditorView } from "@codemirror/view";
 import { marked } from "marked";
 import { storage } from "@/services/storage";
 import { useNoteStore } from "@/store/noteStore";
+import { useUiStore } from "@/store/uiStore";
 
 export interface ParsedTable {
   headers: string[];
@@ -244,7 +245,12 @@ export class TableWidget extends WidgetType {
         if (link && link.getAttribute("href")) {
           e.preventDefault();
           e.stopPropagation();
-          window.open(link.getAttribute("href")!, "_blank", "noopener,noreferrer");
+          const href = link.getAttribute("href")!;
+          if (href.toLowerCase().includes(".pdf") && !href.startsWith("http://") && !href.startsWith("https://")) {
+            useUiStore.getState().openPdfSplitReader(href);
+            return;
+          }
+          window.open(href, "_blank", "noopener,noreferrer");
           return;
         }
 
@@ -255,6 +261,10 @@ export class TableWidget extends WidgetType {
           const target = wikilink.getAttribute("data-target") || wikilink.textContent?.trim();
           if (target) {
             const cleanTitle = target.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
+            if (cleanTitle.toLowerCase().includes('.pdf')) {
+              useUiStore.getState().openPdfSplitReader(cleanTitle);
+              return;
+            }
             const { notes, selectNote, createNote } = useNoteStore.getState();
             const targetNote = notes.find(
               (n) =>

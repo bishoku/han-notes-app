@@ -151,7 +151,7 @@ export const SettingsModal: React.FC = () => {
               )}
             >
               <Globe size={13} />
-              <span>Web Clipper</span>
+              <span>{t('webClipperTab')}</span>
             </button>
           </div>
 

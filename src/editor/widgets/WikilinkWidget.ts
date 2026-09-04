@@ -6,6 +6,7 @@
 import { WidgetType, EditorView } from '@codemirror/view';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
+import i18n from '@/i18n';
 
 export class WikilinkWidget extends WidgetType {
   target: string;
@@ -27,7 +28,7 @@ export class WikilinkWidget extends WidgetType {
     span.dataset.target = this.target;
     const isPdf = this.target.toLowerCase().includes('.pdf');
     span.title = isPdf
-      ? `PDF Dokümanı: ${this.target} (Bölünmüş Okuyucuda Aç)`
+      ? (i18n.t('pdfDocumentTitle', { target: this.target, defaultValue: `PDF Dokümanı: ${this.target} (Bölünmüş Okuyucuda Aç)` }))
       : `Not Bağlantısı: ${this.target} (Açmak için tıkla)`;
 
     const iconSvg = isPdf
@@ -105,6 +106,37 @@ export class WebLinkWidget extends WidgetType {
   }
 
   toDOM(_view: EditorView) {
+    const isPdf = this.url.toLowerCase().includes('.pdf');
+    const isInternalPdf = isPdf && !this.url.startsWith('http://') && !this.url.startsWith('https://');
+
+    if (isInternalPdf) {
+      const span = document.createElement('span');
+      span.className = 'cm-wikilink inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-semibold text-xs border border-red-500/25 cursor-pointer select-none transition-colors align-baseline';
+      span.dataset.target = this.url;
+      span.title = i18n.t('pdfDocumentTitle', { target: this.label || this.url, defaultValue: `PDF Dokümanı: ${this.label || this.url} (Bölünmüş Okuyucuda Aç)` });
+      span.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-red-500 dark:text-red-400">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <span class="truncate max-w-[240px]">${this.label || this.url}</span>
+      `;
+
+      span.onmousedown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
+      span.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        useUiStore.getState().openPdfSplitReader(this.url);
+      };
+
+      return span;
+    }
+
     const a = document.createElement('a');
     a.className = 'cm-weblink inline-flex items-center gap-1 text-mac-accent hover:underline font-medium text-xs cursor-pointer select-none transition-colors align-baseline';
     a.href = this.url;

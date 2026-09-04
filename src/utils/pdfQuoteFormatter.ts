@@ -5,8 +5,29 @@
  * from PDF documents into fluid, beautifully formatted Markdown quote callouts.
  */
 
-export function formatPdfQuote(rawText: string, pageNum: number, pdfPath: string): string {
+import i18n from '@/i18n';
+
+export function formatPdfQuote(
+  rawText: string,
+  pageNum: number,
+  pdfPath: string,
+  lang?: string
+): string {
   if (!rawText || !rawText.trim()) return '';
+
+  const isEnglish = lang
+    ? lang.startsWith('en')
+    : Boolean(i18n?.language && i18n.language.startsWith('en'));
+
+  const headerTitle = i18n?.t
+    ? i18n.t('pdfQuoteCallout', {
+        page: pageNum,
+        defaultValue: isEnglish ? `Quote (Page ${pageNum})` : `Alıntı (Sayfa ${pageNum})`,
+        lng: isEnglish ? 'en' : 'tr',
+      })
+    : isEnglish
+    ? `Quote (Page ${pageNum})`
+    : `Alıntı (Sayfa ${pageNum})`;
 
   // 1. Clean line endings and de-hyphenate line breaks (e.g. "imple-\nmented" -> "implemented")
   const cleaned = rawText
@@ -57,7 +78,7 @@ export function formatPdfQuote(rawText: string, pageNum: number, pdfPath: string
 
   // 3. Assemble into Markdown callout block where every line is prefixed with `> `
   const calloutLines: string[] = [];
-  calloutLines.push(`> [!QUOTE] Alıntı (Sayfa ${pageNum})`);
+  calloutLines.push(`> [!QUOTE] ${headerTitle}`);
 
   for (let i = 0; i < formattedParagraphs.length; i++) {
     const lines = formattedParagraphs[i].split('\n');

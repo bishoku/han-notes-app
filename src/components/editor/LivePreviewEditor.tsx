@@ -40,6 +40,7 @@ interface LivePreviewEditorProps {
   onOpenDiagramEditor: (diagramId?: string, explicitRelPath?: string, targetPos?: number) => void;
   onOpenExcalidrawEditor: (sketchId?: string, explicitRelPath?: string, targetPos?: number) => void;
   onOpenImagePicker: (targetPos?: number) => void;
+  onOpenPdfPicker: (targetPos?: number) => void;
   onOpenTaskModal: (btnData: any) => void;
   onOpenDecisionModal: (btnData: any) => void;
   onOpenMermaidModal: () => void;
@@ -58,6 +59,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
   onOpenDiagramEditor,
   onOpenExcalidrawEditor,
   onOpenImagePicker,
+  onOpenPdfPicker,
   onOpenTaskModal,
   onOpenDecisionModal,
   onOpenMermaidModal,
@@ -147,6 +149,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
       buildSlashCommands(
         executeSlashCommand,
         () => onOpenImagePicker(slashStateRef.current.slashFrom || undefined),
+        () => onOpenPdfPicker(slashStateRef.current.slashFrom || undefined),
         () => onOpenDiagramEditor(undefined, undefined, slashStateRef.current.slashFrom || undefined),
         () => onOpenExcalidrawEditor(undefined, undefined, slashStateRef.current.slashFrom || undefined),
         () => setEmojiPickerOpen(true),
@@ -157,6 +160,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
     [
       executeSlashCommand,
       onOpenImagePicker,
+      onOpenPdfPicker,
       onOpenDiagramEditor,
       onOpenExcalidrawEditor,
       onOpenMermaidModal,
@@ -206,6 +210,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
           onOpenTaskModal={() => onOpenTaskModal(taskEditBtn)}
           onOpenDecisionModal={() => onOpenDecisionModal(decisionEditBtn)}
           onOpenImagePicker={() => onOpenImagePicker(menuPosRef.current.lineFrom)}
+          onOpenPdfPicker={() => onOpenPdfPicker(menuPosRef.current.lineFrom)}
           onOpenDiagramEditor={() => onOpenDiagramEditor(undefined, undefined, menuPosRef.current.lineFrom)}
           onOpenExcalidrawEditor={() => onOpenExcalidrawEditor(undefined, undefined, menuPosRef.current.lineFrom)}
           onOpenInlineAi={() => onOpenInlineAi(menuPos.top, menuPos.lineFrom)}

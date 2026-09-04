@@ -52,14 +52,14 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-pdf-import-picker'))}
             className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
-            title="PDF İçe Aktar (Smart PDF Import)"
+            title={t('importPdf')}
           >
             <FileUp size={15} />
           </button>
           <button
             onClick={() => eventBus.emit('clipper:open-modal')}
             className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-            title="Web Clipper (Yer İmi ile İçe Aktar)"
+            title={t('webClipperTooltip')}
           >
             <Globe size={15} />
           </button>

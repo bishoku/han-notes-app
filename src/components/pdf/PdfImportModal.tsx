@@ -37,7 +37,9 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
   onNoteCreated,
   currentNoteId,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLanguage = useUiStore((s) => s.language);
+  const isEnglish = currentLanguage === 'en' || (Boolean(i18n.language) && i18n.language.startsWith('en'));
   const fileTree = useNoteStore((s) => s.fileTree);
   const activeFolderPath = useNoteStore((s) => s.activeFolderPath);
   const createFolder = useNoteStore((s) => s.createFolder);
@@ -107,7 +109,7 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
       } catch (err: any) {
         if (!isCancelled) {
           console.error('PDF parsing failed:', err);
-          setParseError(err.message || 'PDF analiz edilemedi.');
+          setParseError(err.message || t('pdfAnalysisFailed'));
         }
       } finally {
         if (!isCancelled) {
@@ -171,16 +173,22 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
   const handleStructuredMarkdown = async () => {
     if (!parsedResult) return;
     setIsProcessing(true);
-    setStatusMessage('Orijinal PDF kaydediliyor ve not oluşturuluyor...');
+    setStatusMessage(t('pdfSavingNote'));
 
     try {
       const title = getCleanNoteTitle(parsedResult.title);
       const relPdfPath = await saveOriginalPdf(title);
 
       const content = [
-        `> [!NOTE] 📄 Kaynak Belge`,
-        `> Dosya: **${fileName}** (${parsedResult.pageCount} sayfa)`,
-        `> Orijinal PDF: [[${relPdfPath}]]`,
+        isEnglish
+          ? `> [!NOTE] 📄 Source Document`
+          : `> [!NOTE] 📄 Kaynak Belge`,
+        isEnglish
+          ? `> File: **${fileName}** (${parsedResult.pageCount} pages)`
+          : `> Dosya: **${fileName}** (${parsedResult.pageCount} sayfa)`,
+        isEnglish
+          ? `> Original PDF: [[${relPdfPath}]]`
+          : `> Orijinal PDF: [[${relPdfPath}]]`,
         '',
         parsedResult.structuredMarkdown,
       ].join('\n');
@@ -190,7 +198,7 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
       await openCreatedNote(noteId);
     } catch (err: any) {
       console.error('Failed to create structured note:', err);
-      setParseError(err.message || 'Not oluşturulurken bir hata oluştu.');
+      setParseError(err.message || t('pdfCreateNoteError'));
     } finally {
       setIsProcessing(false);
     }
@@ -200,7 +208,7 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
   const handleOcrExtraction = async () => {
     if (!parsedResult) return;
     setIsProcessing(true);
-    setStatusMessage('Yerel OCR motoru başlatılıyor...');
+    setStatusMessage(t('pdfOcrStarting'));
 
     try {
       const title = getCleanNoteTitle(`${parsedResult.title || fileName}-OCR`);
@@ -211,15 +219,21 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
       });
 
       const pagesContent = ocrPages
-        .map((p) => `### Sayfa ${p.pageNumber}\n\n${p.text || '_Bu sayfada optik metin algılanamadı._'}`)
+        .map((p) => `### ${isEnglish ? 'Page' : 'Sayfa'} ${p.pageNumber}\n\n${p.text || `_${t('pdfNoOpticalText')}_`}`)
         .join('\n\n---\n\n');
 
       const content = [
         `# ${title}`,
         '',
-        `> [!INFO] 🔍 Taranmış Doküman Metni (Yerel OCR)`,
-        `> Belge: [[${relPdfPath}]] • Sayfa Sayısı: ${parsedResult.pageCount}`,
-        `> *Not: Bu içerik taranmış sayfalardan yerel OCR motoru (WASM) ile optik olarak ayıklanmıştır.*`,
+        isEnglish
+          ? `> [!INFO] 🔍 Scanned Document Text (Local OCR)`
+          : `> [!INFO] 🔍 Taranmış Doküman Metni (Yerel OCR)`,
+        isEnglish
+          ? `> Document: [[${relPdfPath}]] • Page Count: ${parsedResult.pageCount}`
+          : `> Belge: [[${relPdfPath}]] • Sayfa Sayısı: ${parsedResult.pageCount}`,
+        isEnglish
+          ? `> *Note: This content was optically extracted from scanned pages using local OCR engine (WASM).*`
+          : `> *Not: Bu içerik taranmış sayfalardan yerel OCR motoru (WASM) ile optik olarak ayıklanmıştır.*`,
         '',
         pagesContent,
       ].join('\n');
@@ -229,7 +243,7 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
       await openCreatedNote(noteId);
     } catch (err: any) {
       console.error('Failed to create OCR note:', err);
-      setParseError(err.message || 'OCR notu oluşturulamadı.');
+      setParseError(err.message || t('pdfOcrError'));
     } finally {
       setIsProcessing(false);
     }
@@ -239,26 +253,33 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
   const handleReaderExcerpt = async () => {
     if (!parsedResult) return;
     setIsProcessing(true);
-    setStatusMessage('Okuma şablonu hazırlanıyor...');
+    setStatusMessage(t('pdfReaderPreparing'));
 
     try {
-      const title = getCleanNoteTitle(`${parsedResult.title || fileName}-Okuma-Notu`);
+      const titleProposal = isEnglish
+        ? `${parsedResult.title || fileName}-Reading-Notes`
+        : `${parsedResult.title || fileName}-Okuma-Notu`;
+      const title = getCleanNoteTitle(titleProposal);
       const relPdfPath = await saveOriginalPdf(title);
 
       const content = [
         `# ${title}`,
         '',
-        `> [!TIP] 📖 Referans Kaynak`,
-        `> Orijinal Dosya: [[${relPdfPath}]] • Toplam: ${parsedResult.pageCount} Sayfa`,
+        isEnglish
+          ? `> [!TIP] 📖 Reference Document`
+          : `> [!TIP] 📖 Referans Kaynak`,
+        isEnglish
+          ? `> Original File: [[${relPdfPath}]] • Total: ${parsedResult.pageCount} Pages`
+          : `> Orijinal Dosya: [[${relPdfPath}]] • Toplam: ${parsedResult.pageCount} Sayfa`,
         '',
-        `## 📌 Önemli Alıntılar ve Referanslar`,
-        `> [!QUOTE] Alıntı 1`,
+        isEnglish ? `## 📌 Key Quotes and Citations` : `## 📌 Önemli Alıntılar ve Referanslar`,
+        isEnglish ? `> [!QUOTE] Citation 1` : `> [!QUOTE] Alıntı 1`,
         `> *""* — [[${relPdfPath}#page=1]]`,
         '',
-        `## 💡 Kendi Notlarım & Yorumlar`,
+        isEnglish ? `## 💡 My Notes & Thoughts` : `## 💡 Kendi Notlarım & Yorumlar`,
         `- `,
         '',
-        `## 🔗 İlgili Notlar & Konular`,
+        isEnglish ? `## 🔗 Related Notes & Topics` : `## 🔗 İlgili Notlar & Konular`,
         `- `,
       ].join('\n');
 
@@ -268,7 +289,7 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
       await openCreatedNote(noteId);
     } catch (err: any) {
       console.error('Failed to create reader note:', err);
-      setParseError(err.message || 'Okuma notu oluşturulamadı.');
+      setParseError(err.message || t('pdfReaderError'));
     } finally {
       setIsProcessing(false);
     }
@@ -278,10 +299,13 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
   const handleAiSynthesis = async () => {
     if (!parsedResult) return;
     setIsProcessing(true);
-    setStatusMessage('Yapay zeka belgeyi analiz ediyor...');
+    setStatusMessage(t('pdfAiAnalyzing'));
 
     try {
-      const title = getCleanNoteTitle(`${parsedResult.title || fileName}-AI-Özet`);
+      const titleProposal = isEnglish
+        ? `${parsedResult.title || fileName}-AI-Summary`
+        : `${parsedResult.title || fileName}-AI-Özet`;
+      const title = getCleanNoteTitle(titleProposal);
       const relPdfPath = await saveOriginalPdf(title);
 
       // Extract sample text (up to 7000 chars) for prompt
@@ -296,20 +320,64 @@ export const PdfImportModal: React.FC<PdfImportModalProps> = ({
 
       if (aiSettings.enabled) {
         try {
-          const prompt = `Aşağıdaki akademik/araştırma belgesini analiz et. Şu bölümleri içeren profesyonel bir Türkçe araştırma özeti hazırla:
+          const systemInstruction = isEnglish
+            ? `You are the HAN Notes AI Research Analyst.
+CRITICAL LANGUAGE REQUIREMENT:
+- The entire output and research summary MUST be generated strictly and exclusively in English.
+- Even if the source document is written in Turkish or any other language, you MUST translate and summarize all findings, hypotheses, methods, conclusions, and tags into fluent, professional English.
+- Output ONLY the structured Markdown document. Do not include conversational remarks, meta-talk, or greetings.`
+            : `Sen HAN Not Defteri Yapay Zeka Araştırma Analistisin.
+KRİTİK DİL TALİMATI:
+- Üreteceğin araştırma özetinin ve analizin tamamı KESİNLİKLE ve SADECE Türkçe olmalıdır.
+- Kaynak belge İngilizce veya başka bir dilde yazılmış olsa bile, tüm bulguları, hipotezleri, yöntemleri, sonuçları ve etiketleri akıcı, profesyonel bir Türkçe ile sentezle ve çevir.
+- Yalnızca yapılandırılmış Markdown içeriği üret. Selamlama veya sohbet cümleleri ekleme.`;
+
+          const prompt = isEnglish
+            ? `Analyze the following academic/research document and produce a comprehensive, structured research summary in English.
+
+You MUST structure the summary with these exact Markdown sections:
+1. 📌 Executive Summary
+2. 🎯 Core Hypotheses & Research Questions
+3. ⚡ Methodology & Key Findings
+4. 💡 Critical Evaluation & Practical Implications
+5. 🏷️ Suggested Tags (e.g. #research #topic)
+
+MANDATORY LANGUAGE RULE:
+- The entire response MUST be written in English.
+- All section titles, bullet points, explanations, and insights must be in English.
+
+Document Text:
+${sampleText}`
+            : `Aşağıdaki akademik/araştırma belgesini analiz et ve kapsamlı, iyi yapılandırılmış bir Türkçe araştırma özeti hazırla.
+
+Özeti kesinlikle şu Markdown bölümleriyle yapılandır:
 1. 📌 Yönetici Özeti (Executive Summary)
 2. 🎯 Temel Hipotez ve Araştırma Soruları
 3. ⚡ Metodoloji ve Bulgular
 4. 💡 Kritik Değerlendirme ve Çıkarımlar
-5. 🏷️ Önerilen Etiketler (Tags)
+5. 🏷️ Önerilen Etiketler (örn. #araştırma #konu)
+
+ZORUNLU DİL KURALI:
+- Çıktının tamamı KESİNLİKLE Türkçe olmalıdır.
+- Tüm bölüm başlıkları, maddeler, analizler ve çıkarımlar Türkçe hazırlanmalıdır.
 
 Belge Metni:
 ${sampleText}`;
 
+          const overrideSettings = {
+            ...aiSettings,
+            systemPrompt: systemInstruction,
+          };
+
+          const messages = [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: prompt },
+          ];
+
           let fullAiText = '';
           const result = await llmClient.streamChat(
-            aiSettings,
-            [{ role: 'user', content: prompt }],
+            overrideSettings,
+            messages,
             (chunk) => {
               fullAiText += chunk;
             }
@@ -323,20 +391,24 @@ ${sampleText}`;
       const content = [
         `# ${title}`,
         '',
-        `> [!NOTE] 🧠 AI Literatür Sentezi`,
-        `> Kaynak: [[${relPdfPath}]] • Sayfa Sayısı: ${parsedResult.pageCount}`,
+        isEnglish
+          ? `> [!NOTE] 🧠 AI Literature Synthesis`
+          : `> [!NOTE] 🧠 AI Literatür Sentezi`,
+        isEnglish
+          ? `> Source: [[${relPdfPath}]] • Page Count: ${parsedResult.pageCount}`
+          : `> Kaynak: [[${relPdfPath}]] • Sayfa Sayısı: ${parsedResult.pageCount}`,
         '',
         aiAnalysisText
           ? aiAnalysisText
           : [
-              `## 📌 Yönetici Özeti`,
-              `- Belge: ${fileName}`,
-              `- Sayfa: ${parsedResult.pageCount}`,
+              isEnglish ? `## 📌 Executive Summary` : `## 📌 Yönetici Özeti`,
+              isEnglish ? `- Document: ${fileName}` : `- Belge: ${fileName}`,
+              isEnglish ? `- Pages: ${parsedResult.pageCount}` : `- Sayfa: ${parsedResult.pageCount}`,
               '',
-              `## 🎯 Temel Hipotez ve Bulgular`,
+              isEnglish ? `## 🎯 Core Hypotheses & Findings` : `## 🎯 Temel Hipotez ve Bulgular`,
               `- `,
               '',
-              `## 💡 Metodoloji & Çıkarımlar`,
+              isEnglish ? `## 💡 Methodology & Insights` : `## 💡 Metodoloji & Çıkarımlar`,
               `- `,
             ].join('\n'),
       ].join('\n');
@@ -346,7 +418,7 @@ ${sampleText}`;
       await openCreatedNote(noteId);
     } catch (err: any) {
       console.error('Failed to create AI synthesis note:', err);
-      setParseError(err.message || 'AI sentezi oluşturulamadı.');
+      setParseError(err.message || t('pdfAiError'));
     } finally {
       setIsProcessing(false);
     }
@@ -363,10 +435,10 @@ ${sampleText}`;
             </div>
             <div>
               <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                {t('pdfImportWizard', 'Akıllı PDF İçe Aktarma')}
+                {t('pdfImportWizard')}
               </h2>
               <p className="text-[11px] text-gray-500">
-                Araştırma dokümanını not ağınıza bağlayın
+                {t('pdfImportWizardSubtitle')}
               </p>
             </div>
           </div>
@@ -392,17 +464,17 @@ ${sampleText}`;
             {isAnalyzing ? (
               <div className="flex items-center gap-1 text-[11px] text-purple-600 dark:text-purple-400 font-medium">
                 <Loader2 size={12} className="animate-spin" />
-                <span>Analiz ediliyor...</span>
+                <span>{t('pdfAnalyzing')}</span>
               </div>
             ) : parsedResult ? (
               <div className="flex items-center gap-1.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                  {parsedResult.pageCount} Sayfa
+                  {parsedResult.pageCount} {t('pdfPages')}
                 </span>
                 {parsedResult.isScanned && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
                     <AlertTriangle size={10} />
-                    Taranmış / Görsel
+                    {t('pdfScannedBadge')}
                   </span>
                 )}
               </div>
@@ -414,7 +486,7 @@ ${sampleText}`;
         <div className="px-5 py-2.5 bg-gray-50/80 dark:bg-zinc-800/30 border-b border-gray-200/60 dark:border-zinc-800/60 flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 shrink-0">
             <Folder size={14} className="text-purple-500" />
-            <span className="font-medium text-gray-700 dark:text-gray-300">Hedef Klasör:</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300">{t('pdfTargetFolder')}:</span>
           </div>
 
           {!isCreatingFolder ? (
@@ -425,7 +497,7 @@ ${sampleText}`;
                 disabled={isProcessing}
                 className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-gray-800 dark:text-gray-200 font-mono truncate max-w-[240px] focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer disabled:opacity-50"
               >
-                <option value="">/ (Kök Vault)</option>
+                <option value="">/ ({t('pdfRootVault')})</option>
                 {folderList.map((f) => (
                   <option key={f} value={f}>
                     /{f}
@@ -438,10 +510,10 @@ ${sampleText}`;
                 onClick={() => setIsCreatingFolder(true)}
                 disabled={isProcessing}
                 className="px-2 py-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors flex items-center gap-1 shrink-0 cursor-pointer border border-purple-500/20 disabled:opacity-50"
-                title="Yeni Klasör Oluştur"
+                title={t('createNewFolder')}
               >
                 <FolderPlus size={12} />
-                <span>+ Yeni</span>
+                <span>+ {t('new')}</span>
               </button>
             </div>
           ) : (
@@ -449,7 +521,7 @@ ${sampleText}`;
               <input
                 type="text"
                 autoFocus
-                placeholder="Klasör adı..."
+                placeholder={t('newFolderNamePlaceholder')}
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => {
@@ -465,7 +537,7 @@ ${sampleText}`;
                 type="button"
                 onClick={handleCreateFolder}
                 className="p-1 text-emerald-600 hover:bg-emerald-500/10 rounded cursor-pointer"
-                title="Oluştur"
+                title={t('create')}
               >
                 <Check size={14} />
               </button>
@@ -476,7 +548,7 @@ ${sampleText}`;
                   setNewFolderName('');
                 }}
                 className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded cursor-pointer"
-                title="İptal"
+                title={t('cancel')}
               >
                 <X size={14} />
               </button>
@@ -506,14 +578,14 @@ ${sampleText}`;
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-gray-900 dark:text-gray-100">
-                  Araştırma Notu Olarak Yapılandır
+                  {t('pdfActionStructuredTitle')}
                 </span>
                 <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.2 rounded">
-                  Önerilen
+                  {t('recommended')}
                 </span>
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
-                Başlıkları, listeleri, çift sütunları ve paragrafları seçilen klasörde düzenlenebilir Markdown notuna dönüştürür.
+                {t('pdfActionStructuredDesc')}
               </p>
             </div>
           </button>
@@ -530,16 +602,16 @@ ${sampleText}`;
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-gray-900 dark:text-gray-100">
-                  Yerel OCR & Metin Çıkarma
+                  {t('pdfActionOcrTitle')}
                 </span>
                 {parsedResult?.isScanned && (
                   <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded">
-                    Taranmış Belge
+                    {t('pdfActionOcrBadge')}
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
-                Taranmış sayfalardaki metinleri ayıklar; global aramada (Cmd+K) aranabilir kılar.
+                {t('pdfActionOcrDesc')}
               </p>
             </div>
           </button>
@@ -555,10 +627,10 @@ ${sampleText}`;
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-bold text-gray-900 dark:text-gray-100">
-                Okuyucu & Alıntı Şablonu
+                {t('pdfActionReaderTitle')}
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
-                PDF dosyasını ekte saklar; sayfaya referanslı alıntı ve okuma notları şablonu oluşturur.
+                {t('pdfActionReaderDesc')}
               </p>
             </div>
           </button>
@@ -574,10 +646,10 @@ ${sampleText}`;
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-bold text-gray-900 dark:text-gray-100">
-                AI Sentezi & Literatür Özeti
+                {t('pdfActionAiTitle')}
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
-                Yapay zeka ile ana hipotez, metodoloji ve kritik bulguları çıkararak yapısal özet hazırlar.
+                {t('pdfActionAiDesc')}
               </p>
             </div>
           </button>
@@ -592,7 +664,7 @@ ${sampleText}`;
             </div>
           ) : (
             <span className="text-gray-400 text-[11px]">
-              Orijinal PDF, seçilen klasörün .attachments dizinine kaydedilir
+              {t('pdfAttachmentsNotice')}
             </span>
           )}
 
@@ -601,7 +673,7 @@ ${sampleText}`;
             disabled={isProcessing}
             className="px-3.5 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
           >
-            {t('cancel', 'İptal')}
+            {t('cancel')}
           </button>
         </div>
       </div>

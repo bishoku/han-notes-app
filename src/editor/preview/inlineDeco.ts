@@ -21,7 +21,7 @@ const strikeRe = /~~(.*?)~~/g;
 const highlightRe = /==(.*?)==/g;
 const codeRe = /`([^`]+)`/g;
 const wikilinkRe = /\[\[(.*?)\]\]/g;
-const webLinkRe = /(?<!!)\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const webLinkRe = /(?<!!)\[([^\]]+)\]\(([^)]+)\)/g;
 const bareUrlRe = /(?<![\])=’"\w])(https?:\/\/[^\s<>)\]"]+)/g;
 const spanColorRe = /<span\s+style=["']color:\s*([^"';]+)[^"']*["']>([\s\S]*?)<\/span>/gi;
 const underlineRe = /<u>([\s\S]*?)<\/u>/gi;
@@ -186,7 +186,7 @@ export function applyInlineDecorations(
       const linkTo = linkFrom + wlMatch[0].length;
       if (linkFrom < minOffset) continue;
       const label = wlMatch[1];
-      const url = wlMatch[2];
+      const url = wlMatch[2].trim();
 
       lineLinkRanges.push({ from: linkFrom, to: linkTo });
 

@@ -26,6 +26,7 @@ export const MainEditor: React.FC = () => {
   const { t } = useTranslation();
   const theme = useUiStore((s) => s.theme);
   const fontSize = useUiStore((s) => s.fontSize);
+  const language = useUiStore((s) => s.language);
   const editorMode = useUiStore((s) => s.editorMode);
   const rightPanelOpen = useUiStore((s) => s.rightPanelOpen);
   const toggleRightPanel = useUiStore((s) => s.toggleRightPanel);
@@ -162,6 +163,39 @@ export const MainEditor: React.FC = () => {
     }
   };
 
+  // PDF Attachment Handler
+  const pdfAttachmentInputRef = useRef<HTMLInputElement>(null);
+  const pdfAttachmentInsertPosRef = useRef<number | null>(null);
+  const handleOpenPdfPicker = useCallback((targetPos?: number) => {
+    if (typeof targetPos === 'number') {
+      pdfAttachmentInsertPosRef.current = targetPos;
+    } else if (editorRef.current) {
+      pdfAttachmentInsertPosRef.current = editorRef.current.state.selection.main.head;
+    } else {
+      pdfAttachmentInsertPosRef.current = null;
+    }
+    pdfAttachmentInputRef.current?.click();
+  }, [editorRef]);
+
+  const handlePdfAttachmentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentNoteId || !editorRef.current) return;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const relativePath = await storage.saveImageBytes(currentNoteId, file.name, new Uint8Array(buffer));
+      const markdownPdf = `[${file.name}](${relativePath})\n`;
+      insertText(markdownPdf, pdfAttachmentInsertPosRef.current ?? undefined);
+    } catch (err) {
+      console.error('Failed to save PDF attachment:', err);
+    } finally {
+      pdfAttachmentInsertPosRef.current = null;
+      if (pdfAttachmentInputRef.current) {
+        pdfAttachmentInputRef.current.value = '';
+      }
+    }
+  };
+
   // PDF Upload Handler
   const handlePdfSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -252,10 +286,10 @@ export const MainEditor: React.FC = () => {
             <div className="flex flex-col items-center gap-2 bg-white dark:bg-zinc-900 px-6 py-4 rounded-xl shadow-xl border border-purple-500/30 text-center">
               <span className="text-3xl">📄</span>
               <p className="text-sm font-bold text-gray-800 dark:text-gray-100">
-                PDF Dokümanını Buraya Bırakın
+                {t('dropPdfHere')}
               </p>
               <p className="text-xs text-gray-500">
-                Akıllı İçe Aktarma Sihirbazı otomatik olarak açılacaktır
+                {t('dropPdfSubtitle')}
               </p>
             </div>
           </div>
@@ -268,7 +302,7 @@ export const MainEditor: React.FC = () => {
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 hover:border-purple-500/50 bg-white dark:bg-zinc-900 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors shadow-xs cursor-pointer"
           >
             <span>📄</span>
-            <span>PDF İçe Aktar</span>
+            <span>{t('importPdf')}</span>
           </button>
         </div>
 
@@ -322,6 +356,15 @@ export const MainEditor: React.FC = () => {
         className="hidden"
       />
 
+      {/* Hidden File Input for PDF Attachment */}
+      <input
+        type="file"
+        ref={pdfAttachmentInputRef}
+        accept=".pdf,application/pdf"
+        onChange={handlePdfAttachmentSelect}
+        className="hidden"
+      />
+
       {/* Visual Drag Over Overlay */}
       {isDraggingOver && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-purple-500/10 backdrop-blur-xs border-2 border-dashed border-purple-500 rounded-2xl m-3 pointer-events-none animate-in fade-in duration-100">
@@ -363,7 +406,7 @@ export const MainEditor: React.FC = () => {
             jumpKey={pdfSplitReader.jumpKey}
             onClose={closePdfSplitReader}
             onInsertQuote={(quoteText, pageNum) => {
-              const quoteMarkdown = formatPdfQuote(quoteText, pageNum, pdfSplitReader.pdfPath);
+              const quoteMarkdown = formatPdfQuote(quoteText, pageNum, pdfSplitReader.pdfPath, language);
               insertText(quoteMarkdown);
             }}
           />
@@ -382,6 +425,7 @@ export const MainEditor: React.FC = () => {
               onOpenDiagramEditor={openDiagramEditor}
               onOpenExcalidrawEditor={openExcalidrawEditor}
               onOpenImagePicker={handleOpenImagePicker}
+              onOpenPdfPicker={handleOpenPdfPicker}
               onOpenTaskModal={handleOpenTaskModal}
               onOpenDecisionModal={handleOpenDecisionModal}
               onOpenMermaidModal={() => eventBus.emit('modal:edit-mermaid', { code: '' })}

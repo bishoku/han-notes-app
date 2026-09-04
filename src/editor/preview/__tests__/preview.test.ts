@@ -67,6 +67,20 @@ describe('preview/inlineDeco', () => {
     assert.equal(items[1].to, 60);
   });
 
+  it('should parse markdown PDF attachment links and wikilinks targeting PDFs', () => {
+    const items: DecItem[] = [];
+    const line = { from: 0, to: 66, text: 'Check [Document.pdf](.attachments/Document.pdf) or [[report.pdf]]' };
+    applyInlineDecorations(line, 0, () => false, (item) => items.push(item));
+
+    assert.equal(items.length, 2);
+    // Section 7 parses wikilinks first:
+    assert.equal(items[0].from, 51);
+    assert.equal(items[0].to, 65); // [[report.pdf]]
+    // Section 8 parses markdown links second:
+    assert.equal(items[1].from, 6);
+    assert.equal(items[1].to, 47); // [Document.pdf](.attachments/Document.pdf)
+  });
+
   it('should parse bare URLs without colliding with markdown links', () => {
     const items: DecItem[] = [];
     const line = { from: 0, to: 50, text: 'Visit https://han-notes.org directly today.' };

@@ -18,6 +18,7 @@ import {
 import * as pdfjsLib from 'pdfjs-dist';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { storage } from '@/services/storage';
+import { useTranslation } from 'react-i18next';
 
 interface PdfSplitViewerProps {
   pdfPath: string;
@@ -36,6 +37,7 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
   onClose,
   onInsertQuote,
 }) => {
+  const { t } = useTranslation();
   const [doc, setDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState<number>(1);
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
@@ -307,7 +309,7 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1 || isLoading}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer"
-            title="Önceki Sayfa"
+            title={t('previousPage')}
           >
             <ChevronLeft size={14} />
           </button>
@@ -320,7 +322,7 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
             onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
             disabled={currentPage >= numPages || isLoading}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer"
-            title="Sonraki Sayfa"
+            title={t('nextPage')}
           >
             <ChevronRight size={14} />
           </button>
@@ -331,28 +333,28 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
           <button
             onClick={() => setScale((s) => Math.max(0.6, s - 0.15))}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
-            title="Uzaklaştır"
+            title={t('zoomOut')}
           >
             <ZoomOut size={13} />
           </button>
           <button
             onClick={() => setScale(1.25)}
             className="text-[10px] font-mono text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 px-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded cursor-pointer"
-            title="Sıfırla"
+            title={t('reset')}
           >
             {Math.round((scale / 1.25) * 100)}%
           </button>
           <button
             onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
-            title="Yakınlaştır"
+            title={t('zoomIn')}
           >
             <ZoomIn size={13} />
           </button>
           <button
             onClick={onClose}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer ml-1"
-            title="Okuyucuyu Kapat"
+            title={t('pdfCloseReader')}
           >
             <X size={14} />
           </button>
@@ -371,11 +373,11 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
         {isLoading ? (
           <div className="flex flex-col items-center justify-center gap-2 h-64 text-gray-400">
             <Loader2 size={24} className="animate-spin text-purple-600" />
-            <span className="text-xs">PDF yükleniyor...</span>
+            <span className="text-xs">{t('loading')}</span>
           </div>
         ) : loadError ? (
           <div className="flex flex-col items-center justify-center gap-2 h-64 text-red-500 text-xs text-center px-4">
-            <p className="font-semibold">Doküman açılamadı</p>
+            <p className="font-semibold">{t('pdfDocumentOpenError')}</p>
             <p className="text-gray-400 text-[11px]">{loadError}</p>
           </div>
         ) : (
@@ -430,12 +432,12 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
               {justQuoted ? (
                 <>
                   <Check size={12} className="text-emerald-400 dark:text-emerald-600" />
-                  <span>Alıntı Eklendi!</span>
+                  <span>{t('pdfQuoteAdded')}</span>
                 </>
               ) : (
                 <>
                   <Quote size={11} className="text-purple-400 dark:text-purple-600" />
-                  <span>Nota Alıntı Ekle</span>
+                  <span>{t('pdfQuoteSnippet')}</span>
                 </>
               )}
             </button>

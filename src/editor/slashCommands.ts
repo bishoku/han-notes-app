@@ -28,6 +28,7 @@ import {
   Minus,
   Smile,
   GitFork,
+  FileText,
 } from 'lucide-react';
 import type { SlashCommand } from '@/components/SlashCommandMenu';
 import type { TFunction } from 'i18next';
@@ -50,7 +51,7 @@ interface SlashCommandDef {
   /** Where to place the cursor relative to the insert start. Defaults to end of snippet. */
   cursorOffset?: number;
   /** Special action type for non-insert commands */
-  action?: 'openTagModal' | 'openImagePicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker' | 'openMermaidEditor' | 'openCodeEditor';
+  action?: 'openTagModal' | 'openImagePicker' | 'openPdfPicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker' | 'openMermaidEditor' | 'openCodeEditor';
   /** Sub-commands for nested menus (e.g., language selection for code blocks) */
   subCommands?: { id: string; lang: string; label: string; abbr: string }[];
 }
@@ -173,6 +174,17 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     action: 'openImagePicker',
   },
   {
+    id: 'pdf',
+    labelKey: 'slashPdf',
+    command: '/pdf',
+    descriptionKey: 'slashPdfDesc',
+    category: 'Medya',
+    colorClass: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    icon: React.createElement(FileText, { size: 14 }),
+    snippet: '',
+    action: 'openPdfPicker',
+  },
+  {
     id: 'diagram',
     labelKey: 'slashDiagram',
     command: '/diagram',
@@ -258,6 +270,7 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
 export function buildSlashCommands(
   executeSlashCommand: (text: string, opts?: { cursorOffset?: number; openTagModal?: boolean }) => void,
   openImagePicker: () => void,
+  openPdfPicker: () => void,
   openDiagramEditor: () => void,
   openExcalidrawEditor: () => void,
   openEmojiPicker: () => void,
@@ -301,6 +314,9 @@ export function buildSlashCommands(
         } else if (def.action === 'openImagePicker') {
           executeSlashCommand('');
           openImagePicker();
+        } else if (def.action === 'openPdfPicker') {
+          executeSlashCommand('');
+          openPdfPicker();
         } else if (def.action === 'openDiagramEditor') {
           executeSlashCommand('');
           openDiagramEditor();
