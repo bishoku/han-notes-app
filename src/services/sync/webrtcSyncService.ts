@@ -8,6 +8,12 @@
  */
 import { useNoteStore } from '@/store/noteStore';
 import { encryptPayload, decryptPayload } from './crypto';
+import {
+  splitIntoChunks,
+  MessageReassembler,
+  MAX_BUFFERED_AMOUNT,
+  BUFFERED_AMOUNT_LOW_THRESHOLD,
+} from './chunking';
 import { SignalingClient, DEFAULT_SIGNALING_URL } from './signalingClient';
 import { syncStorageAdapter } from './syncStorageAdapter';
 import type {
@@ -40,6 +46,15 @@ export class WebRtcSyncService {
   private signalingUrl: string;
   private onStateChange?: (state: SyncState, error?: string) => void;
   private onProgress?: (progress: SyncProgress) => void;
+
+  private nextMessageId = 1;
+  private reassembler = new MessageReassembler();
+  private messageQueue: P2PMessage[] = [];
+  private pendingWaiters: Array<{
+    resolve: (msg: any) => void;
+    reject: (err: any) => void;
+    filter?: (msg: P2PMessage) => boolean;
+  }> = [];
 
   constructor(
     roomId: string,
@@ -95,33 +110,43 @@ export class WebRtcSyncService {
           reject(new Error('WebRTC DataChannel connection timed out after 30s.'));
         }, 30000);
 
+        const onOpen = (channel: RTCDataChannel) => {
+          clearTimeout(timeout);
+          console.log(`[WebRTC] DataChannel OPEN on ${this.role}!`);
+          resolve(channel);
+        };
+
         if (this.role === 'host') {
           // Host creates DataChannel
           const channel = this.pc!.createDataChannel('han-sync-channel', {
             ordered: true,
           });
           channel.binaryType = 'arraybuffer';
-
-          channel.onopen = () => {
-            clearTimeout(timeout);
-            console.log('[WebRTC] DataChannel OPEN on host!');
-            resolve(channel);
-          };
-          channel.onerror = (e) => reject(e);
+          channel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD;
+          this.setupDataChannelHandlers(channel);
           this.dataChannel = channel;
+
+          if (channel.readyState === 'open') {
+            onOpen(channel);
+          } else {
+            channel.onopen = () => onOpen(channel);
+          }
+          channel.onerror = (e) => reject(e);
         } else {
           // Peer awaits DataChannel from host
           this.pc!.ondatachannel = (event) => {
             const channel = event.channel;
             channel.binaryType = 'arraybuffer';
-
-            channel.onopen = () => {
-              clearTimeout(timeout);
-              console.log('[WebRTC] DataChannel OPEN on peer!');
-              resolve(channel);
-            };
-            channel.onerror = (e) => reject(e);
+            channel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD;
+            this.setupDataChannelHandlers(channel);
             this.dataChannel = channel;
+
+            if (channel.readyState === 'open') {
+              onOpen(channel);
+            } else {
+              channel.onopen = () => onOpen(channel);
+            }
+            channel.onerror = (e) => reject(e);
           };
         }
       });
@@ -239,7 +264,7 @@ export class WebRtcSyncService {
     });
 
     // 2. Wait for peer's encrypted manifest
-    const remoteManifestMsg = await this.waitForMessage(channel, 'MANIFEST');
+    const remoteManifestMsg = await this.waitForMessage('MANIFEST');
     const remoteManifest: SyncManifest = remoteManifestMsg.manifest;
 
     // 3. State Diffing: determine notes to send and notes to receive
@@ -347,7 +372,7 @@ export class WebRtcSyncService {
     while (!peerSyncDone) {
       if (this.isCancelled) throw new Error('Sync cancelled by user');
 
-      const msg = await this.waitForAnyMessage(channel);
+      const msg = await this.waitForAnyMessage();
       if (msg.type === 'NOTE_PAYLOAD') {
         const incoming = msg.note;
         const result = await syncStorageAdapter.applyCanonicalNote(incoming);
@@ -388,59 +413,144 @@ export class WebRtcSyncService {
   }
 
   /**
-   * Helper to encrypt and send a P2P message over DataChannel.
+   * Sets up packet reception, error, and close handlers on DataChannel.
+   */
+  private setupDataChannelHandlers(channel: RTCDataChannel) {
+    channel.addEventListener('message', async (event: MessageEvent) => {
+      try {
+        const rawBuffer = event.data as ArrayBuffer;
+        const reassembled = this.reassembler.ingest(rawBuffer);
+        if (reassembled) {
+          const decrypted = await decryptPayload<P2PMessage>(this.cryptoKey, reassembled.buffer);
+          this.dispatchDecryptedMessage(decrypted);
+        }
+      } catch (err) {
+        console.error('[WebRTC] Error processing incoming packet:', err);
+      }
+    });
+
+    channel.addEventListener('error', (e) => {
+      console.error('[WebRTC] DataChannel error:', e);
+    });
+
+    channel.addEventListener('close', () => {
+      console.log('[WebRTC] DataChannel closed.');
+      this.rejectPendingWaiters(new Error('DataChannel closed'));
+    });
+  }
+
+  /**
+   * Dispatches a reassembled, decrypted message to a waiting listener or the message queue.
+   */
+  private dispatchDecryptedMessage(msg: P2PMessage): void {
+    for (let i = 0; i < this.pendingWaiters.length; i++) {
+      const waiter = this.pendingWaiters[i];
+      if (!waiter.filter || waiter.filter(msg)) {
+        this.pendingWaiters.splice(i, 1);
+        waiter.resolve(msg);
+        return;
+      }
+    }
+    this.messageQueue.push(msg);
+  }
+
+  /**
+   * Encrypts and sends a P2P message over DataChannel using 16KB chunking and flow control.
    */
   private async sendEncryptedMessage(channel: RTCDataChannel, msg: P2PMessage): Promise<void> {
+    if (channel.readyState !== 'open') {
+      throw new Error(`DataChannel is not open (state: ${channel.readyState})`);
+    }
+
     const encryptedBuffer = await encryptPayload(this.cryptoKey, msg);
-    channel.send(encryptedBuffer);
+    const messageId = this.nextMessageId++;
+    const packets = splitIntoChunks(messageId, encryptedBuffer);
+
+    for (const packet of packets) {
+      if (this.isCancelled) throw new Error('Sync cancelled by user');
+
+      // Flow control / backpressure: wait if buffered amount exceeds safe threshold
+      if (channel.bufferedAmount > MAX_BUFFERED_AMOUNT) {
+        await this.waitForBufferDrain(channel);
+      }
+
+      channel.send(packet);
+    }
+  }
+
+  /**
+   * Waits for the DataChannel buffer to drain below BUFFERED_AMOUNT_LOW_THRESHOLD.
+   */
+  private waitForBufferDrain(channel: RTCDataChannel): Promise<void> {
+    if (channel.bufferedAmount <= BUFFERED_AMOUNT_LOW_THRESHOLD) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        channel.removeEventListener('bufferedamountlow', onLow);
+        channel.removeEventListener('close', onClose);
+        channel.removeEventListener('error', onError);
+      };
+      const onLow = () => {
+        cleanup();
+        resolve();
+      };
+      const onClose = () => {
+        cleanup();
+        reject(new Error('DataChannel closed while draining buffer'));
+      };
+      const onError = (e: any) => {
+        cleanup();
+        reject(new Error(`DataChannel error while draining buffer: ${e?.message || 'unknown'}`));
+      };
+      channel.addEventListener('bufferedamountlow', onLow);
+      channel.addEventListener('close', onClose);
+      channel.addEventListener('error', onError);
+    });
   }
 
   /**
    * Helper to wait for a specific message type over DataChannel.
    */
-  private waitForMessage(channel: RTCDataChannel, expectedType: P2PMessage['type']): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const handleMessage = async (event: MessageEvent) => {
-        try {
-          const rawBuffer = event.data as ArrayBuffer;
-          const decrypted = await decryptPayload<P2PMessage>(this.cryptoKey, rawBuffer);
-          if (decrypted.type === expectedType) {
-            channel.removeEventListener('message', handleMessage);
-            resolve(decrypted);
-          }
-        } catch (err) {
-          channel.removeEventListener('message', handleMessage);
-          reject(err);
-        }
-      };
-
-      channel.addEventListener('message', handleMessage);
-    });
+  private waitForMessage(expectedType: P2PMessage['type']): Promise<any> {
+    return this.waitForMatchingMessage((msg) => msg.type === expectedType);
   }
 
   /**
    * Helper to wait for any P2P message over DataChannel.
    */
-  private waitForAnyMessage(channel: RTCDataChannel): Promise<P2PMessage> {
-    return new Promise((resolve, reject) => {
-      const handleMessage = async (event: MessageEvent) => {
-        try {
-          const rawBuffer = event.data as ArrayBuffer;
-          const decrypted = await decryptPayload<P2PMessage>(this.cryptoKey, rawBuffer);
-          channel.removeEventListener('message', handleMessage);
-          resolve(decrypted);
-        } catch (err) {
-          channel.removeEventListener('message', handleMessage);
-          reject(err);
-        }
-      };
+  private waitForAnyMessage(): Promise<P2PMessage> {
+    return this.waitForMatchingMessage(() => true);
+  }
 
-      channel.addEventListener('message', handleMessage);
+  private waitForMatchingMessage(filter: (msg: P2PMessage) => boolean): Promise<P2PMessage> {
+    if (this.isCancelled) {
+      return Promise.reject(new Error('Sync cancelled by user'));
+    }
+
+    const idx = this.messageQueue.findIndex(filter);
+    if (idx !== -1) {
+      const [msg] = this.messageQueue.splice(idx, 1);
+      return Promise.resolve(msg);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.pendingWaiters.push({ resolve, reject, filter });
     });
+  }
+
+  private rejectPendingWaiters(error: Error): void {
+    const waiters = this.pendingWaiters;
+    this.pendingWaiters = [];
+    for (const waiter of waiters) {
+      waiter.reject(error);
+    }
   }
 
   cancel(): void {
     this.isCancelled = true;
+    this.rejectPendingWaiters(new Error('Sync cancelled by user'));
     this.cleanup();
   }
 
@@ -449,6 +559,9 @@ export class WebRtcSyncService {
   }
 
   private cleanup(): void {
+    this.rejectPendingWaiters(new Error('Sync session ended'));
+    this.reassembler.clear();
+    this.messageQueue = [];
     if (this.signaling) {
       this.signaling.disconnect();
       this.signaling = null;

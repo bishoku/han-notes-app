@@ -17,10 +17,13 @@
 - **[[Decision Tracking (ADR)|Decision-Tracking]]**
 - **[[Knowledge Graph & Mindmap|Knowledge-Graph-&-Mindmap]]**
 
-#### 🧠 **Intelligence & History**
+#### 🔄 **Sync & Versioning**
+- **[[P2P Encrypted Sync & Mobile|P2P-Sync-&-Mobile]]**
+- **[[Git Versioning & Time Machine|Git-Versioning-&-Sync]]**
+
+#### 🧠 **Intelligence & Search**
 - **[[AI Assistant & Local RAG|AI-Assistant-&-RAG]]**
 - **[[Search & Navigation|Search-&-Navigation]]**
-- **[[Git Versioning & Time Machine|Git-Versioning-&-Sync]]**
 
 #### ⚙️ **Reference & Architecture**
 - **[[Settings & Customization|Settings-&-Customization]]**

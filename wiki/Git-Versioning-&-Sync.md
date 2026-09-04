@@ -75,3 +75,20 @@ Keep your notes synchronized across multiple devices without third-party subscri
 5. Provide your **Git Author Name** and **Email**.
 6. For remote operations, provide a Personal Access Token (PAT) with repository read/write permissions.
 7. Set **Auto-Sync Interval** (e.g., sync every 5 minutes) or click **Sync Now** in the status bar at any time.
+
+---
+
+## ⚖️ Git Sync vs. P2P Encrypted Sync
+
+H.A.N. provides two complementary synchronization mechanisms designed for different workflows:
+
+| Feature | Remote Git Sync | [[P2P Encrypted Sync|P2P-Sync-&-Mobile]] |
+| :--- | :--- | :--- |
+| **Primary Use Case** | Cloud backup, full commit history, team collaboration | Instant mobile companion pairing, phone-to-computer sync |
+| **Transport Protocol** | HTTPS over GitHub / GitLab / Self-hosted Git server | Direct WebRTC DataChannel (device-to-device) |
+| **Intermediary Storage** | Remote Git host stores vault repository | **None** (zero server data storage, ephemeral signaling only) |
+| **Encryption** | TLS in transit, repository contents unencrypted on host | **Zero-Knowledge End-to-End Encryption (AES-GCM 256)** |
+| **Authentication** | Git account + Personal Access Token (PAT) | **Zero accounts / credentials** (scan QR code with camera) |
+| **Mobile Web Support** | Requires Git client or desktop environment | Native offline support via **IndexedDB Mobile PWA** |
+
+For complete details on device-to-device mobile synchronization, see the [[P2P Encrypted Sync & Mobile Guide|P2P-Sync-&-Mobile]].

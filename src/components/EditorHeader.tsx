@@ -107,16 +107,16 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   };
 
   return (
-    <header className="print:hidden h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none z-30">
+    <header className="print:hidden min-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 relative bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs gap-2 select-none z-30 pt-safe py-1">
       {/* ── Left Side: Back/Forward, Note Title, Tags ── */}
       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium min-w-0 flex-1">
         {/* Mobile Sidebar Open Button */}
         <button
           onClick={() => setSidebarOpen(true)}
-          className="md:hidden p-1.5 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1"
+          className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1 min-w-[38px] min-h-[38px] flex items-center justify-center active:scale-95"
           title={t('expandSidebar')}
         >
-          <Menu size={18} />
+          <Menu size={20} />
         </button>
 
         {/* Desktop Expand Sidebar Button (Visible when sidebar is collapsed) */}

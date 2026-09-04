@@ -85,6 +85,8 @@ interface NoteState {
   refreshCurrentNote: () => Promise<void>;
   /** Opens directory selector, switches active vault/workspace and reloads all notes. */
   switchVault: () => Promise<boolean>;
+  /** Permanently deletes all notes and folders in the vault. */
+  clearAllNotes: () => Promise<void>;
 }
 
 export const useNoteStore = create<NoteState>((set, get) => ({
@@ -468,6 +470,52 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       useGitStore.getState().createSnapshot(`Yeniden adlandırıldı: ${relPath} -> ${newName}`);
     } catch (e) {
       console.error('Failed to rename item:', e);
+    }
+  },
+
+  clearAllNotes: async () => {
+    try {
+      // 1. Delete all top-level files and folders in fileTree
+      const topNodes = [...get().fileTree];
+      for (const node of topNodes) {
+        try {
+          await syncStorageAdapter.recordTombstone(node.relative_path);
+          await storage.deleteNode(node.relative_path);
+          await indexingCoordinator.deleteFolder(node.relative_path);
+        } catch (err) {
+          console.warn(`Failed to delete node ${node.relative_path}:`, err);
+        }
+      }
+
+      // 2. Clear any lingering notes not in fileTree
+      const remainingNotes = [...get().notes];
+      for (const note of remainingNotes) {
+        try {
+          await syncStorageAdapter.recordTombstone(note.id);
+          await storage.deleteNode(note.path || `${note.id}.md`);
+          await indexingCoordinator.deleteNote(note.id);
+        } catch {}
+      }
+
+      // 3. Clear graph and memory states
+      useGraphStore.getState().resetGraph();
+      set({
+        notes: [],
+        fileTree: [],
+        currentNoteId: null,
+        currentNoteContent: '',
+        activeFolderPath: null,
+        backlinks: [],
+        vaultTags: [],
+        activeTagFilter: null,
+      });
+
+      // 4. Reload vault and snapshot
+      await get().loadVault();
+      useGitStore.getState().createSnapshot('Tüm notlar temizlendi');
+    } catch (e) {
+      console.error('Failed to clear all notes:', e);
+      throw e;
     }
   },
 }));

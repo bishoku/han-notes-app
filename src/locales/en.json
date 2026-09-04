@@ -673,5 +673,22 @@
   "syncLastReportTitle": "Last Sync Session",
   "syncClearTombstonesTitle": "Reset Sync Metadata",
   "syncClearTombstonesDesc": "Clears local deleted note tombstones history.",
-  "syncClearMetadataConfirm": "Are you sure you want to clear sync tombstones history?"
+  "syncClearMetadataConfirm": "Are you sure you want to clear sync tombstones history?",
+  "dangerZone": "Danger Zone",
+  "clearAllNotesTitle": "Clear All Notes",
+  "clearAllNotesDesc": "Permanently deletes all notes, folders, and attachments in the vault. This action cannot be undone.",
+  "clearAllNotesButton": "Clear All Notes...",
+  "clearAllNotesConfirmStep1Title": "All Notes Will Be Deleted",
+  "clearAllNotesConfirmStep1Message": "{{count}} notes and all folders will be permanently deleted. Are you sure?",
+  "clearAllNotesProceed": "Yes, Proceed",
+  "clearAllNotesConfirmStep2Title": "Permanent Deletion Verification",
+  "clearAllNotesConfirmStep2Message": "To confirm deletion, please type {{word}} below:",
+  "clearAllNotesVerificationWord": "DELETE",
+  "clearAllNotesVerificationPlaceholder": "Type DELETE to confirm...",
+  "clearAllNotesFinalButton": "Permanently Delete Everything",
+  "clearAllNotesClearing": "Deleting notes...",
+  "clearAllNotesSuccess": "All notes in the vault were successfully cleared.",
+  "moreActions": "More Actions",
+  "noNoteSelected": "No Note Selected",
+  "openMenu": "Open Menu"
 }

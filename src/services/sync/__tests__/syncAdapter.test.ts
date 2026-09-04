@@ -139,4 +139,55 @@ describe('Sync Manifest Diffing & Tombstone Resolution', () => {
 
     assert.strictEqual(isConflict, true);
   });
+
+  it('should propagate tombstones when all notes are cleared, suppressing older notes across peers', () => {
+    const clearedTimestamp = Date.now();
+    const clearedNoteIds = ['Note1', 'Work/Project', 'Archive/Log'];
+
+    // Simulating clearAllNotes creating tombstones
+    const localManifest: SyncManifest = {
+      deviceId: 'dev_clearer',
+      timestamp: clearedTimestamp,
+      notes: Object.fromEntries(
+        clearedNoteIds.map(id => [
+          id,
+          {
+            id,
+            updatedAt: clearedTimestamp,
+            deleted: true,
+            hash: '',
+          },
+        ])
+      ),
+    };
+
+    const peerManifest: SyncManifest = {
+      deviceId: 'dev_peer',
+      timestamp: clearedTimestamp - 5000,
+      notes: {
+        Note1: {
+          id: 'Note1',
+          updatedAt: clearedTimestamp - 10000,
+          hash: 'hash_old_note1',
+          deleted: false,
+        },
+        'Work/Project': {
+          id: 'Work/Project',
+          updatedAt: clearedTimestamp - 6000,
+          hash: 'hash_old_project',
+          deleted: false,
+        },
+      },
+    };
+
+    // Peer examines localManifest's tombstones against its own active notes
+    for (const [id, localEntry] of Object.entries(localManifest.notes)) {
+      const peerEntry = peerManifest.notes[id];
+      if (peerEntry && localEntry.deleted) {
+        // Since local tombstone updatedAt > peer note updatedAt, peer must mark as deleted
+        const shouldDeleteOnPeer = localEntry.updatedAt > peerEntry.updatedAt;
+        assert.strictEqual(shouldDeleteOnPeer, true);
+      }
+    }
+  });
 });

@@ -64,7 +64,7 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
   const edgesCount = edges.length;
 
   return (
-    <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2.5 pointer-events-none pt-safe">
+    <div className="absolute top-13 md:top-4 left-3 md:left-4 right-3 md:right-4 z-20 flex flex-wrap items-center justify-between gap-2.5 pointer-events-none md:pt-safe">
       {/* Left Group: Search & Mode Filters */}
       <div className="flex items-center gap-1.5 sm:gap-2 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-gray-200/80 dark:border-zinc-800/80 shadow-lg pointer-events-auto">
         {/* Mobile Sidebar Button */}

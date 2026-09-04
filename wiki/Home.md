@@ -28,6 +28,7 @@ H.A.N. is available both as a **blazing-fast native macOS desktop application** 
 4. **Connected Thinking**: Bidirectional wiki-links (`[[note]]`), automatic backlinks, and an interactive Cytoscape knowledge graph let you discover connections organically.
 5. **Private & Local-First AI**: Integrated AI assistant and Hybrid Search with local vector embeddings running in your browser/desktop using WebWorkers and ONNX. No sensitive notes sent to third-party vector databases.
 6. **Built-in Time Machine**: Native Git versioning lets you track every edit, view visual diffs, and restore any note to any point in time with one click.
+7. **Zero-Knowledge P2P Sync**: Synchronize across desktop and mobile devices directly over WebRTC with client-side AES-GCM 256 encryption. Zero accounts, zero cloud storage, zero vendor lock-in.
 
 ---
 
@@ -43,6 +44,7 @@ H.A.N. is available both as a **blazing-fast native macOS desktop application** 
 | **🔗 Knowledge Graph** | Wiki-links (`[[note-name]]`), automatic backlink aggregation, interactive Cytoscape knowledge graph / mindmap with force-directed physics layout (`fcose`). |
 | **🤖 AI & Semantic RAG** | On-device embedding generation via WebWorker (`all-MiniLM-L6-v2`), IndexedDB vector database, note-scoped and global chat sessions, attached note context, streaming responses with `<think>` reasoning extraction. |
 | **🔍 Search** | Quick modal (`Cmd/Ctrl+K`), Hybrid Search (Full-Text Search + Semantic Vector embeddings), Real-time note preview. |
+| **🔄 P2P Encrypted Sync** | Direct device-to-device WebRTC sync, Zero-Knowledge AES-GCM 256 E2EE, Ephemeral QR code camera pairing, 16 KiB packet chunking & flow control, Tombstone soft-deletion (no resurrection), IndexedDB mobile companion. |
 | **⏳ Git Versioning** | Integrated Git engine (Tauri native & `isomorphic-git` for web), auto-commit snapshots, visual line diffs, note-level rollback time machine, remote sync (GitHub / GitLab). |
 | **🗂️ Vault Management** | Multi-level folder tree, drag-and-drop file organization, tag management, fast vault switching. |
 | **🎨 Customization** | 6 built-in themes (Light, Dark, Nord, Dracula, Synthwave, Retro), adjustable typography scale, Multilingual UI (English & Turkish). |
@@ -67,10 +69,13 @@ Explore the complete documentation pages below:
 - [[Decision Tracking (ADR)|Decision-Tracking]]: Documenting decisions, tracking approval status, timeline views, and metrics.
 - [[Knowledge Graph & Mindmap|Knowledge-Graph-&-Mindmap]]: Wiki-links, backlinks, graph exploration, and node navigation.
 
-### 🧠 Intelligence & Version Control
+### 🔄 Synchronization & Version Control
+- [[P2P Encrypted Sync & Mobile|P2P-Sync-&-Mobile]]: Zero-backend WebRTC sync, AES-GCM encryption, QR pairing, chunking engine, and mobile companion guide.
+- [[Git Versioning & Time Machine|Git-Versioning-&-Sync]]: Commit history, visual diffs, note rollback, and remote sync.
+
+### 🧠 Search & Intelligence
 - [[AI Assistant & Local RAG|AI-Assistant-&-RAG]]: Configuring LLM providers, local vector embeddings, thinking processes, and chat sessions.
 - [[Search & Navigation|Search-&-Navigation]]: Quick search, hybrid search (keyword + semantic), and note previewing.
-- [[Git Versioning & Time Machine|Git-Versioning-&-Sync]]: Commit history, visual diffs, note rollback, and remote sync.
 
 ### ⚙️ Customization & Technical Reference
 - [[Settings & Customization|Settings-&-Customization]]: Themes, typography, languages, and custom configurations.

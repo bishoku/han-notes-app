@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useNoteStore } from '@/store/noteStore';
 import type { FileNode } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
-import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Plus, Trash2, Edit3 } from 'lucide-react';
+import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Plus, Trash2, Edit3, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FileTreeNodeProps {
@@ -25,6 +25,10 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
   const [isDragOver, setIsDragOver] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isLongPressTriggeredRef = useRef(false);
+
   const currentNoteId = useNoteStore(state => state.currentNoteId);
   const activeFolderPath = useNoteStore(state => state.activeFolderPath);
   const selectNote = useNoteStore(state => state.selectNote);
@@ -40,6 +44,22 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
   const cleanName = node.name.replace(/\.md$/, '');
   const isSelected = !node.is_dir && (currentNoteId === cleanRelPath || currentNoteId === node.relative_path || currentNoteId === cleanName);
   const isFolderActive = node.is_dir && activeFolderPath === node.relative_path;
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
+  const clampContextMenu = (clientX: number, clientY: number) => {
+    const menuWidth = 180;
+    const menuHeight = node.is_dir ? 165 : 95;
+    const safeX = Math.min(Math.max(10, clientX), (window.innerWidth || 360) - menuWidth - 10);
+    const safeY = Math.min(Math.max(10, clientY), (window.innerHeight || 600) - menuHeight - 10);
+    return { x: safeX, y: safeY };
+  };
 
   // --- Drag & Drop Handlers ---
   const handleDragStart = (e: React.DragEvent) => {
@@ -78,6 +98,52 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     }
   };
 
+  // --- Touch Long Press Handlers ---
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    isLongPressTriggeredRef.current = false;
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      if (node.is_dir) {
+        setActiveFolder(node.relative_path);
+      }
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(40);
+        } catch {}
+      }
+      setContextMenu(clampContextMenu(touch.clientX, touch.clientY));
+    }, 500);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    touchStartPosRef.current = null;
+  };
+
   // --- Context Menu Handlers ---
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -85,7 +151,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     if (node.is_dir) {
       setActiveFolder(node.relative_path);
     }
-    setContextMenu({ x: e.clientX, y: e.clientY });
+    setContextMenu(clampContextMenu(e.clientX, e.clientY));
   };
 
   const closeContextMenu = () => setContextMenu(null);
@@ -148,7 +214,16 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onContextMenu={handleContextMenu}
-        onClick={() => {
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onClick={(e) => {
+          if (isLongPressTriggeredRef.current) {
+            isLongPressTriggeredRef.current = false;
+            e.preventDefault();
+            return;
+          }
           if (node.is_dir) {
             setIsOpen(!isOpen);
             setActiveFolder(node.relative_path);
@@ -184,6 +259,27 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
             <span className="truncate">{node.name}</span>
           </>
         )}
+
+        {/* 3-dots action button: always visible on mobile, hover on desktop */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (node.is_dir) {
+              setActiveFolder(node.relative_path);
+            }
+            const rect = e.currentTarget.getBoundingClientRect();
+            setContextMenu(clampContextMenu(rect.left, rect.bottom + 4));
+          }}
+          className={cn(
+            "p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-opacity ml-auto shrink-0",
+            isSelected ? "text-white/80 hover:text-white hover:bg-white/20" : "",
+            "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+          )}
+          title={t('moreActions')}
+        >
+          <MoreVertical size={13} />
+        </button>
       </div>
 
       {/* Context Menu Dropdown */}

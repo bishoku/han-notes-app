@@ -673,5 +673,22 @@
   "syncLastReportTitle": "Son Senkronizasyon Raporu",
   "syncClearTombstonesTitle": "Senkronizasyon Meta Verilerini Sıfırla",
   "syncClearTombstonesDesc": "Yerel silinmiş not geçmişini (tombstone) temizler.",
-  "syncClearMetadataConfirm": "Tombstone geçmişi temizlensin mi?"
+  "syncClearMetadataConfirm": "Tombstone geçmişi temizlensin mi?",
+  "dangerZone": "Tehlikeli Bölge",
+  "clearAllNotesTitle": "Tüm Notları Temizle",
+  "clearAllNotesDesc": "Kasadaki tüm notları, klasörleri ve ekleri kalıcı olarak siler. Bu işlem geri alınamaz.",
+  "clearAllNotesButton": "Tüm Notları Sil...",
+  "clearAllNotesConfirmStep1Title": "Tüm Notlar Silinecek",
+  "clearAllNotesConfirmStep1Message": "Kasadaki {{count}} not ve tüm klasörler kalıcı olarak silinecek. Emin misiniz?",
+  "clearAllNotesProceed": "Evet, Devam Et",
+  "clearAllNotesConfirmStep2Title": "Kalıcı Silme Onayı",
+  "clearAllNotesConfirmStep2Message": "İşlemi onaylamak için lütfen aşağıdaki kutucuğa {{word}} yazın:",
+  "clearAllNotesVerificationWord": "SİL",
+  "clearAllNotesVerificationPlaceholder": "Onaylamak için SİL yazın...",
+  "clearAllNotesFinalButton": "Tümünü Kalıcı Olarak Sil",
+  "clearAllNotesClearing": "Notlar siliniyor...",
+  "clearAllNotesSuccess": "Kasadaki tüm notlar başarıyla temizlendi.",
+  "moreActions": "Diğer İşlemler",
+  "noNoteSelected": "Not Seçilmedi",
+  "openMenu": "Menüyü Aç"
 }

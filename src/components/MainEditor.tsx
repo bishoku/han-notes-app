@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { storage } from '@/services/storage';
 import { useUiStore } from '@/store/uiStore';
 import { eventBus } from '@/lib/eventBus';
+import { Menu } from 'lucide-react';
 
 // Custom Hooks
 import { useNoteContent } from '@/hooks/useNoteContent';
@@ -271,39 +272,57 @@ export const MainEditor: React.FC = () => {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark flex-1 items-center justify-center text-gray-500 relative select-none"
+        className="h-full flex flex-col bg-mac-mainLight dark:bg-mac-mainDark flex-1 text-gray-500 relative select-none min-h-0"
       >
-        <input
-          type="file"
-          ref={pdfInputRef}
-          accept=".pdf,application/pdf"
-          onChange={handlePdfSelect}
-          className="hidden"
-        />
-
-        {isDraggingOver && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-purple-500/10 backdrop-blur-xs border-2 border-dashed border-purple-500 rounded-2xl m-3 pointer-events-none animate-in fade-in duration-100">
-            <div className="flex flex-col items-center gap-2 bg-white dark:bg-zinc-900 px-6 py-4 rounded-xl shadow-xl border border-purple-500/30 text-center">
-              <span className="text-3xl">📄</span>
-              <p className="text-sm font-bold text-gray-800 dark:text-gray-100">
-                {t('dropPdfHere')}
-              </p>
-              <p className="text-xs text-gray-500">
-                {t('dropPdfSubtitle')}
-              </p>
-            </div>
+        {/* Mobile Top Header for Empty State (ensures Sidebar Menu is ALWAYS accessible) */}
+        <header className="h-11 min-h-[44px] max-h-[44px] border-b border-mac-borderLight dark:border-mac-borderDark flex items-center justify-between px-3 md:px-4 shrink-0 bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs select-none z-30 pt-safe">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => useUiStore.getState().setSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0 -ml-1 min-w-[36px] min-h-[36px] flex items-center justify-center active:scale-95"
+              title={t('expandSidebar')}
+            >
+              <Menu size={18} />
+            </button>
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+              {t('noNoteSelected')}
+            </span>
           </div>
-        )}
+        </header>
 
-        <div className="flex flex-col items-center gap-3">
-          <p>{t('selectNotePrompt')}</p>
-          <button
-            onClick={() => pdfInputRef.current?.click()}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 hover:border-purple-500/50 bg-white dark:bg-zinc-900 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors shadow-xs cursor-pointer"
-          >
-            <span>📄</span>
-            <span>{t('importPdf')}</span>
-          </button>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <input
+            type="file"
+            ref={pdfInputRef}
+            accept=".pdf,application/pdf"
+            onChange={handlePdfSelect}
+            className="hidden"
+          />
+
+          {isDraggingOver && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center bg-purple-500/10 backdrop-blur-xs border-2 border-dashed border-purple-500 rounded-2xl m-3 pointer-events-none animate-in fade-in duration-100">
+              <div className="flex flex-col items-center gap-2 bg-white dark:bg-zinc-900 px-6 py-4 rounded-xl shadow-xl border border-purple-500/30 text-center">
+                <span className="text-3xl">📄</span>
+                <p className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                  {t('dropPdfHere')}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {t('dropPdfSubtitle')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col items-center gap-3">
+            <p>{t('selectNotePrompt')}</p>
+            <button
+              onClick={() => pdfInputRef.current?.click()}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 hover:border-purple-500/50 bg-white dark:bg-zinc-900 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors shadow-xs cursor-pointer"
+            >
+              <span>📄</span>
+              <span>{t('importPdf')}</span>
+            </button>
+          </div>
         </div>
 
         <EditorModalCoordinator

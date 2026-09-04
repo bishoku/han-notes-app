@@ -58,6 +58,7 @@ interface GraphState {
   setGroupByFolder: (groupByFolder: boolean) => void;
   setColorBy: (colorBy: GraphColorBy) => void;
   setLocalGraphOnly: (localOnly: boolean) => void;
+  resetGraph: () => void;
 }
 
 /**
@@ -356,4 +357,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setGroupByFolder: (groupByFolder) => set({ groupByFolder }),
   setColorBy: (colorBy) => set({ colorBy }),
   setLocalGraphOnly: (localGraphOnly) => set({ localGraphOnly }),
+  resetGraph: () =>
+    set({
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      hoveredNodeId: null,
+      searchQuery: '',
+      noteContentsCache: new Map(),
+    }),
 }));

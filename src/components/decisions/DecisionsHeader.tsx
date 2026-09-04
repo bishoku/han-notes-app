@@ -1,13 +1,13 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileCheck, GitCommit, LayoutGrid, Filter, Users, User } from 'lucide-react';
+import { Filter, Users, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import type { DecisionStatusFilter } from './useDecisionAnalytics';
 
 interface DecisionsHeaderProps {
-  viewStyle: 'timeline' | 'grid';
-  setViewStyle: (style: 'timeline' | 'grid') => void;
+  viewStyle?: 'timeline' | 'grid';
+  setViewStyle?: (style: 'timeline' | 'grid') => void;
   totalCount: number;
   approvedCount: number;
   draftCount: number;
@@ -23,8 +23,6 @@ interface DecisionsHeaderProps {
 }
 
 export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
-  viewStyle,
-  setViewStyle,
   totalCount,
   approvedCount,
   draftCount,
@@ -41,39 +39,7 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
   const { t } = useTranslation();
 
   return (
-    <>
-      {/* Title Header */}
-      <div className="flex items-center justify-between mb-6 max-w-5xl">
-        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-900 dark:text-gray-100">
-          <FileCheck size={32} className="text-purple-600 dark:text-purple-400" />
-          {t('decisionRecords')}
-        </h1>
-
-        {/* View Mode Toggle (Timeline vs Grid) */}
-        <div className="flex items-center bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl">
-          <button
-            onClick={() => setViewStyle('timeline')}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all",
-              viewStyle === 'timeline' ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            )}
-          >
-            <GitCommit size={14} /> {t('decisionTimelineView')}
-          </button>
-          <button
-            onClick={() => setViewStyle('grid')}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all",
-              viewStyle === 'grid' ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            )}
-          >
-            <LayoutGrid size={14} /> {t('decisionGridView')}
-          </button>
-        </div>
-      </div>
-
-      {/* Filter Section Container */}
-      <div className="flex flex-col gap-3 mb-6 max-w-5xl bg-gray-50 dark:bg-zinc-900/60 p-3.5 rounded-2xl border border-gray-200/80 dark:border-zinc-800">
+    <div className="flex flex-col gap-3 max-w-5xl bg-gray-50 dark:bg-zinc-900/60 p-3.5 rounded-2xl border border-gray-200/80 dark:border-zinc-800">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Status Filter */}
           <div className="flex flex-wrap items-center gap-2">
@@ -154,7 +120,6 @@ export const DecisionsHeader: React.FC<DecisionsHeaderProps> = ({
           ))}
         </div>
       </div>
-    </>
   );
 };
 

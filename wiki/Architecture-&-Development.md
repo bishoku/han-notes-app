@@ -14,13 +14,16 @@ H.A.N. is built around an **isomorphic architecture** that shares identical core
 │   CodeMirror 6 Editor · Excalidraw · YADA · Cytoscape · UI Stores      │
 ├────────────────────────────────────────────────────────────────────────┤
 │                       IStorageService Interface                        │
-├───────────────────────────────────┬────────────────────────────────────┤
-│       Tauri Desktop Runtime       │        Browser Web Runtime         │
-│     Tauri IPC & System FS I/O     │    File System Access API (FSA)    │
-├───────────────────────────────────┼────────────────────────────────────┤
-│         han-core (Native)         │       han-core (WebAssembly)       │
-│  Rust crate: parsers, regex, ADRs │    Compiled via wasm-pack & bindgen│
-└───────────────────────────────────┴────────────────────────────────────┘
+├──────────────────────┬──────────────────────────┬──────────────────────┤
+│    Tauri Desktop     │   Browser Web Runtime    │  Mobile Web Fallback │
+│  Tauri IPC & Disk    │  File System Access API  │   IndexedDB Storage  │
+├──────────────────────┴──────────────────────────┴──────────────────────┤
+│                         han-core (Rust / WASM)                         │
+│  Fast Markdown parsing, YAML Frontmatter, Task, ADR, and Wikilinks     │
+├────────────────────────────────────────────────────────────────────────┤
+│                     WebRTC E2EE Synchronization Layer                  │
+│  Web Crypto AES-GCM 256 · 16KB Packet Chunking · Ephemeral Signaling   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -34,6 +37,9 @@ han-notes-app/
 │   ├── Cargo.toml
 │   └── src/
 │       └── lib.rs             # Fast Markdown, YAML frontmatter, Task & ADR parser
+├── signaling-server/          # Ephemeral WebRTC signaling service (Cloudflare Worker)
+│   ├── wrangler.jsonc         # Durable Objects configuration (SignalingRoom)
+│   └── src/index.ts           # Zero-storage ephemeral WebSocket relay
 ├── src-tauri/                 # Tauri desktop host application
 │   ├── Cargo.toml
 │   ├── tauri.conf.json        # Window settings, permissions, bundle metadata
@@ -48,7 +54,8 @@ han-notes-app/
 │   │   ├── git/               # Git History Drawer & Sync Status Bar
 │   │   ├── mindmap/           # Cytoscape Graph View & Mindmap Toolbar
 │   │   ├── search/            # QuickSearchModal & Hybrid SearchView
-│   │   ├── settings/          # Settings Modal & Tabs
+│   │   ├── settings/          # Settings Modal & Tabs (including P2P Sync)
+│   │   ├── sync/              # P2PSyncModal, QR code generator, camera scanner
 │   │   └── tasks/             # Tasks List, Filters & Gantt Chart View
 │   ├── editor/                # CodeMirror 6 custom extensions & widgets
 │   │   ├── code/              # Syntax highlighter & languages
@@ -60,8 +67,9 @@ han-notes-app/
 │   │   ├── ai/                # Embedding Worker, VectorStore, RAG & LLM clients
 │   │   ├── git/               # BrowserGitService, TauriGitService & Diff engine
 │   │   ├── search/            # Hybrid BM25 + Vector search coordinator
-│   │   └── storage/           # IStorageService, BrowserStorage, TauriStorage
-│   ├── store/                 # Zustand state stores (note, task, decision, ai, git, ui)
+│   │   ├── storage/           # IStorageService, BrowserStorage, TauriStorage, IndexedDBStorage
+│   │   └── sync/              # WebRtcSyncService, crypto (AES-GCM), chunking, syncStorageAdapter
+│   ├── store/                 # Zustand stores (note, task, decision, ai, git, sync, ui)
 │   └── wasm/                  # Compiled WebAssembly artifacts from han-core
 └── public/
     └── models/                # Local ONNX embedding models for offline search/RAG
