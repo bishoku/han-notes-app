@@ -378,7 +378,7 @@ export class TableWidget extends WidgetType {
       // Delete Column Button (if > 1 columns)
       if (parsed.headers.length > 1) {
         const delColBtn = document.createElement("button");
-        delColBtn.className = "opacity-0 group-hover/col:opacity-100 absolute top-1 right-1 p-0.5 text-gray-400 hover:text-red-500 rounded transition-opacity text-[10px]";
+        delColBtn.className = "opacity-40 hover:opacity-100 sm:opacity-0 sm:group-hover/col:opacity-100 absolute top-1 right-1 p-1 sm:p-0.5 text-gray-400 hover:text-red-500 rounded transition-opacity text-[11px] sm:text-[10px] touch-manipulation";
         delColBtn.title = "Sütunu Sil";
         delColBtn.textContent = "✕";
         delColBtn.addEventListener("click", (e) => {
@@ -417,11 +417,11 @@ export class TableWidget extends WidgetType {
         tr.appendChild(td);
       });
 
-      // Delete Row Button (on hover)
+      // Delete Row Button (visible on mobile, hover on desktop)
       const delRowTd = document.createElement("td");
       delRowTd.className = "w-6 px-1 py-1.5 text-center border-l-0";
       const delRowBtn = document.createElement("button");
-      delRowBtn.className = "opacity-0 group-hover/row:opacity-100 p-0.5 text-gray-400 hover:text-red-500 rounded transition-opacity text-[10px]";
+      delRowBtn.className = "opacity-40 hover:opacity-100 sm:opacity-0 sm:group-hover/row:opacity-100 p-1 sm:p-0.5 text-gray-400 hover:text-red-500 rounded transition-opacity text-[11px] sm:text-[10px] touch-manipulation";
       delRowBtn.title = "Satırı Sil";
       delRowBtn.textContent = "✕";
       delRowBtn.addEventListener("click", () => {
@@ -438,9 +438,9 @@ export class TableWidget extends WidgetType {
     wrapper.appendChild(table);
     container.appendChild(wrapper);
 
-    // Footer Controls Bar (+ Satır Ekle, + Sütun Ekle) — Only visible on table hover or focus
+    // Footer Controls Bar (+ Satır Ekle, + Sütun Ekle) — Always visible on mobile, hover/focus on desktop
     const controls = document.createElement("div");
-    controls.className = "mt-1 flex items-center justify-between text-xs text-gray-500 hidden group-hover/table:flex group-focus-within/table:flex";
+    controls.className = "mt-1.5 flex items-center justify-between text-xs text-gray-500 sm:hidden sm:group-hover/table:flex sm:group-focus-within/table:flex";
 
     const leftControls = document.createElement("div");
     leftControls.className = "flex items-center gap-2";

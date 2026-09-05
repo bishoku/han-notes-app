@@ -22,6 +22,9 @@ export function handleEditorMouseDown(event: MouseEvent, view: EditorView): bool
       const line = view.state.doc.lineAt(pos);
       const tagIndex = line.text.indexOf("[!");
       if (tagIndex !== -1) {
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try { navigator.vibrate(8); } catch {}
+        }
         const tagFrom = line.from + tagIndex;
         const tagTo = line.from + line.text.indexOf("]", tagFrom) + 1;
         view.dispatch({
@@ -78,6 +81,9 @@ export function handleEditorMouseDown(event: MouseEvent, view: EditorView): bool
         if (pos >= boxStart - 2 && pos <= boxEnd + 2) {
           event.preventDefault();
           event.stopPropagation();
+          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            try { navigator.vibrate(10); } catch {}
+          }
           const isChecked = boxMatch[2] !== ' ';
           const newText = isChecked ? '[ ]' : '[x]';
           view.dispatch({

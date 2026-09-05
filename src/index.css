@@ -237,11 +237,23 @@
 .cm-theme-han .cm-line {
   padding: 0.25rem 0;
   line-height: 1.7;
+  min-height: 1.7em !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CodeMirror Selection Layer — Ensure Text Selection is Visible Everywhere
+   CodeMirror Selection & Cursor Layer — Ensure Text Selection & Caret Visibility
    ═══════════════════════════════════════════════════════════════════════════ */
+
+.cm-theme-han .cm-cursorLayer {
+  z-index: 10 !important;
+  pointer-events: none !important;
+}
+
+.cm-theme-han .cm-cursor {
+  border-left: 2px solid var(--color-mac-accent, #6366f1) !important;
+  margin-left: -1px !important;
+  z-index: 10 !important;
+}
 
 .cm-theme-han .cm-selectionLayer {
   z-index: 5 !important;
@@ -266,7 +278,13 @@
 }
 
 .cm-theme-han .cm-line.cm-activeLine {
-  background-color: transparent !important;
+  background-color: rgba(99, 102, 241, 0.04) !important;
+  border-radius: 4px;
+}
+
+.dark .cm-theme-han .cm-line.cm-activeLine {
+  background-color: rgba(129, 140, 248, 0.06) !important;
+  border-radius: 4px;
 }
 
 .cm-editor .cm-line.cm-hidden-table-line,

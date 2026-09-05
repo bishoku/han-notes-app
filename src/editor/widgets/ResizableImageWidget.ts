@@ -335,6 +335,13 @@ export class ResizableImageWidget extends WidgetType {
 
     toolbar.appendChild(fullBtn);
 
+    // Double-click/tap image to open in fullscreen lightbox
+    img.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      fullBtn.click();
+    });
+
     // Delete Button (for all images, diagrams, and sketches)
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';

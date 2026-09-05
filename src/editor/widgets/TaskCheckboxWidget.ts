@@ -20,7 +20,7 @@ export class TaskCheckboxWidget extends WidgetType {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.tabIndex = -1;
-    btn.className = `cm-task-checkbox inline-flex items-center justify-center w-4 h-4 rounded-[4.5px] mr-1.5 align-middle select-none transition-all cursor-pointer shrink-0 ${
+    btn.className = `cm-task-checkbox relative inline-flex items-center justify-center w-4 h-4 rounded-[4.5px] mr-1.5 align-middle select-none transition-all cursor-pointer shrink-0 touch-manipulation after:absolute after:-inset-3 sm:after:-inset-1.5 ${
       this.checked
         ? 'bg-mac-accent text-white border-2 border-mac-accent shadow-xs'
         : 'bg-white/90 dark:bg-zinc-800 border-2 border-gray-300 dark:border-zinc-500 hover:border-mac-accent hover:bg-mac-accent/10 shadow-2xs'
@@ -43,6 +43,10 @@ export class TaskCheckboxWidget extends WidgetType {
     btn.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
+
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate(10); } catch { /* ignore */ }
+      }
 
       const doc = view.state.doc;
       if (this.boxFrom >= 0 && this.boxFrom <= doc.length) {

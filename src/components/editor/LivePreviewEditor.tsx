@@ -5,10 +5,14 @@
  */
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
-import { EditorView } from '@codemirror/view';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { EditorView, keymap, highlightActiveLine } from '@codemirror/view';
+import { markdown, markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import { closeBrackets } from '@codemirror/autocomplete';
+import { undo, redo, indentMore, indentLess } from '@codemirror/commands';
+import { search } from '@codemirror/search';
+import { headingFolding } from '@/editor/headingFold';
 import { hanHighlightStyle, hanHighlightStyleDark } from '@/editor/hanHighlightStyle';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -29,6 +33,7 @@ import { SelectionBubbleMenu, type FormatType } from '@/components/SelectionBubb
 import { SlashCommandMenu } from '@/components/SlashCommandMenu';
 import { EmojiPickerPopover } from '@/components/ui/EmojiPickerPopover';
 import { MobileEditorToolbar } from './MobileEditorToolbar';
+import { MobileSearchPanel } from './MobileSearchPanel';
 import { useAiStore } from '@/store/aiStore';
 import { useUiStore } from '@/store/uiStore';
 
@@ -72,6 +77,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
   const { t } = useTranslation();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // 1. Floating UI Hook
   const {
@@ -270,6 +276,44 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
     }
   }, [isAiEnabled, isChatDrawerOpen, setChatDrawerOpen, setSettingsModalOpen]);
 
+  // Mobile Undo / Redo / Indent / Outdent / Symbol Handlers
+  const handleUndo = useCallback(() => {
+    if (editorRef.current) undo(editorRef.current);
+  }, [editorRef]);
+
+  const handleRedo = useCallback(() => {
+    if (editorRef.current) redo(editorRef.current);
+  }, [editorRef]);
+
+  const handleIndent = useCallback(() => {
+    if (editorRef.current) indentMore(editorRef.current);
+  }, [editorRef]);
+
+  const handleOutdent = useCallback(() => {
+    if (editorRef.current) indentLess(editorRef.current);
+  }, [editorRef]);
+
+  const handleInsertSymbol = useCallback((sym: string) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const { from, to } = view.state.selection.main;
+    if (from !== to) {
+      const selected = view.state.sliceDoc(from, to);
+      const wrapped = `${sym}${selected}${sym}`;
+      view.dispatch({
+        changes: { from, to, insert: wrapped },
+        selection: { anchor: from + wrapped.length },
+      });
+    } else {
+      const insertText = sym === '[ ]' ? '- [ ] ' : sym;
+      view.dispatch({
+        changes: { from, insert: insertText },
+        selection: { anchor: from + insertText.length },
+      });
+    }
+    view.focus();
+  }, [editorRef]);
+
   // Listen for tap-edit events dispatched from widgets
   useEffect(() => {
     const handleTaskEditWin = (e: CustomEvent<{ lineNumber: number; lineText: string }>) => {
@@ -292,6 +336,11 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
     const activeHighlightStyle = isDarkTheme ? hanHighlightStyleDark : hanHighlightStyle;
     return [
       EditorView.lineWrapping,
+      highlightActiveLine(),
+      closeBrackets(),
+      headingFolding(),
+      search(),
+      keymap.of(markdownKeymap),
       markdown({ base: markdownLanguage, codeLanguages: languages }),
       syntaxHighlighting(activeHighlightStyle),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
@@ -303,10 +352,22 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+      {/* Mobile In-Note Search Bar */}
+      <MobileSearchPanel
+        view={editorRef.current}
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+      />
+
       <div className="flex-1 overflow-y-auto overflow-x-hidden bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain print:h-auto print:overflow-visible print:block">
         <div
           ref={wrapperRef}
-          className="py-4 md:py-12 relative px-4 md:pl-14 md:pr-12 cm-preview-mode w-full max-w-full overflow-x-hidden box-border print:h-auto print:overflow-visible print:p-0 print:block"
+          onMouseDown={(e) => {
+            if (e.target === wrapperRef.current) {
+              editorRef.current?.focus();
+            }
+          }}
+          className="py-4 md:py-12 relative px-4 md:pl-14 md:pr-12 cm-preview-mode w-full max-w-full overflow-x-hidden box-border print:h-auto print:overflow-visible print:block"
         >
           <div className="hidden md:block">
             <FloatingBlockMenu
@@ -391,6 +452,12 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
         onOpenImagePicker={() => onOpenImagePicker()}
         onOpenExcalidraw={() => onOpenExcalidrawEditor()}
         onToggleAi={handleToggleAiToolbar}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onIndent={handleIndent}
+        onOutdent={handleOutdent}
+        onInsertSymbol={handleInsertSymbol}
+        onToggleSearch={() => setSearchOpen((prev) => !prev)}
         taskEditActive={taskEditBtn.show}
         onEditTask={() => onOpenTaskModal(taskEditBtn)}
         decisionEditActive={decisionEditBtn.show}

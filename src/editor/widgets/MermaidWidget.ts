@@ -228,6 +228,14 @@ export class MermaidWidget extends WidgetType {
 
     toolbar.appendChild(deleteBtn);
     wrap.appendChild(toolbar);
+
+    // Double-click/tap diagram card to open in fullscreen lightbox
+    card.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      fullBtn.click();
+    });
+
     wrap.appendChild(card);
 
     // ─── Resizable Drag Handle (bottom-right) ───
