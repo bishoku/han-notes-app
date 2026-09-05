@@ -30,12 +30,25 @@ export interface NoteSummary {
   deletedAt?: number;
 }
 
+export interface AttachmentSummary {
+  /** Relative path within the vault (e.g. ".attachments/diagram-xyz.png" or "Work/.attachments/doc.pdf") */
+  path: string;
+  /** SHA-256 hash digest of binary content for fast deduplication */
+  hash: string;
+  /** Size in bytes */
+  size: number;
+  /** Last modification timestamp in milliseconds */
+  updatedAt: number;
+}
+
 export interface SyncManifest {
   deviceId: string;
   workspaceId?: string;
   workspaceName?: string;
   timestamp: number;
   notes: Record<string, NoteSummary>;
+  /** Referenced attachments index (diagrams, sketches, images, PDFs) */
+  attachments?: Record<string, AttachmentSummary>;
 }
 
 export type SyncState =
@@ -55,6 +68,9 @@ export interface SyncProgress {
   totalNotes: number;
   transferredNotes: number;
   currentNoteTitle?: string;
+  totalAttachments?: number;
+  transferredAttachments?: number;
+  currentAttachmentPath?: string;
   direction: 'sending' | 'receiving' | 'bidirectional';
 }
 
@@ -64,6 +80,8 @@ export interface SyncReport {
   receivedNotesCount: number;
   deletedNotesCount: number;
   conflictsCount: number;
+  sentAttachmentsCount?: number;
+  receivedAttachmentsCount?: number;
   details: string[];
 }
 
@@ -73,7 +91,16 @@ export type P2PMessage =
   | { type: 'MANIFEST'; manifest: SyncManifest }
   | { type: 'MANIFEST_ACK' }
   | { type: 'NOTE_PAYLOAD'; note: CanonicalNote; index: number; total: number }
-  | { type: 'SYNC_DONE'; sentCount: number }
+  | {
+      type: 'ATTACHMENT_PAYLOAD';
+      path: string;
+      bytesBase64: string;
+      hash: string;
+      updatedAt: number;
+      index: number;
+      total: number;
+    }
+  | { type: 'SYNC_DONE'; sentCount: number; sentAttachmentsCount?: number }
   | { type: 'SYNC_ACK' }
   | { type: 'ERROR'; message: string };
 
@@ -103,6 +130,14 @@ export interface VaultSyncMetadata {
     {
       deletedAt: number;
       path: string;
+    }
+  >;
+  attachments?: Record<
+    string,
+    {
+      updatedAt: number;
+      hash: string;
+      size: number;
     }
   >;
 }

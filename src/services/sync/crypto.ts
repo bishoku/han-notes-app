@@ -164,3 +164,51 @@ export async function computeContentHash(content: string): Promise<string> {
   }
   return hex;
 }
+
+/**
+ * Computes a SHA-256 digest string of binary data (attachments, images, PDFs).
+ */
+export async function computeBinaryHash(bytes: Uint8Array): Promise<string> {
+  const subtle = getCryptoSubtle();
+  const digest = await subtle.digest('SHA-256', bytes as unknown as BufferSource);
+  const hashBytes = new Uint8Array(digest);
+  let hex = '';
+  for (let i = 0; i < hashBytes.length; i++) {
+    hex += hashBytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+/**
+ * Encodes a Uint8Array into a standard Base64 string using chunked processing
+ * to avoid call stack limits on large binary attachments.
+ */
+export function bytesToBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes).toString('base64');
+  }
+  let binary = '';
+  const chunkSize = 8192;
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * Decodes a Base64 string into a Uint8Array.
+ */
+export function base64ToBytes(base64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(base64, 'base64'));
+  }
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}

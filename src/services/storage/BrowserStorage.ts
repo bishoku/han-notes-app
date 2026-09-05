@@ -455,10 +455,28 @@ export class BrowserStorage implements IStorageService {
     return getBacklinksBatched(this.getDir(), targetNoteId);
   }
 
-  // ── Assets / Images ──
-
   async saveImageBytes(relativeNoteId: string, fileName: string, bytes: Uint8Array): Promise<string> {
     return saveImageBytes(this.getDir(), relativeNoteId, fileName, bytes);
+  }
+
+  async saveAttachment(relativePath: string, bytes: Uint8Array): Promise<void> {
+    const cleanPath = relativePath.replace(/^\/+|\/+$/g, '');
+    const parts = cleanPath.split('/').filter(Boolean);
+    const fileName = parts.pop();
+    if (!fileName) throw new Error(`Invalid attachment path: ${relativePath}`);
+
+    let current = this.getDir();
+    for (const part of parts) {
+      current = await current.getDirectoryHandle(part, { create: true });
+    }
+
+    const fileHandle = await current.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+    await writable.close();
+
+    clearImageCache(cleanPath);
+    clearImageCache(fileName);
   }
 
   async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {

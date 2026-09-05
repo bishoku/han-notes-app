@@ -24,6 +24,7 @@ export interface AppEvents {
   'modal:pdf-import': { file: File; buffer: ArrayBuffer };
   'clipper:open-modal': void;
   'file-tree:open-move-modal': { path: string; name: string; isDir: boolean };
+  'attachment:saved': { path: string };
 }
 
 type EventHandler<T> = (payload: T) => void;

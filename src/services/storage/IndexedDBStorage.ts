@@ -877,6 +877,41 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
     });
   }
 
+  async saveAttachment(relativePath: string, bytes: Uint8Array): Promise<void> {
+    const cleanPath = relativePath.replace(/^\/+|\/+$/g, '');
+    const fileName = cleanPath.split('/').pop() || 'attachment';
+
+    let mimeType = 'application/octet-stream';
+    if (fileName.endsWith('.png')) mimeType = 'image/png';
+    else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) mimeType = 'image/jpeg';
+    else if (fileName.endsWith('.pdf')) mimeType = 'application/pdf';
+    else if (fileName.endsWith('.svg')) mimeType = 'image/svg+xml';
+    else if (fileName.endsWith('.webp')) mimeType = 'image/webp';
+    else if (fileName.endsWith('.gif')) mimeType = 'image/gif';
+
+    const db = await this.getDb();
+    const record: DbAssetRecord = {
+      path: cleanPath,
+      fileName,
+      bytes,
+      mimeType,
+      updatedAt: Date.now(),
+    };
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_ASSETS, 'readwrite');
+      tx.objectStore(STORE_ASSETS).put(record);
+      tx.oncomplete = () => {
+        if (this.assetUrlCache.has(cleanPath)) {
+          URL.revokeObjectURL(this.assetUrlCache.get(cleanPath)!);
+          this.assetUrlCache.delete(cleanPath);
+        }
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {
     const bytes = new TextEncoder().encode(content);
     return this.saveImageBytes(relativeNoteId, fileName, bytes);

@@ -10,8 +10,8 @@
 import { storage } from '@/services/storage';
 import { normalizeNoteId, toNoteFilePath, extractTitleFromId, extractFolderFromId } from '@/utils/pathUtils';
 import { eventBus } from '@/lib/eventBus';
-import { computeContentHash } from './crypto';
-import type { CanonicalNote, NoteSummary, SyncManifest, VaultSyncMetadata } from './types';
+import { computeContentHash, computeBinaryHash } from './crypto';
+import type { CanonicalNote, NoteSummary, AttachmentSummary, SyncManifest, VaultSyncMetadata } from './types';
 
 const SYNC_METADATA_FILE = '.han_sync_metadata.json';
 
@@ -36,7 +36,10 @@ export class SyncStorageAdapter {
    * Loads sync metadata (.han_sync_metadata.json) from vault.
    */
   async loadMetadata(): Promise<VaultSyncMetadata> {
-    if (this.metadataCache) return this.metadataCache;
+    if (this.metadataCache) {
+      if (!this.metadataCache.attachments) this.metadataCache.attachments = {};
+      return this.metadataCache;
+    }
 
     try {
       const exists = await storage.vaultFileExists(SYNC_METADATA_FILE);
@@ -44,6 +47,7 @@ export class SyncStorageAdapter {
         const text = await storage.readVaultFile(SYNC_METADATA_FILE);
         const data = JSON.parse(text);
         if (data && data.version === 1) {
+          if (!data.attachments) data.attachments = {};
           this.metadataCache = data;
           return data;
         }
@@ -57,6 +61,7 @@ export class SyncStorageAdapter {
       deviceId: this.deviceId,
       notes: {},
       tombstones: {},
+      attachments: {},
     };
     return this.metadataCache;
   }
@@ -160,6 +165,142 @@ export class SyncStorageAdapter {
   }
 
   /**
+   * Helper to fetch raw binary bytes of an attachment without throwing.
+   */
+  async getAttachmentBytes(relativePath: string): Promise<Uint8Array | null> {
+    try {
+      const bytes = await storage.getImageBytes(relativePath);
+      if (bytes && bytes.byteLength > 0) return bytes;
+    } catch {
+      // Return null if not found
+    }
+    return null;
+  }
+
+  /**
+   * Scans active (non-deleted) canonical notes to extract all referenced attachment paths.
+   * Matches markdown images, markdown links to documents (.pdf, etc.), and wikilinks.
+   * Returns normalized relative paths of attachments that actually exist in storage.
+   */
+  async extractReferencedAttachmentPaths(notes: CanonicalNote[]): Promise<Set<string>> {
+    const activeNotes = notes.filter((n) => !n.deleted && n.content);
+    const referenced = new Set<string>();
+
+    const imgRegex = /!\[.*?\]\(([^")\s]+)\)/g;
+    const linkRegex = /\[.*?\]\(([^")\s]+)\)/g;
+    const wikilinkRegex = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
+
+    for (const note of activeNotes) {
+      const parentFolder = extractFolderFromId(note.id);
+      const rawCandidates: string[] = [];
+
+      for (const match of note.content.matchAll(imgRegex)) {
+        rawCandidates.push(match[1]);
+      }
+      for (const match of note.content.matchAll(linkRegex)) {
+        rawCandidates.push(match[1]);
+      }
+      for (const match of note.content.matchAll(wikilinkRegex)) {
+        rawCandidates.push(match[1]);
+      }
+
+      for (let raw of rawCandidates) {
+        if (!raw) continue;
+        raw = raw.split('#')[0].split('?')[0].trim();
+        if (
+          raw.startsWith('http://') ||
+          raw.startsWith('https://') ||
+          raw.startsWith('data:') ||
+          raw.startsWith('blob:') ||
+          raw.startsWith('mailto:')
+        ) {
+          continue;
+        }
+
+        try {
+          raw = decodeURIComponent(raw);
+        } catch {}
+
+        const clean = raw.replace(/^\/+|\/+$/g, '');
+        if (!clean) continue;
+
+        const isKnownAttachment =
+          clean.includes('.attachments') ||
+          clean.includes('_assets') ||
+          /\.(png|jpe?g|gif|webp|svg|pdf|mp4|mp3|webm|wav|zip)$/i.test(clean);
+
+        if (!isKnownAttachment) continue;
+
+        const candidatesToTest: string[] = [];
+        if (parentFolder && !clean.startsWith(parentFolder)) {
+          candidatesToTest.push(`${parentFolder}/${clean}`);
+        }
+        candidatesToTest.push(clean);
+
+        if (!clean.includes('/')) {
+          if (parentFolder) {
+            candidatesToTest.push(`${parentFolder}/.attachments/${clean}`);
+            candidatesToTest.push(`${parentFolder}/_assets/${clean}`);
+          }
+          candidatesToTest.push(`.attachments/${clean}`);
+          candidatesToTest.push(`_assets/${clean}`);
+        }
+
+        for (const candidate of candidatesToTest) {
+          const normCandidate = candidate.replace(/^\/+|\/+$/g, '');
+          const bytes = await this.getAttachmentBytes(normCandidate);
+          if (bytes && bytes.byteLength > 0) {
+            referenced.add(normCandidate);
+            break;
+          }
+        }
+      }
+    }
+
+    return referenced;
+  }
+
+  /**
+   * Builds the attachment summary manifest for all referenced attachments.
+   * Leverages cached hashes in .han_sync_metadata.json to maximize speed.
+   */
+  async getReferencedAttachmentsManifest(activeNotes: CanonicalNote[]): Promise<Record<string, AttachmentSummary>> {
+    const meta = await this.loadMetadata();
+    if (!meta.attachments) meta.attachments = {};
+
+    const referencedPaths = await this.extractReferencedAttachmentPaths(activeNotes);
+    const summary: Record<string, AttachmentSummary> = {};
+
+    for (const relPath of referencedPaths) {
+      const bytes = await this.getAttachmentBytes(relPath);
+      if (!bytes || bytes.byteLength === 0) continue;
+
+      const hash = await computeBinaryHash(bytes);
+      const cached = meta.attachments[relPath];
+
+      let updatedAt = cached?.updatedAt;
+      if (!updatedAt || cached?.hash !== hash) {
+        updatedAt = Date.now();
+        meta.attachments[relPath] = {
+          updatedAt,
+          hash,
+          size: bytes.byteLength,
+        };
+      }
+
+      summary[relPath] = {
+        path: relPath,
+        hash,
+        size: bytes.byteLength,
+        updatedAt,
+      };
+    }
+
+    await this.saveMetadata();
+    return summary;
+  }
+
+  /**
    * Builds the lightweight SyncManifest for fast diffing against a remote peer.
    */
   async getSyncManifest(workspaceId?: string, workspaceName?: string): Promise<SyncManifest> {
@@ -176,10 +317,14 @@ export class SyncStorageAdapter {
       };
     }
 
+    const activeNotes = canonicalNotes.filter((n) => !n.deleted);
+    const attachments = await this.getReferencedAttachmentsManifest(activeNotes);
+
     return {
       deviceId: this.deviceId,
       timestamp: Date.now(),
       notes: notesSummary,
+      attachments,
       workspaceId,
       workspaceName,
     };
@@ -334,6 +479,118 @@ export class SyncStorageAdapter {
     return {
       status: 'conflict',
       conflictId,
+    };
+  }
+
+  /**
+   * Dispatches events when an attachment is created or updated so that the UI
+   * (e.g. live CodeMirror image widgets or PDF split reader) refreshes instantly.
+   */
+  notifyAttachmentUpdated(relPath: string): void {
+    if (typeof window === 'undefined') return;
+
+    const fileName = relPath.split('/').pop() || '';
+    const match = fileName.match(/^(diagram-[a-zA-Z0-9_-]+|sketch-[a-zA-Z0-9_-]+)\.png$/i);
+    if (match) {
+      window.dispatchEvent(
+        new CustomEvent('refresh-diagram-image', {
+          detail: { diagramId: match[1], relPath },
+        })
+      );
+    }
+
+    eventBus.emit('attachment:saved', { path: relPath });
+  }
+
+  /**
+   * Applies an incoming binary attachment payload from a remote peer:
+   * - Saves file if missing locally
+   * - Updates file if incoming is strictly newer
+   * - Skips if hash is identical or local is newer
+   * - Preserves local file in case of concurrent conflict
+   */
+  async applyAttachmentPayload(payload: {
+    path: string;
+    bytes: Uint8Array;
+    hash: string;
+    updatedAt: number;
+  }): Promise<{ status: 'created' | 'updated' | 'skipped' | 'conflict'; backupPath?: string }> {
+    const meta = await this.loadMetadata();
+    if (!meta.attachments) meta.attachments = {};
+
+    const cleanPath = payload.path.replace(/^\/+|\/+$/g, '');
+    const localBytes = await this.getAttachmentBytes(cleanPath);
+
+    // Case 1: Attachment does not exist locally -> Save it
+    if (!localBytes) {
+      await storage.saveAttachment(cleanPath, payload.bytes);
+
+      meta.attachments[cleanPath] = {
+        updatedAt: payload.updatedAt,
+        hash: payload.hash,
+        size: payload.bytes.byteLength,
+      };
+      await this.saveMetadata();
+      this.notifyAttachmentUpdated(cleanPath);
+
+      return { status: 'created' };
+    }
+
+    // Case 2: Attachment exists locally -> Compare SHA-256 hashes
+    const localHash = await computeBinaryHash(localBytes);
+    if (localHash === payload.hash) {
+      // Byte-identical -> No-op
+      return { status: 'skipped' };
+    }
+
+    const localMeta = meta.attachments[cleanPath];
+    const localUpdatedAt = localMeta?.updatedAt || 0;
+
+    // Case 2A: Incoming is strictly newer -> Overwrite
+    if (payload.updatedAt > localUpdatedAt) {
+      await storage.saveAttachment(cleanPath, payload.bytes);
+
+      meta.attachments[cleanPath] = {
+        updatedAt: payload.updatedAt,
+        hash: payload.hash,
+        size: payload.bytes.byteLength,
+      };
+      await this.saveMetadata();
+      this.notifyAttachmentUpdated(cleanPath);
+
+      return { status: 'updated' };
+    }
+
+    // Case 2B: Local is strictly newer -> Local wins
+    if (localUpdatedAt > payload.updatedAt) {
+      return { status: 'skipped' };
+    }
+
+    // Case 2C: Concurrent conflict -> Backup local file and apply incoming
+    const dotIdx = cleanPath.lastIndexOf('.');
+    const backupPath = dotIdx !== -1
+      ? `${cleanPath.slice(0, dotIdx)}-conflict-${Date.now()}${cleanPath.slice(dotIdx)}`
+      : `${cleanPath}-conflict-${Date.now()}`;
+
+    try {
+      await storage.saveAttachment(backupPath, localBytes);
+    } catch (e) {
+      console.warn(`[SyncStorageAdapter] Failed to save conflict backup for ${cleanPath}:`, e);
+    }
+
+    await storage.saveAttachment(cleanPath, payload.bytes);
+
+    meta.attachments[cleanPath] = {
+      updatedAt: payload.updatedAt,
+      hash: payload.hash,
+      size: payload.bytes.byteLength,
+    };
+    await this.saveMetadata();
+    this.notifyAttachmentUpdated(cleanPath);
+
+    return {
+      status: 'conflict',
+      backupPath,
     };
   }
 }

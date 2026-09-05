@@ -386,27 +386,52 @@ export const P2PSyncModal: React.FC = () => {
                   ? t('syncConnectingSignaling')
                   : syncState === 'connecting_peer'
                   ? t('syncPleaseWait')
+                  : progress?.currentAttachmentPath
+                  ? t('syncTransferringAttachment', { name: progress.currentAttachmentPath.split('/').pop() || progress.currentAttachmentPath })
                   : progress?.currentNoteTitle
                   ? t('syncTransferringNote', { title: progress.currentNoteTitle })
                   : t('syncDiffingManifests')}
               </p>
 
-              {progress && progress.totalNotes > 0 && (
-                <div className="w-full max-w-xs">
-                  <div className="flex justify-between text-[11px] font-medium text-gray-500 mb-1.5">
-                    <span>{t('syncProgressLabel')}</span>
-                    <span>
-                      {progress.transferredNotes} / {progress.totalNotes}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-300"
-                      style={{
-                        width: `${Math.min(100, (progress.transferredNotes / progress.totalNotes) * 100)}%`,
-                      }}
-                    />
-                  </div>
+              {progress && (progress.totalNotes > 0 || (progress.totalAttachments || 0) > 0) && (
+                <div className="w-full max-w-xs flex flex-col gap-2.5">
+                  {progress.totalNotes > 0 && (
+                    <div>
+                      <div className="flex justify-between text-[11px] font-medium text-gray-500 mb-1.5">
+                        <span>{t('syncProgressLabel')}</span>
+                        <span>
+                          {progress.transferredNotes} / {progress.totalNotes}
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-300"
+                          style={{
+                            width: `${Math.min(100, (progress.transferredNotes / progress.totalNotes) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {progress.totalAttachments !== undefined && progress.totalAttachments > 0 && (
+                    <div>
+                      <div className="flex justify-between text-[11px] font-medium text-gray-500 mb-1.5">
+                        <span>{t('syncAttachmentsProgressLabel')}</span>
+                        <span>
+                          {progress.transferredAttachments || 0} / {progress.totalAttachments}
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-500 to-pink-600 transition-all duration-300"
+                          style={{
+                            width: `${Math.min(100, ((progress.transferredAttachments || 0) / progress.totalAttachments) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -427,7 +452,7 @@ export const P2PSyncModal: React.FC = () => {
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">{t('syncCompletedSubtitle')}</p>
 
               {/* Stats Summary Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full mb-3">
                 <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 text-center">
                   <div className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
                     {lastReport.sentNotesCount}
@@ -449,6 +474,23 @@ export const P2PSyncModal: React.FC = () => {
                   <div className="text-[10px] text-gray-400">{t('syncConflictsCount')}</div>
                 </div>
               </div>
+
+              {((lastReport.sentAttachmentsCount || 0) > 0 || (lastReport.receivedAttachmentsCount || 0) > 0) && (
+                <div className="grid grid-cols-2 gap-2 w-full mb-4">
+                  <div className="p-2.5 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 text-center">
+                    <div className="text-base font-bold text-indigo-600 dark:text-indigo-400">
+                      {lastReport.sentAttachmentsCount || 0}
+                    </div>
+                    <div className="text-[10px] text-gray-400">{t('syncSentAttachments')}</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 text-center">
+                    <div className="text-base font-bold text-purple-600 dark:text-purple-400">
+                      {lastReport.receivedAttachmentsCount || 0}
+                    </div>
+                    <div className="text-[10px] text-gray-400">{t('syncReceivedAttachments')}</div>
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={closeModal}

@@ -173,6 +173,16 @@ export class TauriStorage implements IStorageService {
     return relPath;
   }
 
+  async saveAttachment(relativePath: string, bytes: Uint8Array): Promise<void> {
+    const cleanPath = relativePath.replace(/^\/+|\/+$/g, '');
+    const parts = cleanPath.split('/').filter(Boolean);
+    const fileName = parts.pop() || 'attachment';
+    const folderParts = parts.filter((p) => p !== '.attachments' && p !== '_assets');
+    const relativeNoteId = folderParts.length > 0 ? `${folderParts.join('/')}/dummy` : '';
+
+    await this.saveImageBytes(relativeNoteId, fileName, bytes);
+  }
+
   async saveTextAsset(relativeNoteId: string, fileName: string, content: string): Promise<string> {
     return invoke<string>('save_text_asset', {
       relativeNoteId,

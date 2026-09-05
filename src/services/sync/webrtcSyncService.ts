@@ -8,7 +8,8 @@
  */
 import { useNoteStore } from '@/store/noteStore';
 import { clearFileTextCache } from '@/services/storage/browser/fileOps';
-import { encryptPayload, decryptPayload } from './crypto';
+import { clearImageCache } from '@/services/storage/browser/assetManager';
+import { encryptPayload, decryptPayload, bytesToBase64, base64ToBytes } from './crypto';
 import {
   splitIntoChunks,
   MessageReassembler,
@@ -19,6 +20,7 @@ import { SignalingClient, DEFAULT_SIGNALING_URL } from './signalingClient';
 import { syncStorageAdapter } from './syncStorageAdapter';
 import type {
   CanonicalNote,
+  AttachmentSummary,
   P2PMessage,
   SignalingMessage,
   SyncManifest,
@@ -216,8 +218,9 @@ export class WebRtcSyncService {
 
       this.setState('completed');
 
-      // 8. Invalidate file text cache so disk reads reflect newly written notes
+      // 8. Invalidate file text and image caches so disk reads reflect newly written notes/assets
       clearFileTextCache();
+      clearImageCache();
 
       // 9. Refresh noteStore vault, file tree and active note
       try {
@@ -234,9 +237,15 @@ export class WebRtcSyncService {
 
       return report;
     } catch (err: any) {
-      if (this.currentReport && (this.currentReport.receivedNotesCount > 0 || this.currentReport.deletedNotesCount > 0)) {
+      if (
+        this.currentReport &&
+        (this.currentReport.receivedNotesCount > 0 ||
+          this.currentReport.deletedNotesCount > 0 ||
+          (this.currentReport.receivedAttachmentsCount || 0) > 0)
+      ) {
         try {
           clearFileTextCache();
+          clearImageCache();
           await useNoteStore.getState().loadVault();
         } catch {}
       }
@@ -335,6 +344,8 @@ export class WebRtcSyncService {
       receivedNotesCount: 0,
       deletedNotesCount: 0,
       conflictsCount: 0,
+      sentAttachmentsCount: 0,
+      receivedAttachmentsCount: 0,
       details: [],
     };
 
@@ -343,14 +354,17 @@ export class WebRtcSyncService {
       stage: 'manifest',
       totalNotes: 0,
       transferredNotes: 0,
+      totalAttachments: 0,
+      transferredAttachments: 0,
       direction: 'bidirectional',
     });
 
     let remoteManifest: SyncManifest;
+    let localManifest: SyncManifest;
 
     if (this.role === 'host') {
-      // Host sends its manifest first (with its workspace metadata)
-      const localManifest = await syncStorageAdapter.getSyncManifest(
+      // Host sends its manifest first (with its workspace metadata and referenced attachments)
+      localManifest = await syncStorageAdapter.getSyncManifest(
         this.options?.workspaceId,
         this.options?.workspaceName
       );
@@ -373,7 +387,7 @@ export class WebRtcSyncService {
       }
 
       // Peer builds and sends its manifest for the target workspace
-      const localManifest = await syncStorageAdapter.getSyncManifest(
+      localManifest = await syncStorageAdapter.getSyncManifest(
         this.options?.workspaceId,
         this.options?.workspaceName
       );
@@ -383,7 +397,7 @@ export class WebRtcSyncService {
       });
     }
 
-    // 3. State Diffing: determine notes to send and notes to receive
+    // 2. State Diffing: Notes
     const localAllNotes = await syncStorageAdapter.getAllCanonicalNotes();
     const localNotesMap = new Map<string, CanonicalNote>(localAllNotes.map((n) => [n.id, n]));
 
@@ -418,37 +432,67 @@ export class WebRtcSyncService {
     }
 
     // Calculate how many notes we expect remote peer to send us
-    let expectedIncomingCount = 0;
+    let expectedIncomingNotesCount = 0;
     for (const [remoteId, remoteSummary] of Object.entries(remoteManifest.notes)) {
       const localNote = localNotesMap.get(remoteId);
       if (!localNote) {
-        expectedIncomingCount++;
+        expectedIncomingNotesCount++;
       } else if (remoteSummary.deleted && !localNote.deleted) {
         if ((remoteSummary.deletedAt || remoteSummary.updatedAt) > localNote.updatedAt) {
-          expectedIncomingCount++;
+          expectedIncomingNotesCount++;
         }
       } else if (!remoteSummary.deleted && localNote.deleted) {
         if (remoteSummary.updatedAt > (localNote.deletedAt || localNote.updatedAt)) {
-          expectedIncomingCount++;
+          expectedIncomingNotesCount++;
         }
       } else if (!remoteSummary.deleted && !localNote.deleted) {
         if (remoteSummary.updatedAt > localNote.updatedAt && remoteSummary.hash !== localNote.hash) {
-          expectedIncomingCount++;
+          expectedIncomingNotesCount++;
         }
       }
     }
 
-    const totalTransferNotes = notesToSend.length + expectedIncomingCount;
-    let transferredCount = 0;
+    // 3. State Diffing: Referenced Attachments
+    const localAttachments = localManifest.attachments || {};
+    const remoteAttachments = remoteManifest.attachments || {};
+
+    const attachmentsToSend: AttachmentSummary[] = [];
+    for (const [path, localAtt] of Object.entries(localAttachments)) {
+      const remoteAtt = remoteAttachments[path];
+      if (!remoteAtt) {
+        // Remote doesn't have this attachment
+        attachmentsToSend.push(localAtt);
+      } else if (localAtt.hash !== remoteAtt.hash && localAtt.updatedAt > remoteAtt.updatedAt) {
+        // Local has newer version of this attachment
+        attachmentsToSend.push(localAtt);
+      }
+    }
+
+    let expectedIncomingAttachmentsCount = 0;
+    for (const [path, remoteAtt] of Object.entries(remoteAttachments)) {
+      const localAtt = localAttachments[path];
+      if (!localAtt) {
+        expectedIncomingAttachmentsCount++;
+      } else if (remoteAtt.hash !== localAtt.hash && remoteAtt.updatedAt > localAtt.updatedAt) {
+        expectedIncomingAttachmentsCount++;
+      }
+    }
+
+    const totalTransferNotes = notesToSend.length + expectedIncomingNotesCount;
+    const totalTransferAttachments = attachmentsToSend.length + expectedIncomingAttachmentsCount;
+    let transferredNotesCount = 0;
+    let transferredAttachmentsCount = 0;
 
     this.onProgress?.({
       stage: 'transferring',
       totalNotes: totalTransferNotes,
       transferredNotes: 0,
+      totalAttachments: totalTransferAttachments,
+      transferredAttachments: 0,
       direction: 'sending',
     });
 
-    // 4. Send our notes to peer
+    // 4A. Send our notes to peer
     for (let i = 0; i < notesToSend.length; i++) {
       if (this.isCancelled) throw new Error('Sync cancelled by user');
 
@@ -460,15 +504,17 @@ export class WebRtcSyncService {
         total: notesToSend.length,
       });
 
-      transferredCount++;
+      transferredNotesCount++;
       report.sentNotesCount++;
       report.details.push(`Sent: ${note.id} ${note.deleted ? '(Tombstone)' : ''}`);
 
       this.onProgress?.({
         stage: 'transferring',
         totalNotes: totalTransferNotes,
-        transferredNotes: transferredCount,
+        transferredNotes: transferredNotesCount,
         currentNoteTitle: note.id,
+        totalAttachments: totalTransferAttachments,
+        transferredAttachments: transferredAttachmentsCount,
         direction: 'sending',
       });
 
@@ -476,13 +522,50 @@ export class WebRtcSyncService {
       await new Promise((r) => setTimeout(r, 8));
     }
 
-    // Announce we finished sending notes
+    // 4B. Send our referenced attachments to peer
+    for (let i = 0; i < attachmentsToSend.length; i++) {
+      if (this.isCancelled) throw new Error('Sync cancelled by user');
+
+      const att = attachmentsToSend[i];
+      const bytes = await syncStorageAdapter.getAttachmentBytes(att.path);
+      if (bytes && bytes.byteLength > 0) {
+        const bytesBase64 = bytesToBase64(bytes);
+        await this.sendEncryptedMessage(channel, {
+          type: 'ATTACHMENT_PAYLOAD',
+          path: att.path,
+          bytesBase64,
+          hash: att.hash,
+          updatedAt: att.updatedAt,
+          index: i + 1,
+          total: attachmentsToSend.length,
+        });
+
+        transferredAttachmentsCount++;
+        report.sentAttachmentsCount = (report.sentAttachmentsCount || 0) + 1;
+        report.details.push(`Sent Attachment: ${att.path}`);
+
+        this.onProgress?.({
+          stage: 'transferring',
+          totalNotes: totalTransferNotes,
+          transferredNotes: transferredNotesCount,
+          totalAttachments: totalTransferAttachments,
+          transferredAttachments: transferredAttachmentsCount,
+          currentAttachmentPath: att.path,
+          direction: 'sending',
+        });
+
+        await new Promise((r) => setTimeout(r, 8));
+      }
+    }
+
+    // Announce we finished sending notes and attachments
     await this.sendEncryptedMessage(channel, {
       type: 'SYNC_DONE',
       sentCount: notesToSend.length,
+      sentAttachmentsCount: attachmentsToSend.length,
     });
 
-    // 5. Receive and apply notes from peer until peer sends SYNC_DONE
+    // 5. Receive and apply notes & attachments from peer until peer sends SYNC_DONE
     let peerSyncDone = false;
 
     while (!peerSyncDone) {
@@ -493,7 +576,7 @@ export class WebRtcSyncService {
         const incoming = msg.note;
         const result = await syncStorageAdapter.applyCanonicalNote(incoming);
 
-        transferredCount++;
+        transferredNotesCount++;
         report.receivedNotesCount++;
 
         if (result.status === 'deleted') {
@@ -509,8 +592,38 @@ export class WebRtcSyncService {
         this.onProgress?.({
           stage: 'transferring',
           totalNotes: totalTransferNotes,
-          transferredNotes: transferredCount,
+          transferredNotes: transferredNotesCount,
           currentNoteTitle: incoming.id,
+          totalAttachments: totalTransferAttachments,
+          transferredAttachments: transferredAttachmentsCount,
+          direction: 'receiving',
+        });
+      } else if (msg.type === 'ATTACHMENT_PAYLOAD') {
+        const rawBytes = base64ToBytes(msg.bytesBase64);
+        const result = await syncStorageAdapter.applyAttachmentPayload({
+          path: msg.path,
+          bytes: rawBytes,
+          hash: msg.hash,
+          updatedAt: msg.updatedAt,
+        });
+
+        transferredAttachmentsCount++;
+        report.receivedAttachmentsCount = (report.receivedAttachmentsCount || 0) + 1;
+
+        if (result.status === 'created' || result.status === 'updated') {
+          report.details.push(`Applied Attachment: ${msg.path}`);
+        } else if (result.status === 'conflict') {
+          report.conflictsCount++;
+          report.details.push(`Attachment Conflict: ${result.backupPath}`);
+        }
+
+        this.onProgress?.({
+          stage: 'transferring',
+          totalNotes: totalTransferNotes,
+          transferredNotes: transferredNotesCount,
+          totalAttachments: totalTransferAttachments,
+          transferredAttachments: transferredAttachmentsCount,
+          currentAttachmentPath: msg.path,
           direction: 'receiving',
         });
       } else if (msg.type === 'SYNC_DONE') {
@@ -518,8 +631,9 @@ export class WebRtcSyncService {
       }
     }
 
-    // Immediately reload vault so all incoming notes are visible in memory
+    // Immediately reload vault and clear image caches so all incoming notes & assets are live
     clearFileTextCache();
+    clearImageCache();
     try {
       await useNoteStore.getState().loadVault();
       if (useNoteStore.getState().currentNoteId) {
