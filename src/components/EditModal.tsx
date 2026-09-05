@@ -45,8 +45,8 @@ export const EditModal: React.FC<EditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-in fade-in select-none p-4">
-      <div className={`bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-5 w-full max-w-md shadow-2xl flex flex-col gap-4 ${overflowClass}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-in fade-in select-none p-3 sm:p-4 pt-safe pb-safe">
+      <div className={`bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-4 sm:p-5 w-full max-w-md shadow-2xl flex flex-col gap-4 ${overflowClass}`}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-zinc-800 pb-3 shrink-0">
           <div className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-gray-100">
@@ -55,9 +55,10 @@ export const EditModal: React.FC<EditModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            className="min-w-[36px] min-h-[36px] w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 active:scale-95 transition-all cursor-pointer"
+            aria-label={t('close')}
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
@@ -72,14 +73,14 @@ export const EditModal: React.FC<EditModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 transition-colors"
+                className="min-h-[38px] px-3.5 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 active:scale-95 transition-all cursor-pointer"
               >
                 {t('cancel')}
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className={`flex items-center gap-1.5 px-4 py-1.5 ${accentClass} text-white rounded-xl font-medium transition-colors shadow-sm disabled:opacity-50`}
+                className={`min-h-[38px] flex items-center gap-1.5 px-4.5 py-2 ${accentClass} text-white rounded-xl font-medium transition-all shadow-xs disabled:opacity-50 active:scale-95 cursor-pointer`}
               >
                 <Save size={14} /> {t('save')}
               </button>

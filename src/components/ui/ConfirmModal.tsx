@@ -45,16 +45,17 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="min-w-[36px] min-h-[36px] w-9 h-9 flex items-center justify-center -mr-1 -mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 active:scale-95 transition-all cursor-pointer"
+            aria-label={t('close')}
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
         <div className="flex items-center justify-end gap-2 mt-5">
           <button
             onClick={onClose}
-            className="px-3.5 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+            className="min-h-[38px] px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 active:scale-95 rounded-xl transition-all cursor-pointer"
           >
             {cancelLabel || t('cancel', 'Vazgeç')}
           </button>
@@ -63,7 +64,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               onConfirm();
               onClose();
             }}
-            className="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl shadow-xs transition-all cursor-pointer"
+            className="min-h-[38px] px-4.5 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl shadow-xs transition-all cursor-pointer"
           >
             {confirmLabel || t('delete', 'Sil')}
           </button>

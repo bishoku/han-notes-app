@@ -126,7 +126,7 @@ export const SettingsModal: React.FC = () => {
       >
         {/* Header with Tabs */}
         <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-zinc-800/80 bg-gray-50/50 dark:bg-zinc-900/50 gap-2">
-          <div className="flex items-center gap-1 sm:gap-1.5 p-1 bg-gray-200/60 dark:bg-zinc-800 rounded-xl overflow-x-auto no-scrollbar touch-pan-x max-w-[calc(100%-36px)]">
+          <div className="flex items-center gap-1 sm:gap-1.5 p-1 bg-gray-200/60 dark:bg-zinc-800 rounded-xl overflow-x-auto no-scrollbar touch-pan-x max-w-[calc(100%-48px)]">
             <button
               type="button"
               onClick={() => setActiveTab('general')}
@@ -138,7 +138,7 @@ export const SettingsModal: React.FC = () => {
               )}
             >
               <Sliders size={13} />
-              <span>{t('settings')}</span>
+              <span>{t('generalSettingsTab')}</span>
             </button>
             <button
               type="button"
@@ -159,12 +159,12 @@ export const SettingsModal: React.FC = () => {
               className={cn(
                 "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0",
                 activeTab === 'git'
-                  ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-xs"
+                  ? "bg-white dark:bg-zinc-700 text-emerald-600 dark:text-emerald-400 shadow-xs"
                   : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
               )}
             >
               <GitBranch size={13} />
-              <span>{t('gitSyncTab')}</span>
+              <span>{t('gitSettingsTab')}</span>
             </button>
             <button
               type="button"
@@ -172,7 +172,7 @@ export const SettingsModal: React.FC = () => {
               className={cn(
                 "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0",
                 activeTab === 'clipper'
-                  ? "bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  ? "bg-white dark:bg-zinc-700 text-amber-600 dark:text-amber-400 shadow-xs"
                   : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
               )}
             >
@@ -196,8 +196,9 @@ export const SettingsModal: React.FC = () => {
 
           <button
             onClick={() => setSettingsModalOpen(false)}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+            className="min-w-[38px] min-h-[38px] w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer shrink-0"
             title={t('close')}
+            aria-label={t('close')}
           >
             <X size={18} />
           </button>

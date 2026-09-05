@@ -19,6 +19,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { storage } from '@/services/storage';
 import { useTranslation } from 'react-i18next';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { cn } from '@/lib/utils';
 
 interface PdfSplitViewerProps {
   pdfPath: string;
@@ -38,6 +40,7 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
   onInsertQuote,
 }) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [doc, setDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState<number>(1);
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
@@ -288,13 +291,18 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
 
   return (
     <div
-      style={{ width: `${width}px` }}
-      className="h-full border-r border-gray-200 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-950 flex flex-col relative shrink-0 z-20"
+      style={isMobile ? undefined : { width: `${width}px` }}
+      className={cn(
+        "border-r border-gray-200 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-950 flex flex-col relative shrink-0",
+        isMobile
+          ? "fixed inset-0 z-50 w-full h-full pt-safe pb-safe shadow-2xl animate-in fade-in duration-200"
+          : "h-full z-20"
+      )}
     >
       {/* Top Header & Page Navigation Toolbar */}
-      <div className="h-11 px-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2 truncate min-w-0 pr-1">
-          <FileText size={15} className="text-purple-600 dark:text-purple-400 shrink-0" />
+      <div className="h-12 min-h-[48px] px-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2 truncate min-w-0 pr-1 max-w-[120px] sm:max-w-xs">
+          <FileText size={16} className="text-purple-600 dark:text-purple-400 shrink-0" />
           <span
             className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate cursor-help"
             title={pdfName}
@@ -308,10 +316,10 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1 || isLoading}
-            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer"
+            className="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer active:scale-95"
             title={t('previousPage')}
           >
-            <ChevronLeft size={14} />
+            <ChevronLeft size={16} />
           </button>
 
           <span className="text-[11px] font-mono text-gray-600 dark:text-gray-400 px-1">
@@ -321,42 +329,45 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
           <button
             onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
             disabled={currentPage >= numPages || isLoading}
-            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer"
+            className="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer active:scale-95"
             title={t('nextPage')}
           >
-            <ChevronRight size={14} />
+            <ChevronRight size={16} />
           </button>
         </div>
 
         {/* Zoom & Close Controls */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            onClick={() => setScale((s) => Math.max(0.6, s - 0.15))}
-            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
-            title={t('zoomOut')}
-          >
-            <ZoomOut size={13} />
-          </button>
-          <button
-            onClick={() => setScale(1.25)}
-            className="text-[10px] font-mono text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 px-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded cursor-pointer"
-            title={t('reset')}
-          >
-            {Math.round((scale / 1.25) * 100)}%
-          </button>
-          <button
-            onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
-            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
-            title={t('zoomIn')}
-          >
-            <ZoomIn size={13} />
-          </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="hidden sm:flex items-center gap-0.5">
+            <button
+              onClick={() => setScale((s) => Math.max(0.6, s - 0.15))}
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+              title={t('zoomOut')}
+            >
+              <ZoomOut size={13} />
+            </button>
+            <button
+              onClick={() => setScale(1.25)}
+              className="text-[10px] font-mono text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 px-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded cursor-pointer"
+              title={t('reset')}
+            >
+              {Math.round((scale / 1.25) * 100)}%
+            </button>
+            <button
+              onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+              title={t('zoomIn')}
+            >
+              <ZoomIn size={13} />
+            </button>
+          </div>
+
           <button
             onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer ml-1"
+            className="w-9 h-9 sm:w-7 sm:h-7 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 bg-gray-100/80 dark:bg-zinc-800/80 transition-all cursor-pointer ml-1 active:scale-95 shrink-0"
             title={t('pdfCloseReader')}
           >
-            <X size={14} />
+            <X size={18} />
           </button>
         </div>
       </div>
@@ -445,11 +456,13 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
         )}
       </div>
 
-      {/* Draggable Resizer Handle on Right Border */}
-      <div
-        onMouseDown={() => setIsDraggingResizer(true)}
-        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-purple-500/40 active:bg-purple-600 transition-colors z-30"
-      />
+      {/* Draggable Resizer Handle on Right Border (Desktop Only) */}
+      {!isMobile && (
+        <div
+          onMouseDown={() => setIsDraggingResizer(true)}
+          className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-purple-500/40 active:bg-purple-600 transition-colors z-30"
+        />
+      )}
     </div>
   );
 };

@@ -270,6 +270,22 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
     }
   }, [isAiEnabled, isChatDrawerOpen, setChatDrawerOpen, setSettingsModalOpen]);
 
+  // Listen for tap-edit events dispatched from widgets
+  useEffect(() => {
+    const handleTaskEditWin = (e: CustomEvent<{ lineNumber: number; lineText: string }>) => {
+      onOpenTaskModal({ show: true, lineNumber: e.detail.lineNumber, lineText: e.detail.lineText, top: 0 });
+    };
+    const handleDecisionEditWin = (e: CustomEvent<{ lineNumber: number; lineText: string }>) => {
+      onOpenDecisionModal({ show: true, lineNumber: e.detail.lineNumber, lineText: e.detail.lineText, top: 0 });
+    };
+    window.addEventListener('open-task-edit' as any, handleTaskEditWin);
+    window.addEventListener('open-decision-edit' as any, handleDecisionEditWin);
+    return () => {
+      window.removeEventListener('open-task-edit' as any, handleTaskEditWin);
+      window.removeEventListener('open-decision-edit' as any, handleDecisionEditWin);
+    };
+  }, [onOpenTaskModal, onOpenDecisionModal]);
+
   // CodeMirror Extensions Memo
   const isDarkTheme = ['dark', 'dracula', 'synthwave'].includes(theme);
   const extensions = useMemo(() => {
@@ -375,6 +391,10 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
         onOpenImagePicker={() => onOpenImagePicker()}
         onOpenExcalidraw={() => onOpenExcalidrawEditor()}
         onToggleAi={handleToggleAiToolbar}
+        taskEditActive={taskEditBtn.show}
+        onEditTask={() => onOpenTaskModal(taskEditBtn)}
+        decisionEditActive={decisionEditBtn.show}
+        onEditDecision={() => onOpenDecisionModal(decisionEditBtn)}
       />
     </div>
   );

@@ -32,11 +32,11 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="p-2 border-t border-mac-borderLight dark:border-mac-borderDark flex flex-col gap-1">
+    <div className="p-2 pb-safe md:pb-2 border-t border-mac-borderLight dark:border-mac-borderDark flex flex-col gap-1">
       <button
         onClick={onNavigateTasks}
         className={cn(
-          'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
+          'flex items-center gap-2 px-2.5 py-2 md:py-1.5 min-h-[40px] md:min-h-0 text-xs rounded-lg md:rounded-md transition-colors cursor-pointer active:scale-[0.99]',
           isTasksActive
             ? 'bg-mac-accent text-white font-medium shadow-xs'
             : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
@@ -48,7 +48,7 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
       <button
         onClick={onNavigateDecisions}
         className={cn(
-          'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
+          'flex items-center gap-2 px-2.5 py-2 md:py-1.5 min-h-[40px] md:min-h-0 text-xs rounded-lg md:rounded-md transition-colors cursor-pointer active:scale-[0.99]',
           isDecisionsActive
             ? 'bg-purple-600 text-white font-medium shadow-xs'
             : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
@@ -60,7 +60,7 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
       <button
         onClick={onNavigateMindmap}
         className={cn(
-          'flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
+          'flex items-center gap-2 px-2.5 py-2 md:py-1.5 min-h-[40px] md:min-h-0 text-xs rounded-lg md:rounded-md transition-colors cursor-pointer active:scale-[0.99]',
           isMindmapActive
             ? 'bg-emerald-600 text-white font-medium shadow-xs'
             : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
@@ -72,7 +72,7 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
       <button
         onClick={onToggleAi}
         className={cn(
-          'flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors cursor-pointer',
+          'flex items-center justify-between px-2.5 py-2 md:py-1.5 min-h-[40px] md:min-h-0 text-xs rounded-lg md:rounded-md transition-colors cursor-pointer active:scale-[0.99]',
           isChatDrawerOpen
             ? 'bg-gradient-to-r from-purple-600 to-mac-accent text-white font-semibold shadow-xs'
             : isAiEnabled
@@ -91,7 +91,7 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
 
       <button
         onClick={onOpenSettings}
-        className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"
+        className="flex items-center gap-2 px-2.5 py-2 md:py-1.5 min-h-[40px] md:min-h-0 text-xs rounded-lg md:rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer active:scale-[0.99]"
       >
         <Settings size={16} />
         {t('settings')}

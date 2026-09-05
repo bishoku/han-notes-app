@@ -29,22 +29,22 @@ export const MermaidToolbar: React.FC<MermaidToolbarProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="flex items-center justify-between px-5 py-3.5 bg-gray-50/90 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 shrink-0">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/20 shadow-xs">
+    <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3.5 bg-gray-50/90 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 shrink-0 gap-2">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/20 shadow-xs shrink-0">
           <GitFork size={17} />
         </div>
-        <div>
-          <h2 className="text-sm font-bold text-gray-800 dark:text-zinc-100 flex items-center gap-2">
-            {t('mermaidEditorTitle', 'Mermaid Diyagram Editörü')}
-            <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-800/40">
-              {isEditing ? t('edit', 'Düzenle') : t('newDiagram', 'Yeni Diyagram')}
+        <div className="min-w-0">
+          <h2 className="text-xs sm:text-sm font-bold text-gray-800 dark:text-zinc-100 flex items-center gap-1.5 truncate">
+            <span className="truncate">{t('mermaidEditorTitle', 'Mermaid')}</span>
+            <span className="hidden sm:inline-block text-[11px] font-normal px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-800/40 shrink-0">
+              {isEditing ? t('edit', 'Düzenle') : t('newDiagram', 'Yeni')}
             </span>
           </h2>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <MermaidTemplateMenu
           isOpen={showTemplateDropdown}
           onToggle={onToggleTemplateDropdown}
@@ -53,7 +53,7 @@ export const MermaidToolbar: React.FC<MermaidToolbarProps> = ({
         />
 
         {/* Layout Mode Switcher */}
-        <div className="flex items-center bg-gray-200/70 dark:bg-zinc-800 p-0.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+        <div className="hidden sm:flex items-center bg-gray-200/70 dark:bg-zinc-800 p-0.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
           <button
             type="button"
             onClick={() => onChangeLayoutMode('code')}
@@ -98,8 +98,9 @@ export const MermaidToolbar: React.FC<MermaidToolbarProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="p-1.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded-lg hover:bg-gray-200/60 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="min-w-[36px] min-h-[36px] w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded-xl hover:bg-gray-200/60 dark:hover:bg-zinc-800 active:scale-95 transition-all cursor-pointer shrink-0"
           title={t('close')}
+          aria-label={t('close')}
         >
           <X size={18} />
         </button>

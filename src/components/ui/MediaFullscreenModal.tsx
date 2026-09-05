@@ -71,20 +71,20 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
     >
       {/* Top Header Bar */}
       <div
-        className="w-full flex items-center justify-between px-6 py-4 absolute top-0 left-0 right-0 z-30 select-none bg-gradient-to-b from-black/80 to-transparent pointer-events-auto"
+        className="w-full flex items-center justify-between px-3.5 sm:px-6 py-2.5 sm:py-4 pt-safe absolute top-0 left-0 right-0 z-30 select-none bg-gradient-to-b from-black/90 via-black/60 to-transparent pointer-events-auto gap-2"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 text-white/90">
+        <div className="flex items-center gap-2 text-white/90 min-w-0">
           <Maximize2 size={16} className="text-mac-accent shrink-0" />
-          <span className="text-sm font-medium truncate max-w-md">
+          <span className="text-xs sm:text-sm font-medium truncate max-w-[200px] sm:max-w-md">
             {cleanTitle || (isSimulation ? t('mediaSimulationPreview') : t('mediaImagePreview'))}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Canvas Background Toggle (only for static images/sketches) */}
           {!isSimulation && (
-            <div className="flex items-center bg-white/10 rounded-full p-0.5 border border-white/10">
+            <div className="hidden sm:flex items-center bg-white/10 rounded-full p-0.5 border border-white/10">
               <button
                 type="button"
                 onClick={() => setBgMode('light')}
@@ -120,17 +120,18 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-all duration-150 cursor-pointer shadow-md"
+            className="min-w-[40px] min-h-[40px] w-10 h-10 flex items-center justify-center text-white/90 hover:text-white bg-white/15 hover:bg-white/25 active:scale-95 rounded-full transition-all duration-150 cursor-pointer shadow-md shrink-0"
             title={t('close')}
+            aria-label={t('close')}
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div
-        className="flex items-center justify-center w-full h-full p-4 sm:p-6 pt-16 pb-6 overflow-hidden"
+        className="flex items-center justify-center w-full h-full p-2 sm:p-6 pt-16 sm:pt-20 pb-safe overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {isSimulation && embedUrl ? (

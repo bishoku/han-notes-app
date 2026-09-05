@@ -90,17 +90,17 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-3 md:p-6 bg-black/80 backdrop-blur-md select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[120] flex items-center justify-center p-0 md:p-6 bg-black/80 backdrop-blur-md select-none animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-6xl h-[92vh] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-6xl h-full md:h-[92vh] bg-white dark:bg-zinc-900 border-0 md:border border-gray-200 dark:border-zinc-800 rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Top Browser Navigation Header Bar ── */}
-        <div className="px-4 py-2.5 bg-gray-100/90 dark:bg-zinc-950/90 border-b border-gray-200 dark:border-zinc-800/90 flex items-center justify-between gap-3 shrink-0">
+        <div className="pt-safe px-3 md:px-4 py-2 bg-gray-100/90 dark:bg-zinc-950/90 border-b border-gray-200 dark:border-zinc-800/90 flex items-center justify-between gap-2 shrink-0 min-h-[48px]">
           {/* Left: Favicon & Title */}
-          <div className="flex items-center gap-2 min-w-0 max-w-xs md:max-w-sm">
+          <div className="flex items-center gap-2 min-w-0 flex-1 md:flex-initial md:max-w-sm">
             {meta.faviconUrl ? (
               <img
                 src={meta.faviconUrl}
@@ -118,8 +118,8 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
             </span>
           </div>
 
-          {/* Center: Interactive Address Bar */}
-          <div className="flex-1 max-w-xl mx-2 flex items-center bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700/80 rounded-lg px-2.5 py-1 text-xs text-gray-600 dark:text-gray-300 font-mono shadow-2xs group">
+          {/* Center: Interactive Address Bar (Desktop only to prevent mobile overflow) */}
+          <div className="hidden md:flex flex-1 max-w-xl mx-2 items-center bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700/80 rounded-lg px-2.5 py-1 text-xs text-gray-600 dark:text-gray-300 font-mono shadow-2xs group">
             <span className="text-[10px] text-gray-400 mr-1.5 uppercase font-sans font-bold">
               {meta.protocol}
             </span>
@@ -135,12 +135,12 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
           </div>
 
           {/* Right: Refresh, Open External, Close Actions */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
             {/* Refresh Iframe */}
             <button
               type="button"
               onClick={handleRefresh}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
               title={t('refreshPage')}
             >
               <RotateCw className="w-4 h-4" />
@@ -150,20 +150,21 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
             <button
               type="button"
               onClick={handleOpenExternal}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
               title={t('openInBrowser')}
             >
               <ExternalLink className="w-4 h-4" />
             </button>
 
-            {/* Close Modal */}
+            {/* Close Modal - Prominent & touch friendly */}
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer ml-1"
+              className="min-w-[38px] min-h-[38px] w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-xl bg-gray-200/70 dark:bg-zinc-800 text-gray-700 dark:text-gray-200 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 active:scale-95 transition-all cursor-pointer ml-1"
               title={t('close')}
+              aria-label={t('close')}
             >
-              <X className="w-4 h-4" />
+              <X className="w-4.5 h-4.5 md:w-4 md:h-4" />
             </button>
           </div>
         </div>
@@ -188,7 +189,7 @@ export const WebLinkFullscreenModal: React.FC<WebLinkFullscreenModalProps> = ({
         )}
 
         {/* ── Main Iframe Container ── */}
-        <div className="flex-1 w-full h-full relative bg-gray-50 dark:bg-zinc-950 overflow-hidden">
+        <div className="flex-1 w-full h-full relative bg-gray-50 dark:bg-zinc-950 overflow-hidden pb-safe">
           {isLoading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xs">
               <Loader2 className="w-8 h-8 animate-spin text-mac-accent mb-2" />

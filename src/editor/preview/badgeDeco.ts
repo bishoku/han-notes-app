@@ -55,7 +55,7 @@ export function processPrefixWidgets(
       from: prefixFrom,
       to: prefixTo,
       dec: Decoration.replace({
-        widget: new DecisionPrefixWidget(),
+        widget: new DecisionPrefixWidget(line.from),
       }),
     });
   }
@@ -121,7 +121,7 @@ export function processBadgesAndMedia(
       if (meta) {
         const widget = getCachedWidget(
           `task:${commentFrom}:${commentTo}:${cMatch[1]}`,
-          () => new TaskBadgeWidget(meta)
+          () => new TaskBadgeWidget(meta, line.from)
         );
         collect({
           from: commentFrom,

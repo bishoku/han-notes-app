@@ -197,7 +197,7 @@ export const QuickSearchModal: React.FC = () => {
     >
       <div className="w-full max-w-2xl max-h-[88vh] bg-white dark:bg-zinc-900 border border-gray-200/90 dark:border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 text-xs">
         {/* 1. Search Header Input */}
-        <div className="p-3.5 px-4 border-b border-gray-100 dark:border-zinc-800 flex items-center gap-3">
+        <div className="p-3 sm:p-3.5 px-3.5 sm:px-4 border-b border-gray-100 dark:border-zinc-800 flex items-center gap-2.5 sm:gap-3">
           <div className="text-gray-400 dark:text-gray-500 shrink-0">
             {isSemanticLoading ? (
               <Sparkles size={18} className="text-purple-500 animate-pulse" />
@@ -213,7 +213,7 @@ export const QuickSearchModal: React.FC = () => {
             onChange={(e) => setInputQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('searchPlaceholder')}
-            className="w-full bg-transparent outline-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 py-1"
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 py-1"
           />
 
           {inputQuery && (
@@ -222,11 +222,20 @@ export const QuickSearchModal: React.FC = () => {
                 setInputQuery('');
                 inputRef.current?.focus();
               }}
-              className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer shrink-0"
+              title={t('clear')}
             >
               <X size={15} />
             </button>
           )}
+
+          {/* Explicit Mobile Dismiss Button */}
+          <button
+            onClick={handleClose}
+            className="sm:hidden px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 bg-gray-100 dark:bg-zinc-800 active:scale-95 transition-all cursor-pointer shrink-0"
+          >
+            {t('cancel') || 'Kapat'}
+          </button>
         </div>
 
         {/* 2. Filter Pills Bar */}
@@ -370,7 +379,7 @@ export const QuickSearchModal: React.FC = () => {
 
         {/* 4. Footer & Keyboard Navigation Legend */}
         <div className="p-2.5 px-4 border-t border-gray-100 dark:border-zinc-800 bg-gray-50/80 dark:bg-zinc-950/60 flex items-center justify-between text-[11px] text-gray-400">
-          <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-3">
             <span className="flex items-center gap-1">
               <span className="px-1 py-0.5 rounded bg-gray-200 dark:bg-zinc-800 font-mono text-[9px]">
                 ↑

@@ -2,21 +2,34 @@
  * TaskBadgeWidget.ts — CodeMirror WidgetType for rendering inline task
  * metadata badges (dates, priority, assignees, progress, tags).
  */
-import { WidgetType } from '@codemirror/view';
+import { WidgetType, EditorView } from '@codemirror/view';
 import { createBadge, createBadgeWrapper, appendTagBadges } from './badgeUtils';
 
 export class TaskBadgeWidget extends WidgetType {
   meta: any;
+  linePos?: number;
   private _hash: string;
 
-  constructor(meta: any) {
+  constructor(meta: any, linePos?: number) {
     super();
     this.meta = meta;
-    this._hash = JSON.stringify(meta);
+    this.linePos = linePos;
+    this._hash = JSON.stringify(meta) + `:${linePos ?? 0}`;
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const wrap = createBadgeWrapper();
+    wrap.className += ' cursor-pointer hover:opacity-80 active:scale-95 transition-all';
+    wrap.title = 'Görevi düzenlemek için dokunun';
+    wrap.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = typeof this.linePos === 'number' ? this.linePos : view.state.selection.main.head;
+      const line = view.state.doc.lineAt(pos);
+      window.dispatchEvent(new CustomEvent('open-task-edit', {
+        detail: { lineNumber: line.number - 1, lineText: line.text }
+      }));
+    };
     const today = new Date().toISOString().split('T')[0];
 
     // Overdue or Date Range

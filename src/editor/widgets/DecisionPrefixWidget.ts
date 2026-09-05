@@ -5,10 +5,17 @@
 import { WidgetType, EditorView } from '@codemirror/view';
 
 export class DecisionPrefixWidget extends WidgetType {
-  toDOM(_view: EditorView) {
+  linePos?: number;
+
+  constructor(linePos?: number) {
+    super();
+    this.linePos = linePos;
+  }
+
+  toDOM(view: EditorView) {
     const span = document.createElement('span');
-    span.className = 'cm-decision-prefix inline-flex items-center justify-center w-5 h-5 rounded-md bg-purple-100 dark:bg-purple-950/70 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50 mr-1.5 align-middle select-none shadow-2xs shrink-0';
-    span.title = 'Karar Kaydı (Decision Record)';
+    span.className = 'cm-decision-prefix inline-flex items-center justify-center w-5 h-5 rounded-md bg-purple-100 dark:bg-purple-950/70 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50 mr-1.5 align-middle select-none shadow-2xs shrink-0 cursor-pointer hover:scale-110 active:scale-95 transition-all';
+    span.title = 'Karar Kaydı (Düzenlemek için dokunun)';
 
     span.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -22,10 +29,20 @@ export class DecisionPrefixWidget extends WidgetType {
       e.stopPropagation();
     };
 
+    span.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = typeof this.linePos === 'number' ? this.linePos : view.state.selection.main.head;
+      const line = view.state.doc.lineAt(pos);
+      window.dispatchEvent(new CustomEvent('open-decision-edit', {
+        detail: { lineNumber: line.number - 1, lineText: line.text }
+      }));
+    };
+
     return span;
   }
 
-  eq(_other: DecisionPrefixWidget) {
-    return true;
+  eq(other: DecisionPrefixWidget) {
+    return this.linePos === other.linePos;
   }
 }

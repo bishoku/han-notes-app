@@ -9,6 +9,8 @@ import {
   Image as ImageIcon,
   PenTool,
   Sparkles,
+  SlidersHorizontal,
+  ShieldCheck,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -21,6 +23,10 @@ interface MobileEditorToolbarProps {
   onOpenImagePicker: () => void;
   onOpenExcalidraw: () => void;
   onToggleAi: () => void;
+  taskEditActive?: boolean;
+  onEditTask?: () => void;
+  decisionEditActive?: boolean;
+  onEditDecision?: () => void;
 }
 
 export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
@@ -32,6 +38,10 @@ export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
   onOpenImagePicker,
   onOpenExcalidraw,
   onToggleAi,
+  taskEditActive,
+  onEditTask,
+  decisionEditActive,
+  onEditDecision,
 }) => {
   const { t } = useTranslation();
 
@@ -104,6 +114,38 @@ export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
         >
           <CheckSquare size={16} className="text-emerald-500" />
         </button>
+
+        {/* Dynamic Task Edit Button (shown when cursor is on a task line) */}
+        {taskEditActive && onEditTask && (
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onEditTask();
+            }}
+            className="px-2.5 py-1.5 rounded-lg bg-mac-accent/15 text-mac-accent hover:bg-mac-accent/25 active:scale-95 transition-all flex items-center gap-1.5 font-semibold text-xs animate-in zoom-in-95 shrink-0"
+            title={t('editTaskProps', 'Görevi Düzenle')}
+          >
+            <SlidersHorizontal size={14} />
+            <span>{t('editTaskProps', 'Görevi Düzenle')}</span>
+          </button>
+        )}
+
+        {/* Dynamic Decision Edit Button (shown when cursor is on a decision line) */}
+        {decisionEditActive && onEditDecision && (
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onEditDecision();
+            }}
+            className="px-2.5 py-1.5 rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400 hover:bg-purple-500/25 active:scale-95 transition-all flex items-center gap-1.5 font-semibold text-xs animate-in zoom-in-95 shrink-0"
+            title={t('editDecisionProps', 'Kararı Düzenle')}
+          >
+            <ShieldCheck size={14} />
+            <span>{t('editDecisionProps', 'Kararı Düzenle')}</span>
+          </button>
+        )}
 
         {/* Bullet List */}
         <button

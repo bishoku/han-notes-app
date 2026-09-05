@@ -30,16 +30,16 @@ export const MermaidModalFooter: React.FC<MermaidModalFooterProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 shrink-0">
-      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+    <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 bg-gray-50 dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 shrink-0 gap-2 pb-safe">
+      <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
         <span>💡 {t('mermaidTip')}</span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
         <button
           type="button"
           onClick={onCopyCode}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
         >
           <Copy size={13} />
           <span>{copiedCode ? t('copied') : t('copyCode')}</span>
@@ -49,7 +49,7 @@ export const MermaidModalFooter: React.FC<MermaidModalFooterProps> = ({
           <button
             type="button"
             onClick={onCopySvg}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
           >
             <Copy size={13} />
             <span>{copiedSvg ? t('copied') : t('copySvg')}</span>
@@ -59,7 +59,7 @@ export const MermaidModalFooter: React.FC<MermaidModalFooterProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+          className="min-h-[36px] px-3 sm:px-4 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer active:scale-95"
         >
           {t('cancel')}
         </button>
@@ -68,7 +68,7 @@ export const MermaidModalFooter: React.FC<MermaidModalFooterProps> = ({
           type="button"
           onClick={onSave}
           disabled={!code.trim() || !!syntaxError}
-          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="min-h-[36px] flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded-xl shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95"
         >
           <Check size={14} />
           <span>{isEditing ? t('updateDiagram') : t('insertDiagram')}</span>

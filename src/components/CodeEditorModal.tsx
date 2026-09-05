@@ -212,18 +212,18 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md p-0 sm:p-6 animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[1100px] h-[86vh] max-h-[860px] bg-white dark:bg-[#131418] rounded-2xl shadow-2xl border border-gray-200 dark:border-zinc-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-[1100px] h-full sm:h-[86vh] max-h-none sm:max-h-[860px] bg-white dark:bg-[#131418] rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-gray-200 dark:border-zinc-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ─── Header ─── */}
-        <div className="flex items-center justify-between px-5 py-3 bg-gray-50/95 dark:bg-[#18191f]/95 border-b border-gray-200 dark:border-zinc-800 shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="pt-safe flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 bg-gray-50/95 dark:bg-[#18191f]/95 border-b border-gray-200 dark:border-zinc-800 shrink-0 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center border shadow-xs"
+              className="w-8 h-8 rounded-lg flex items-center justify-center border shadow-xs shrink-0"
               style={{
                 backgroundColor: `${activeLangConfig.color}15`,
                 borderColor: `${activeLangConfig.color}30`,
@@ -232,10 +232,10 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
             >
               <Code2 size={17} />
             </div>
-            <div>
-              <h2 className="text-sm font-bold text-gray-800 dark:text-zinc-100 flex items-center gap-2">
-                {t('codeEditorTitle', 'Kod Bloğu Editörü')}
-                <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
+            <div className="min-w-0">
+              <h2 className="text-xs sm:text-sm font-bold text-gray-800 dark:text-zinc-100 flex items-center gap-1.5 truncate">
+                <span className="truncate">{t('codeEditorTitle', 'Kod Editörü')}</span>
+                <span className="hidden sm:inline-block text-[11px] font-normal px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40 shrink-0">
                   {isEditing ? t('edit', 'Düzenle') : t('newCodeBlock', 'Yeni Kod')}
                 </span>
               </h2>
@@ -243,7 +243,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
           </div>
 
           {/* Controls: Language Dropdown + Line Wrap + Close */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Language Selector Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
@@ -320,7 +320,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
               type="button"
               onClick={() => setLineWrap(!lineWrap)}
               className={cn(
-                "p-1.5 rounded-lg border transition-colors cursor-pointer",
+                "hidden sm:flex p-1.5 rounded-lg border transition-colors cursor-pointer",
                 lineWrap
                   ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50"
                   : "bg-white dark:bg-zinc-800 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-200 border-gray-200 dark:border-zinc-700"
@@ -334,8 +334,9 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-zinc-100 rounded-lg hover:bg-gray-200/60 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="min-w-[36px] min-h-[36px] w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-xl bg-gray-200/60 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 active:scale-95 transition-all cursor-pointer shrink-0"
               title={t('close')}
+              aria-label={t('close')}
             >
               <X size={18} />
             </button>
@@ -369,9 +370,9 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
         </div>
 
         {/* ─── Status Bar & Footer ─── */}
-        <div className="flex items-center justify-between px-5 py-2.5 bg-gray-50 dark:bg-[#18191f] border-t border-gray-200 dark:border-zinc-800 text-xs shrink-0 select-none">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-gray-50 dark:bg-[#18191f] border-t border-gray-200 dark:border-zinc-800 text-xs shrink-0 select-none pb-safe gap-2">
           {/* Status info */}
-          <div className="flex items-center gap-4 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
+          <div className="hidden sm:flex items-center gap-4 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
             <span>
               {t('lineColStats', { line: stats.cursor.line, col: stats.cursor.col })}
             </span>
@@ -384,11 +385,11 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
               onClick={handleCopyCode}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
             >
               <Copy size={13} />
               <span>{copied ? t('copied') : t('copyCode')}</span>
@@ -397,7 +398,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+              className="min-h-[36px] px-3.5 sm:px-4 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer active:scale-95"
             >
               {t('cancel')}
             </button>
@@ -405,7 +406,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-sm transition-colors cursor-pointer"
+              className="min-h-[36px] flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
             >
               <Check size={14} />
               <span>{isEditing ? t('updateCodeBlock') : t('insertCodeBlock')}</span>
