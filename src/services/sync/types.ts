@@ -32,6 +32,8 @@ export interface NoteSummary {
 
 export interface SyncManifest {
   deviceId: string;
+  workspaceId?: string;
+  workspaceName?: string;
   timestamp: number;
   notes: Record<string, NoteSummary>;
 }

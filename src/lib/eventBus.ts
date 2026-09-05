@@ -23,6 +23,7 @@ export interface AppEvents {
   'modal:open-weblink-fullscreen': WebLinkFullscreenData;
   'modal:pdf-import': { file: File; buffer: ArrayBuffer };
   'clipper:open-modal': void;
+  'file-tree:open-move-modal': { path: string; name: string; isDir: boolean };
 }
 
 type EventHandler<T> = (payload: T) => void;

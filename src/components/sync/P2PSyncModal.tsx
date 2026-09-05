@@ -15,8 +15,11 @@ import {
   CheckCircle2,
   FlipHorizontal,
   ArrowDownUp,
+  FolderOpen,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 
 export const P2PSyncModal: React.FC = () => {
   const { t } = useTranslation();
@@ -35,7 +38,11 @@ export const P2PSyncModal: React.FC = () => {
     startHostSession,
     startPeerSession,
     cancelSync,
+    pendingWorkspacePrompt,
+    resolveWorkspacePrompt,
   } = useSyncStore();
+
+  const activeWorkspace = useWorkspaceStore((s) => s.getActiveWorkspace());
 
   const [copied, setCopied] = useState(false);
   const [manualInput, setManualInput] = useState('');
@@ -77,7 +84,7 @@ export const P2PSyncModal: React.FC = () => {
       try {
         videoRef.current.pause();
         videoRef.current.srcObject = null;
-      } catch (err) {
+      } catch {
         // Ignore video pause errors during teardown
       }
     }
@@ -290,8 +297,83 @@ export const P2PSyncModal: React.FC = () => {
 
         {/* Content Body */}
         <div className="p-5 flex flex-col gap-4 overflow-y-auto">
-          {/* ── Active Transfer / Connecting Progress Display ── */}
-          {syncState === 'syncing' || (role === 'peer' && (syncState === 'connecting_signaling' || syncState === 'connecting_peer')) ? (
+          {/* ── Pending Workspace Resolution Prompt ── */}
+          {pendingWorkspacePrompt ? (
+            <div className="flex flex-col items-center text-center py-6 px-4 animate-in fade-in zoom-in-95">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center mb-3 shadow-lg shadow-indigo-500/20">
+                <FolderOpen size={28} />
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-semibold mb-2">
+                <span>{t('remoteWorkspaceDetected')}</span>
+              </div>
+
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">
+                "{pendingWorkspacePrompt.remoteWorkspaceName}"
+              </h3>
+
+              {pendingWorkspacePrompt.needsDirectoryPicker ? (
+                <div className="space-y-4 max-w-sm mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                    {t('selectFolderForRemoteWorkspaceDesc')}
+                  </p>
+
+                  <div className="flex flex-col gap-2 w-full">
+                    <button
+                      type="button"
+                      onClick={() => resolveWorkspacePrompt('pick_directory')}
+                      className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
+                    >
+                      <FolderOpen size={16} />
+                      <span>{t('selectFolderAndSync')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={cancelSync}
+                      className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 py-1 cursor-pointer"
+                    >
+                      {t('cancel')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 max-w-sm mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                    {t('existingWorkspaceConflictDesc', { name: pendingWorkspacePrompt.remoteWorkspaceName })}
+                  </p>
+
+                  <div className="flex flex-col gap-2 w-full">
+                    <button
+                      type="button"
+                      onClick={() => resolveWorkspacePrompt('merge')}
+                      className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <Check size={16} />
+                      <span>{t('mergeWithExistingWorkspace')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => resolveWorkspacePrompt('create_new')}
+                      className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-800 dark:text-gray-200 text-xs font-semibold transition-all cursor-pointer"
+                    >
+                      <Plus size={16} />
+                      <span>{t('createNewWorkspaceCopy')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={cancelSync}
+                      className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 py-1 cursor-pointer"
+                    >
+                      {t('cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : syncState === 'syncing' || (role === 'peer' && (syncState === 'connecting_signaling' || syncState === 'connecting_peer')) ? (
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4">
                 <RefreshCw size={26} className="animate-spin" />
@@ -378,6 +460,24 @@ export const P2PSyncModal: React.FC = () => {
           ) : activeTab === 'share' ? (
             /* ── SHARE / SHOW QR CODE TAB ── */
             <div className="flex flex-col items-center text-center">
+              {/* Active Workspace Info Banner */}
+              {activeWorkspace && (
+                <div className="mb-3 px-3.5 py-1.5 rounded-2xl bg-gray-100 dark:bg-zinc-800/80 border border-gray-200 dark:border-zinc-700/60 flex items-center justify-between gap-3 w-full max-w-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: activeWorkspace.color || '#6366f1' }}
+                    />
+                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
+                      {activeWorkspace.name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 shrink-0">
+                    {t('sharingWorkspace')}
+                  </span>
+                </div>
+              )}
+
               {/* QR Code Container */}
               <div className="p-3 bg-white rounded-2xl shadow-md border border-gray-200 mb-3">
                 {qrCodeDataUrl ? (

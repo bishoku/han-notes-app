@@ -36,6 +36,12 @@ const RTC_CONFIG: RTCConfiguration = {
   ],
 };
 
+export interface WebRtcSyncOptions {
+  workspaceId?: string;
+  workspaceName?: string;
+  onRemoteManifestReceived?: (remoteManifest: SyncManifest) => Promise<void>;
+}
+
 export class WebRtcSyncService {
   private pc: RTCPeerConnection | null = null;
   private dataChannel: RTCDataChannel | null = null;
@@ -62,13 +68,16 @@ export class WebRtcSyncService {
   private isSyncProtocolDone = false;
   private currentReport: SyncReport | null = null;
 
+  private options?: WebRtcSyncOptions;
+
   constructor(
     roomId: string,
     cryptoKey: CryptoKey,
     role: SyncRole,
     signalingUrl: string = DEFAULT_SIGNALING_URL,
     onStateChange?: (state: SyncState, error?: string) => void,
-    onProgress?: (progress: SyncProgress) => void
+    onProgress?: (progress: SyncProgress) => void,
+    options?: WebRtcSyncOptions
   ) {
     this.roomId = roomId;
     this.cryptoKey = cryptoKey;
@@ -76,6 +85,7 @@ export class WebRtcSyncService {
     this.signalingUrl = signalingUrl;
     this.onStateChange = onStateChange;
     this.onProgress = onProgress;
+    this.options = options;
   }
 
   /**
@@ -328,7 +338,7 @@ export class WebRtcSyncService {
       details: [],
     };
 
-    // 1. Send encrypted local manifest to peer
+    // 1. Manifest Exchange
     this.onProgress?.({
       stage: 'manifest',
       totalNotes: 0,
@@ -336,15 +346,42 @@ export class WebRtcSyncService {
       direction: 'bidirectional',
     });
 
-    const localManifest = await syncStorageAdapter.getSyncManifest();
-    await this.sendEncryptedMessage(channel, {
-      type: 'MANIFEST',
-      manifest: localManifest,
-    });
+    let remoteManifest: SyncManifest;
 
-    // 2. Wait for peer's encrypted manifest
-    const remoteManifestMsg = await this.waitForMessage('MANIFEST');
-    const remoteManifest: SyncManifest = remoteManifestMsg.manifest;
+    if (this.role === 'host') {
+      // Host sends its manifest first (with its workspace metadata)
+      const localManifest = await syncStorageAdapter.getSyncManifest(
+        this.options?.workspaceId,
+        this.options?.workspaceName
+      );
+      await this.sendEncryptedMessage(channel, {
+        type: 'MANIFEST',
+        manifest: localManifest,
+      });
+
+      // Host waits for Peer's manifest
+      const remoteManifestMsg = await this.waitForMessage('MANIFEST');
+      remoteManifest = remoteManifestMsg.manifest;
+    } else {
+      // Peer waits for Host's manifest first
+      const remoteManifestMsg = await this.waitForMessage('MANIFEST');
+      remoteManifest = remoteManifestMsg.manifest;
+
+      // Allow peer to resolve target workspace (e.g. folder pick or auto-create)
+      if (this.options?.onRemoteManifestReceived) {
+        await this.options.onRemoteManifestReceived(remoteManifest);
+      }
+
+      // Peer builds and sends its manifest for the target workspace
+      const localManifest = await syncStorageAdapter.getSyncManifest(
+        this.options?.workspaceId,
+        this.options?.workspaceName
+      );
+      await this.sendEncryptedMessage(channel, {
+        type: 'MANIFEST',
+        manifest: localManifest,
+      });
+    }
 
     // 3. State Diffing: determine notes to send and notes to receive
     const localAllNotes = await syncStorageAdapter.getAllCanonicalNotes();

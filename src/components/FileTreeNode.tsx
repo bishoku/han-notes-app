@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useNoteStore } from '@/store/noteStore';
 import type { FileNode } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
-import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Plus, Trash2, Edit3, MoreVertical } from 'lucide-react';
+import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Plus, Trash2, Edit3, MoreVertical, FolderInput } from 'lucide-react';
+import { eventBus } from '@/lib/eventBus';
 import { cn } from '@/lib/utils';
 
 interface FileTreeNodeProps {
@@ -205,6 +206,15 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     await deleteNode(node.relative_path);
   };
 
+  const handleMove = () => {
+    closeContextMenu();
+    eventBus.emit('file-tree:open-move-modal', {
+      path: node.relative_path,
+      name: node.name,
+      isDir: node.is_dir,
+    });
+  };
+
   return (
     <div className="relative">
       <div
@@ -303,6 +313,9 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
             )}
             <button onClick={handleRename} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left cursor-pointer">
               <Edit3 size={12} /> {t('rename')}
+            </button>
+            <button onClick={handleMove} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left cursor-pointer">
+              <FolderInput size={12} /> {t('move', 'Taşı...')}
             </button>
             <button onClick={handleDelete} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-red-500 hover:text-white rounded text-red-500 transition-colors text-left cursor-pointer">
               <Trash2 size={12} /> {t('delete')}

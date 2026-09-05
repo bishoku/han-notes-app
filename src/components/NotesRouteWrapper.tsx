@@ -24,8 +24,26 @@ export const NotesRouteWrapper: React.FC = () => {
     if (rawPath) {
       // Decode URI component if path contains encoded chars
       const decodedPath = decodeURIComponent(rawPath).replace(/\.md$/, '');
-      if (decodedPath && decodedPath !== currentNoteId) {
-        selectNote(decodedPath);
+      const noteExists = notes.some(
+        (n) => n.id === decodedPath || n.id.replace(/\.md$/, '') === decodedPath
+      );
+
+      if (noteExists) {
+        if (decodedPath !== currentNoteId) {
+          selectNote(decodedPath);
+        }
+      } else if (notes.length > 0) {
+        // Note from old workspace doesn't exist here: fallback to active or first note of this workspace
+        const targetId = (
+          currentNoteId && notes.some((n) => n.id === currentNoteId)
+            ? currentNoteId
+            : notes[0].id
+        ).replace(/\.md$/, '');
+        navigate(`/notes/${encodeURIComponent(targetId)}`, { replace: true });
+      } else {
+        // Workspace has no notes: reset URL to /notes
+        navigate('/notes', { replace: true });
+        useNoteStore.setState({ currentNoteId: null, currentNoteContent: '' });
       }
     } else if (!rawPath && notes.length > 0) {
       // If visited /notes without specific ID, redirect to current or first note

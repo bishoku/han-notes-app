@@ -85,17 +85,58 @@ const STORE_ASSETS = 'assets';
 const STORE_VAULT_FILES = 'vault_files';
 
 export class IndexedDBStorage implements IStorageService {
+  private currentWorkspaceId: string = 'default';
   private db: IDBDatabase | null = null;
   private assetUrlCache = new Map<string, string>();
 
   /**
-   * Opens or retrieves the singleton IndexedDB connection.
+   * Sets the active workspace and resets the underlying DB connection.
+   */
+  public setWorkspace(workspaceId: string): void {
+    if (this.currentWorkspaceId !== workspaceId) {
+      this.currentWorkspaceId = workspaceId;
+      if (this.db) {
+        this.db.close();
+        this.db = null;
+      }
+      this.assetUrlCache.clear();
+    }
+  }
+
+  public getWorkspaceId(): string {
+    return this.currentWorkspaceId;
+  }
+
+  public getDbName(): string {
+    return this.currentWorkspaceId === 'default'
+      ? DB_NAME
+      : `${DB_NAME}_${this.currentWorkspaceId}`;
+  }
+
+  /**
+   * Drops the IndexedDB database for a specific workspace upon deletion.
+   */
+  public static async deleteWorkspaceDatabase(workspaceId: string): Promise<void> {
+    const dbName = workspaceId === 'default' ? DB_NAME : `${DB_NAME}_${workspaceId}`;
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.deleteDatabase(dbName);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /**
+   * Opens or retrieves the singleton IndexedDB connection for the active workspace.
    */
   async getDb(): Promise<IDBDatabase> {
     if (this.db) return this.db;
+    if (typeof indexedDB === 'undefined') {
+      return Promise.reject(new Error('IndexedDB is not available in this environment.'));
+    }
 
+    const dbName = this.getDbName();
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      const request = indexedDB.open(dbName, DB_VERSION);
 
       request.onupgradeneeded = (e: IDBVersionChangeEvent) => {
         const db = (e.target as IDBOpenDBRequest).result;
@@ -138,7 +179,7 @@ export class IndexedDBStorage implements IStorageService {
   private async seedWelcomeNoteIfEmpty(): Promise<void> {
     try {
       const files = await this.getAllActiveNotes();
-      if (files.length === 0) {
+      if (this.currentWorkspaceId === 'default' && files.length === 0) {
         const welcomeContent = `# H.A.N. Not Defteri / H.A.N. Notes
 
 Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkronizasyonlu not defterinize hoş geldiniz.

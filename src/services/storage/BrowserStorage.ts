@@ -118,12 +118,39 @@ export class BrowserStorage implements IStorageService {
     await clearHandle();
   }
 
-  async pickDirectory(): Promise<void> {
+  async pickDirectory(): Promise<FileSystemDirectoryHandle> {
     await ensureWasmLoaded();
-    this.dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-    if (this.dirHandle) {
-      await saveHandle(this.dirHandle);
+    const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+    if (handle) {
+      this.dirHandle = handle;
+      await saveHandle(handle);
+      clearFileTextCache();
+      clearImageCache();
+      invalidateNoteMetaCache();
     }
+    return handle;
+  }
+
+  private activeWorkspaceId: string = 'default';
+
+  /**
+   * Switches the active directory handle for a specific workspace.
+   */
+  async setWorkspace(workspaceId: string, handle: FileSystemDirectoryHandle): Promise<void> {
+    await ensureWasmLoaded();
+    this.activeWorkspaceId = workspaceId;
+    this.dirHandle = handle;
+    clearFileTextCache();
+    clearImageCache();
+    invalidateNoteMetaCache();
+  }
+
+  getActiveWorkspaceId(): string {
+    return this.activeWorkspaceId;
+  }
+
+  getDirectoryHandle(): FileSystemDirectoryHandle | null {
+    return this.dirHandle;
   }
 
   private getDir(): FileSystemDirectoryHandle {

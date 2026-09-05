@@ -8,16 +8,11 @@ import { ChatDrawer } from '@/components/ai/ChatDrawer';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
-import {
-  initBrowserStorage,
-  initIndexedDbStorage,
-  isFileSystemAccessSupported,
-  pickBrowserDirectory,
-  getSavedDirectoryName,
-  requestSavedDirectoryPermission,
-} from '@/services/storage';
+import { isFileSystemAccessSupported } from '@/services/storage';
 import { QuickSearchModal } from '@/components/search/QuickSearchModal';
-import { FolderOpen, FolderCheck, Loader2 } from 'lucide-react';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { workspaceManager } from '@/services/workspace';
+import { WorkspaceModal, WorkspaceHubScreen, MoveItemModal } from '@/components/workspace';
 
 import { useGitStore } from '@/store/gitStore';
 import { SettingsModal } from '@/components/SettingsModal';
@@ -50,9 +45,6 @@ export const MainLayout: React.FC = () => {
   const { initAiStore } = useAiStore();
   const [storageReady, setStorageReady] = useState(false);
   const [needsDirectoryPick, setNeedsDirectoryPick] = useState(false);
-  const [savedDirName, setSavedDirName] = useState<string | null>(null);
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [storageError, setStorageError] = useState<string | null>(null);
   const [clipperModalOpen, setClipperModalOpen] = useState(false);
 
   // ── Clipper Cross-Tab Synchronization ──
@@ -140,37 +132,46 @@ export const MainLayout: React.FC = () => {
     applyAppTheme(theme);
   }, [theme]);
 
-  // ── Storage Init ──
+  // ── Storage & Workspace Init ──
   useEffect(() => {
     const init = async () => {
-      if (isTauri()) {
-        // Tauri: no directory picker needed, load directly
-        setStorageReady(true);
-        await loadVault();
-      } else if (!isFileSystemAccessSupported()) {
-        // Mobile or unsupported browser: automatically initialize IndexedDB storage
-        try {
-          await initIndexedDbStorage();
+      try {
+        await useWorkspaceStore.getState().initWorkspaces();
+        const activeWs = useWorkspaceStore.getState().getActiveWorkspace();
+
+        if (isTauri()) {
           setStorageReady(true);
           await loadVault();
-        } catch (err: any) {
-          console.error('[MainLayout] IndexedDB init failed:', err);
-          setStorageError(err?.message || t('directoryRestoreError'));
-        }
-      } else {
-        // Browser: try to reuse saved handle silently (no user gesture needed for that)
-        try {
-          await initBrowserStorage();
+        } else if (activeWs && activeWs.storageType === 'indexeddb') {
+          // Scoped IndexedDB workspace on any platform (desktop or mobile)
           setStorageReady(true);
           await loadVault();
-        } catch {
-          // Check if there's a previously used directory name
-          const name = await getSavedDirectoryName();
-          if (name) {
-            setSavedDirName(name);
+        } else if (!isFileSystemAccessSupported()) {
+          // Mobile / Safari / PWA (Scoped IndexedDB)
+          setStorageReady(true);
+          await loadVault();
+        } else {
+          // Browser FSA: Check if active workspace has readwrite permission
+          if (activeWs && activeWs.storageType === 'browser') {
+            const handle = await workspaceManager.getDirectoryHandle(activeWs.id);
+            if (handle) {
+              try {
+                const perm = await (handle as any).queryPermission({ mode: 'readwrite' });
+                if (perm === 'granted') {
+                  setStorageReady(true);
+                  await loadVault();
+                  return;
+                }
+              } catch (err) {
+                console.warn('[MainLayout] Permission query check:', err);
+              }
+            }
           }
+          // Show Workspace Hub screen to grant permission or pick workspace
           setNeedsDirectoryPick(true);
         }
+      } catch (err: any) {
+        console.error('[MainLayout] Workspace init failed:', err);
       }
     };
     init();
@@ -179,100 +180,18 @@ export const MainLayout: React.FC = () => {
     const disableContextMenu = (e: MouseEvent) => { e.preventDefault(); };
     window.addEventListener('contextmenu', disableContextMenu);
     return () => window.removeEventListener('contextmenu', disableContextMenu);
-  }, [loadVault, t]);
+  }, [loadVault]);
 
-  // Handler to restore permission on previously chosen directory (requires user click)
-  const handleRestoreDirectory = async () => {
-    setIsRestoring(true);
-    setStorageError(null);
-    try {
-      const granted = await requestSavedDirectoryPermission();
-      if (granted) {
-        setNeedsDirectoryPick(false);
-        setStorageReady(true);
-        await loadVault();
-      } else {
-        setStorageError(t('directoryAccessDenied'));
-      }
-    } catch (e: any) {
-      setStorageError(e?.message || t('directoryRestoreError'));
-    } finally {
-      setIsRestoring(false);
-    }
-  };
-
-  // Handler to pick a new directory (requires user click)
-  const handlePickDirectory = async () => {
-    setStorageError(null);
-    try {
-      await pickBrowserDirectory();
-      setNeedsDirectoryPick(false);
-      setStorageReady(true);
-      await loadVault();
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') {
-        setStorageError(e?.message || t('directorySelectError'));
-      }
-    }
-  };
-
-  // ── Directory Picker Screen (Browser only, first visit or permission needed) ──
+  // ── Directory / Workspace Picker Hub Screen (Browser only, first visit or permission needed) ──
   if (needsDirectoryPick) {
     return (
-      <div className="flex h-[100dvh] w-full items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-6">
-        <div className="max-w-md w-full p-8 rounded-3xl bg-white/10 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/20 dark:border-zinc-700/50 shadow-2xl text-center text-white">
-          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <span className="text-2xl font-bold tracking-tight">H</span>
-          </div>
-
-          <h1 className="text-2xl font-bold mb-2">H.A.N. Not Defteri</h1>
-          <p className="text-sm text-gray-300 dark:text-gray-400 mb-6 leading-relaxed">
-            {t('storagePermissionDesc')}
-          </p>
-
-          {storageError && (
-            <div className="mb-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-xs text-red-200">
-              {storageError}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-3">
-            {savedDirName ? (
-              <>
-                <button
-                  onClick={handleRestoreDirectory}
-                  disabled={isRestoring}
-                  className="w-full inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-sm hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70 transition-all cursor-pointer"
-                >
-                  {isRestoring ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <FolderCheck size={18} />
-                  )}
-                  <span>{t('grantFolderPermission', { name: savedDirName })}</span>
-                </button>
-
-                <button
-                  onClick={handlePickDirectory}
-                  disabled={isRestoring}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-semibold text-gray-300 hover:bg-white/10 transition-all cursor-pointer"
-                >
-                  <FolderOpen size={15} />
-                  {t('selectDifferentFolder')}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={handlePickDirectory}
-                className="w-full inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-sm hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
-              >
-                <FolderOpen size={18} />
-                {t('selectFolder')}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <WorkspaceHubScreen
+        onWorkspaceSelected={async () => {
+          setNeedsDirectoryPick(false);
+          setStorageReady(true);
+          await loadVault();
+        }}
+      />
     );
   }
 
@@ -313,6 +232,8 @@ export const MainLayout: React.FC = () => {
         onClose={() => setClipperModalOpen(false)}
       />
       <P2PSyncModal />
+      <WorkspaceModal />
+      <MoveItemModal />
     </div>
   );
 };

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { eventBus } from '@/lib/eventBus';
+import { WorkspaceSwitcherDropdown } from '@/components/workspace';
 
 interface SidebarHeaderProps {
   activeFolderPath: string | null;
@@ -33,7 +34,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
   return (
     <div className="p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="font-bold text-xs uppercase tracking-wider text-gray-500">{t('vault')}</span>
+        <WorkspaceSwitcherDropdown />
         <div className="flex items-center gap-1">
           <button
             onClick={onOpenNewNote}

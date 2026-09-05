@@ -390,6 +390,18 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
       if (currentNoteId === srcRelPath || currentNoteId === cleanSrc) {
         set({ currentNoteId: cleanDest });
+        if (typeof window !== 'undefined') {
+          window.location.hash = `#/notes/${encodeURIComponent(cleanDest)}`;
+        }
+      } else if (currentNoteId && (currentNoteId.startsWith(`${cleanSrc}/`) || currentNoteId.startsWith(`${srcRelPath}/`))) {
+        const sub = currentNoteId.startsWith(`${cleanSrc}/`)
+          ? currentNoteId.slice(cleanSrc.length + 1)
+          : currentNoteId.slice(srcRelPath.length + 1);
+        const newNoteId = `${cleanDest}/${sub}`;
+        set({ currentNoteId: newNoteId });
+        if (typeof window !== 'undefined') {
+          window.location.hash = `#/notes/${encodeURIComponent(newNoteId)}`;
+        }
       }
 
       await get().loadVault();

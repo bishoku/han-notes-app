@@ -6,8 +6,18 @@ import QRCode from 'qrcode';
 import { generatePairingKey, importPairingKey } from '@/services/sync/crypto';
 import { WebRtcSyncService } from '@/services/sync/webrtcSyncService';
 import { DEFAULT_SIGNALING_URL } from '@/services/sync/signalingClient';
-import { isTauriEnvironment } from '@/services/storage';
+import { isTauriEnvironment, isFileSystemAccessSupported } from '@/services/storage';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { workspaceManager } from '@/services/workspace';
 import type { SyncProgress, SyncReport, SyncRole, SyncState } from '@/services/sync/types';
+
+export interface PendingWorkspacePrompt {
+  remoteWorkspaceName: string;
+  remoteWorkspaceId?: string;
+  hasExistingWorkspace: boolean;
+  needsDirectoryPicker: boolean;
+  existingWorkspaceId?: string;
+}
 
 interface SyncStoreState {
   isModalOpen: boolean;
@@ -20,6 +30,7 @@ interface SyncStoreState {
   lastReport: SyncReport | null;
   error: string | null;
   customSignalingUrl: string;
+  pendingWorkspacePrompt: PendingWorkspacePrompt | null;
 
   // Actions
   openModal: (initialTab?: 'share' | 'scan') => void;
@@ -27,11 +38,13 @@ interface SyncStoreState {
   setActiveTab: (tab: 'share' | 'scan') => void;
   startHostSession: () => Promise<void>;
   startPeerSession: (pairingInput: string) => Promise<void>;
+  resolveWorkspacePrompt: (action: 'merge' | 'create_new' | 'pick_directory') => Promise<void>;
   cancelSync: () => void;
   setCustomSignalingUrl: (url: string) => void;
 }
 
 let activeSyncService: WebRtcSyncService | null = null;
+let workspacePromptResolver: ((action: 'merge' | 'create_new' | 'pick_directory') => Promise<void>) | null = null;
 
 const SIGNALING_URL_KEY = 'han_custom_signaling_url';
 
@@ -47,6 +60,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   error: null,
   customSignalingUrl:
     (typeof localStorage !== 'undefined' && localStorage.getItem(SIGNALING_URL_KEY)) || DEFAULT_SIGNALING_URL,
+  pendingWorkspacePrompt: null,
 
   openModal: (initialTab = 'share') => {
     set({ isModalOpen: true, activeTab: initialTab, error: null });
@@ -112,7 +126,8 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
         syncState: 'connecting_signaling',
       });
 
-      // 4. Start WebRtcSyncService in host mode
+      // 4. Start WebRtcSyncService in host mode with active workspace details
+      const activeWs = useWorkspaceStore.getState().getActiveWorkspace();
       const signalingUrl = get().customSignalingUrl || DEFAULT_SIGNALING_URL;
       const service = new WebRtcSyncService(
         sessionId,
@@ -128,6 +143,10 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
           if (activeSyncService === service) {
             set({ progress });
           }
+        },
+        {
+          workspaceId: activeWs?.id,
+          workspaceName: activeWs?.name,
         }
       );
 
@@ -187,6 +206,104 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
           if (activeSyncService === service) {
             set({ progress });
           }
+        },
+        {
+          onRemoteManifestReceived: async (remoteManifest) => {
+            const remoteName = remoteManifest.workspaceName || 'Senkronize Edilen Notlar';
+            const { workspaces, switchWorkspace, createWorkspace } = useWorkspaceStore.getState();
+            const isFSA = isFileSystemAccessSupported() && !isTauriEnvironment();
+
+            const existingWs = workspaces.find(
+              (w) => w.name.trim().toLowerCase() === remoteName.trim().toLowerCase()
+            );
+
+            if (isFSA) {
+              // Desktop FSA: check if an existing workspace with valid handle is available
+              let hasValidHandle = false;
+              if (existingWs && existingWs.storageType === 'browser') {
+                const handle = await workspaceManager.getDirectoryHandle(existingWs.id);
+                if (handle) {
+                  try {
+                    const perm = await (handle as any).queryPermission({ mode: 'readwrite' });
+                    if (perm === 'granted') hasValidHandle = true;
+                  } catch {}
+                }
+              }
+
+              if (hasValidHandle && existingWs) {
+                await switchWorkspace(existingWs.id);
+                return;
+              }
+
+              // Prompt user to pick a folder via native dialog
+              return new Promise<void>((resolve, reject) => {
+                set({
+                  pendingWorkspacePrompt: {
+                    remoteWorkspaceName: remoteName,
+                    remoteWorkspaceId: remoteManifest.workspaceId,
+                    hasExistingWorkspace: !!existingWs,
+                    needsDirectoryPicker: true,
+                    existingWorkspaceId: existingWs?.id,
+                  },
+                });
+
+                workspacePromptResolver = async (action) => {
+                  try {
+                    if (action === 'pick_directory') {
+                      const newWs = await useWorkspaceStore.getState().createBrowserWorkspace();
+                      if (!newWs) throw new Error('Klasör seçimi yapılmadı.');
+                    }
+                    set({ pendingWorkspacePrompt: null });
+                    resolve();
+                  } catch (e) {
+                    set({ pendingWorkspacePrompt: null });
+                    reject(e);
+                  }
+                };
+              });
+            } else {
+              // IndexedDB / Mobile
+              if (!existingWs) {
+                // Auto-create matching workspace seamlessly
+                await createWorkspace({
+                  name: remoteName,
+                  storageType: 'indexeddb',
+                });
+                return;
+              }
+
+              // Workspace with same name already exists: prompt merge vs new
+              return new Promise<void>((resolve, reject) => {
+                set({
+                  pendingWorkspacePrompt: {
+                    remoteWorkspaceName: remoteName,
+                    remoteWorkspaceId: remoteManifest.workspaceId,
+                    hasExistingWorkspace: true,
+                    needsDirectoryPicker: false,
+                    existingWorkspaceId: existingWs.id,
+                  },
+                });
+
+                workspacePromptResolver = async (action) => {
+                  try {
+                    if (action === 'merge') {
+                      await switchWorkspace(existingWs.id);
+                    } else if (action === 'create_new') {
+                      await createWorkspace({
+                        name: `${remoteName} (Kopya)`,
+                        storageType: 'indexeddb',
+                      });
+                    }
+                    set({ pendingWorkspacePrompt: null });
+                    resolve();
+                  } catch (e) {
+                    set({ pendingWorkspacePrompt: null });
+                    reject(e);
+                  }
+                };
+              });
+            }
+          },
         }
       );
 
@@ -204,12 +321,19 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
     }
   },
 
+  resolveWorkspacePrompt: async (action) => {
+    if (workspacePromptResolver) {
+      await workspacePromptResolver(action);
+    }
+  },
+
   cancelSync: () => {
     if (activeSyncService) {
       const s = activeSyncService;
       activeSyncService = null;
       s.cancel();
     }
+    workspacePromptResolver = null;
     set({
       syncState: 'idle',
       role: null,
@@ -217,6 +341,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       qrCodeDataUrl: null,
       progress: null,
       error: null,
+      pendingWorkspacePrompt: null,
     });
   },
 

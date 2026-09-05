@@ -162,7 +162,7 @@ export class SyncStorageAdapter {
   /**
    * Builds the lightweight SyncManifest for fast diffing against a remote peer.
    */
-  async getSyncManifest(): Promise<SyncManifest> {
+  async getSyncManifest(workspaceId?: string, workspaceName?: string): Promise<SyncManifest> {
     const canonicalNotes = await this.getAllCanonicalNotes();
     const notesSummary: Record<string, NoteSummary> = {};
 
@@ -180,6 +180,8 @@ export class SyncStorageAdapter {
       deviceId: this.deviceId,
       timestamp: Date.now(),
       notes: notesSummary,
+      workspaceId,
+      workspaceName,
     };
   }
 

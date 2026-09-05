@@ -1,8 +1,13 @@
 /**
- * Storage Provider — Environment-aware entry point.
+ * Storage Provider — Environment-aware and Workspace-aware entry point.
  * 
- * Detects whether the app is running inside Tauri (desktop) or in a
- * regular browser (PWA), and exports the appropriate storage service.
+ * Manages dynamic binding to the active workspace's storage engine:
+ * - Tauri Desktop -> TauriStorage (native Rust file I/O)
+ * - Desktop Browsers with File System Access -> BrowserStorage (local disk .md)
+ * - Mobile / Safari / Browser-Memory Workspaces -> IndexedDBStorage (scoped IDB)
+ * 
+ * Transparently forwards all calls from `storage` to whichever provider is
+ * active for the current workspace.
  * 
  * Usage:
  *   import { storage } from '@/services/storage';
@@ -12,6 +17,7 @@ import type { IStorageService } from './types';
 import { TauriStorage } from './TauriStorage';
 import { BrowserStorage } from './BrowserStorage';
 import { IndexedDBStorage } from './IndexedDBStorage';
+import { workspaceManager } from '@/services/workspace/workspaceManager';
 
 // Re-export all types for convenience
 export type {
@@ -26,7 +32,7 @@ export type {
   DecisionRegistry,
 } from './types';
 
-export { IndexedDBStorage };
+export { IndexedDBStorage, BrowserStorage, TauriStorage };
 
 /**
  * Detect if we're running inside a Tauri desktop app.
@@ -42,26 +48,127 @@ export function isFileSystemAccessSupported(): boolean {
 }
 
 /**
- * Create the appropriate storage provider based on runtime environment:
- * 1. Tauri Desktop -> TauriStorage (native Rust file I/O)
- * 2. Desktop Browsers supporting showDirectoryPicker -> BrowserStorage (local disk .md)
- * 3. Mobile / Unsupported Browsers -> IndexedDBStorage (client-side DB fallback)
+ * Create the initial fallback storage provider based on runtime environment:
  */
-function createStorage(): IStorageService {
+function createDefaultStorage(): IStorageService {
   if (isTauriEnvironment()) {
-    console.log('[Storage] Tauri environment detected — using native backend');
     return new TauriStorage();
   } else if (isFileSystemAccessSupported()) {
-    console.log('[Storage] Browser environment detected — using File System Access API');
     return new BrowserStorage();
   } else {
-    console.log('[Storage] Unsupported or mobile browser detected — falling back to IndexedDB');
     return new IndexedDBStorage();
   }
 }
 
-/** Singleton storage instance — auto-detects platform */
-export const storage: IStorageService = createStorage();
+// ── Storage Provider Registry & Cache ──
+let activeStorageProvider: IStorageService = createDefaultStorage();
+
+let cachedBrowserStorage: BrowserStorage | null =
+  activeStorageProvider instanceof BrowserStorage ? activeStorageProvider : null;
+
+let cachedIndexedDbStorage: IndexedDBStorage | null =
+  activeStorageProvider instanceof IndexedDBStorage ? activeStorageProvider : null;
+
+let cachedTauriStorage: TauriStorage | null =
+  activeStorageProvider instanceof TauriStorage ? activeStorageProvider : null;
+
+export function getOrCreateBrowserStorage(): BrowserStorage {
+  if (!cachedBrowserStorage) {
+    cachedBrowserStorage = new BrowserStorage();
+  }
+  return cachedBrowserStorage;
+}
+
+export function getOrCreateIndexedDbStorage(): IndexedDBStorage {
+  if (!cachedIndexedDbStorage) {
+    cachedIndexedDbStorage = new IndexedDBStorage();
+  }
+  return cachedIndexedDbStorage;
+}
+
+export function getOrCreateTauriStorage(): TauriStorage {
+  if (!cachedTauriStorage) {
+    cachedTauriStorage = new TauriStorage();
+  }
+  return cachedTauriStorage;
+}
+
+export function setStorageProvider(provider: IStorageService): void {
+  activeStorageProvider = provider;
+}
+
+export function getActiveStorageProvider(): IStorageService {
+  return activeStorageProvider;
+}
+
+/**
+ * Dynamically switches and binds the appropriate storage provider for the given workspace.
+ * 
+ * - 'browser': Switches to BrowserStorage, retrieves and verifies the FileSystemDirectoryHandle.
+ * - 'indexeddb': Switches to IndexedDBStorage, sets the isolated database name (han_notes_db_${ws.id}).
+ * - 'tauri': Switches to TauriStorage.
+ */
+export async function bindWorkspaceStorage(
+  workspace: { id: string; name: string; storageType: string },
+  handle?: FileSystemDirectoryHandle | null
+): Promise<IStorageService> {
+  if (workspace.storageType === 'browser') {
+    const bs = getOrCreateBrowserStorage();
+    const dirHandle = handle || (await workspaceManager.getDirectoryHandle(workspace.id));
+    if (!dirHandle) {
+      throw new Error(`Directory handle for workspace "${workspace.name}" not found.`);
+    }
+
+    try {
+      const perm = await (dirHandle as any).queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') {
+        const req = await (dirHandle as any).requestPermission({ mode: 'readwrite' });
+        if (req !== 'granted') {
+          throw new Error(`Permission denied for workspace "${workspace.name}".`);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Storage] Directory permission check failed:', err);
+    }
+
+    await bs.setWorkspace(workspace.id, dirHandle);
+    setStorageProvider(bs);
+    return bs;
+  } else if (workspace.storageType === 'indexeddb') {
+    const idb = getOrCreateIndexedDbStorage();
+    idb.setWorkspace(workspace.id);
+    if (typeof indexedDB !== 'undefined') {
+      await idb.getDb();
+    }
+    setStorageProvider(idb);
+    return idb;
+  } else if (workspace.storageType === 'tauri') {
+    const ts = getOrCreateTauriStorage();
+    setStorageProvider(ts);
+    return ts;
+  }
+
+  throw new Error(`Unsupported storage type: ${workspace.storageType}`);
+}
+
+/**
+ * Dynamic singleton storage proxy.
+ * Every consumer importing `import { storage } from '@/services/storage'`
+ * transparently communicates with whichever storage provider is active for the current workspace.
+ */
+export const storage: IStorageService = new Proxy({} as IStorageService, {
+  get(_target, prop: string | symbol) {
+    const val = (activeStorageProvider as any)[prop];
+    if (typeof val === 'function') {
+      return val.bind(activeStorageProvider);
+    }
+    return val;
+  },
+  set(_target, prop: string | symbol, value: any) {
+    (activeStorageProvider as any)[prop] = value;
+    return true;
+  },
+});
 
 /**
  * Try to silently reuse a previously saved directory handle.
@@ -69,8 +176,9 @@ export const storage: IStorageService = createStorage();
  * Throws if no saved handle — caller should then show UI with pickBrowserDirectory.
  */
 export async function initBrowserStorage(): Promise<void> {
-  if (storage instanceof BrowserStorage) {
-    await storage.init();
+  const provider = getActiveStorageProvider();
+  if (provider instanceof BrowserStorage) {
+    await provider.init();
   }
 }
 
@@ -79,17 +187,18 @@ export async function initBrowserStorage(): Promise<void> {
  * No-op when running in Tauri.
  */
 export async function pickBrowserDirectory(): Promise<void> {
-  if (storage instanceof BrowserStorage) {
-    await storage.pickDirectory();
-  }
+  const provider = getOrCreateBrowserStorage();
+  await provider.pickDirectory();
+  setStorageProvider(provider);
 }
 
 /**
  * Get the name of the previously saved directory handle (if any).
  */
 export async function getSavedDirectoryName(): Promise<string | null> {
-  if (storage instanceof BrowserStorage) {
-    return await storage.getSavedHandleName();
+  const provider = getActiveStorageProvider();
+  if (provider instanceof BrowserStorage) {
+    return await provider.getSavedHandleName();
   }
   return null;
 }
@@ -98,8 +207,9 @@ export async function getSavedDirectoryName(): Promise<string | null> {
  * Request permission to access the previously saved directory handle inside a user gesture (click).
  */
 export async function requestSavedDirectoryPermission(): Promise<boolean> {
-  if (storage instanceof BrowserStorage) {
-    return await storage.requestPermissionForSaved();
+  const provider = getActiveStorageProvider();
+  if (provider instanceof BrowserStorage) {
+    return await provider.requestPermissionForSaved();
   }
   return false;
 }
@@ -108,8 +218,9 @@ export async function requestSavedDirectoryPermission(): Promise<boolean> {
  * Clear the saved directory handle from storage.
  */
 export async function clearSavedDirectoryHandle(): Promise<void> {
-  if (storage instanceof BrowserStorage) {
-    await storage.clearSavedHandle();
+  const provider = getActiveStorageProvider();
+  if (provider instanceof BrowserStorage) {
+    await provider.clearSavedHandle();
   }
 }
 
@@ -117,8 +228,9 @@ export async function clearSavedDirectoryHandle(): Promise<void> {
  * Initialize IndexedDB storage (used on mobile / fallback environments).
  */
 export async function initIndexedDbStorage(): Promise<void> {
-  if (storage instanceof IndexedDBStorage) {
-    await storage.getDb();
+  const provider = getOrCreateIndexedDbStorage();
+  if (typeof indexedDB !== 'undefined') {
+    await provider.getDb();
   }
+  setStorageProvider(provider);
 }
-
