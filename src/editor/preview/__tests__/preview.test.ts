@@ -31,7 +31,7 @@ import { applyInlineDecorations } from '../inlineDeco.ts';
 import { hideFrontmatter, applyLineStyles, processFencedCodeLine } from '../blockDeco.ts';
 import { parseCachedMeta, getCachedWidget } from '../cache.ts';
 import { buildDecorationSet } from '../builder.ts';
-import { WidgetType } from '@codemirror/view';
+import { Decoration, WidgetType } from '@codemirror/view';
 
 describe('preview/inlineDeco', () => {
   it('should skip processing completely for plain text lines (early bailout)', () => {
@@ -197,6 +197,36 @@ describe('preview/builder', () => {
     ];
 
     const decSet = buildDecorationSet(items, 50);
+    assert.ok(decSet);
+  });
+
+  it('should correctly order decorations by startSide when from positions coincide (e.g. **[[Wikilink]]**)', () => {
+    const mark = Decoration.mark({ class: 'cm-bold' });
+    const replace = Decoration.replace({});
+
+    // Even if mark (startSide 500000000) is given before replace (startSide 499999999)
+    const items: DecItem[] = [
+      { from: 10, to: 25, dec: mark },
+      { from: 10, to: 25, dec: replace },
+    ];
+
+    // Must not throw "Ranges must be added sorted by `from` position and `startSide`"
+    const decSet = buildDecorationSet(items, 50);
+    assert.ok(decSet);
+  });
+
+  it('should safely assemble decorations for inline bold wikilinks like **[[Gotik mimari]]**', () => {
+    const lineText = 'Açık notunuzdaki **[[Gotik mimari]]** içeriğine dayanarak';
+    const items: DecItem[] = [];
+    applyInlineDecorations(
+      { from: 0, to: lineText.length, text: lineText },
+      0,
+      () => false,
+      (item) => items.push(item)
+    );
+
+    assert.ok(items.length > 0);
+    const decSet = buildDecorationSet(items, lineText.length);
     assert.ok(decSet);
   });
 });
