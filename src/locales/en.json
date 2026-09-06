@@ -598,6 +598,7 @@
   "previousPage": "Previous Page",
   "nextPage": "Next Page",
   "pdfCloseReader": "Close Reader",
+  "fitToWidth": "Fit to Width",
   "pdfLoadError": "Failed to load PDF document.",
   "pdfQuoteSnippet": "Quote Snippet",
   "pdfOpenOriginal": "Open Original PDF",

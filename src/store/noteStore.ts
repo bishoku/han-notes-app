@@ -25,6 +25,8 @@ const debounceTimers = {
   gitStatus: null as ReturnType<typeof setTimeout> | null,
 };
 
+let activeLoadingNoteId: string | null = null;
+
 function clearDebounceTimers() {
   if (debounceTimers.backlink) {
     clearTimeout(debounceTimers.backlink);
@@ -180,8 +182,12 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   selectNote: async (id: string, force = false) => {
+    const cleanId = normalizeNoteId(id);
+    if (!force && activeLoadingNoteId === cleanId) {
+      return;
+    }
+
     try {
-      const cleanId = normalizeNoteId(id);
       const prevId = get().currentNoteId;
       const prevContent = get().currentNoteContent;
 
@@ -203,6 +209,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         } catch {}
         return;
       }
+
+      activeLoadingNoteId = cleanId;
 
       // 1. Read note and update UI state immediately
       const content = await storage.readNote(cleanId);
@@ -244,6 +252,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }
     } catch (e) {
       console.error('Failed to read note:', e);
+    } finally {
+      if (activeLoadingNoteId === cleanId) {
+        activeLoadingNoteId = null;
+      }
     }
   },
 

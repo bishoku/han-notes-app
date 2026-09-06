@@ -52,5 +52,5 @@ export const NotesRouteWrapper: React.FC = () => {
     }
   }, [rawPath, currentNoteId, notes, selectNote, navigate]);
 
-  return <MainEditor key={currentNoteId || 'no-note'} />;
+  return <MainEditor />;
 };

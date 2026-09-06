@@ -62,7 +62,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
   editorRef,
   theme,
   fontSize = 15,
-  currentNoteId: _currentNoteId,
+  currentNoteId,
   otherNotes,
   onOpenDiagramEditor,
   onOpenExcalidrawEditor,
@@ -76,8 +76,33 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
 }) => {
   const { t } = useTranslation();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Smooth note switching transition & scroll reset
+  const prevNoteIdRef = useRef(currentNoteId);
+  const [isSwitchingNote, setIsSwitchingNote] = useState(false);
+
+  useEffect(() => {
+    if (prevNoteIdRef.current !== currentNoteId) {
+      prevNoteIdRef.current = currentNoteId;
+      setIsSwitchingNote(true);
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
+      }
+      if (editorRef.current) {
+        editorRef.current.dispatch({
+          selection: { anchor: 0 },
+          scrollIntoView: false,
+        });
+      }
+      const timer = setTimeout(() => {
+        setIsSwitchingNote(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentNoteId, editorRef]);
 
   // 1. Floating UI Hook
   const {
@@ -359,7 +384,13 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
         onClose={() => setSearchOpen(false)}
       />
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain print:h-auto print:overflow-visible print:block">
+      <div
+        ref={scrollContainerRef}
+        className={cn(
+          "flex-1 overflow-y-auto overflow-x-hidden bg-mac-mainLight dark:bg-mac-mainDark relative overscroll-contain print:h-auto print:overflow-visible print:block transition-opacity duration-100 ease-out",
+          isSwitchingNote ? "opacity-30" : "opacity-100"
+        )}
+      >
         <div
           ref={wrapperRef}
           onMouseDown={(e) => {

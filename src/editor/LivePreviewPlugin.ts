@@ -182,12 +182,11 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
 }
 
 /**
- * Live Preview ViewPlugin with RAF-throttled scrolling and range-aware caching.
+ * Live Preview ViewPlugin with synchronous decoration rendering and range-aware caching.
  */
 export const livePreviewPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
-    private _rafId: number | null = null;
 
     constructor(view: EditorView) {
       this.decorations = livePreviewDecorations(view);
@@ -197,35 +196,13 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
       if (update.docChanged) {
         // Range-aware cache invalidation: preserves untouched widgets above edit point
         invalidateWidgetCache(update.changes);
-        if (this._rafId !== null) {
-          cancelAnimationFrame(this._rafId);
-          this._rafId = null;
-        }
         this.decorations = livePreviewDecorations(update.view);
       } else if (update.viewportChanged) {
-        // Scroll: throttle to animation frame boundary (max 1 rebuild per 16ms @ 60fps)
-        if (this._rafId === null) {
-          this._rafId = requestAnimationFrame(() => {
-            this._rafId = null;
-            this.decorations = livePreviewDecorations(update.view);
-            update.view.requestMeasure();
-          });
-        }
+        // Viewport changed (scroll/resize): compute synchronously in the current frame to eliminate flicker
+        this.decorations = livePreviewDecorations(update.view);
       } else if (this.decorations.size === 0 && update.view.state.doc.length > 10) {
-        // Safety net: after mode switch, schedule single rAF rebuild if syntax tree was not ready
-        if (this._rafId === null) {
-          this._rafId = requestAnimationFrame(() => {
-            this._rafId = null;
-            this.decorations = livePreviewDecorations(update.view);
-            update.view.requestMeasure();
-          });
-        }
-      }
-    }
-
-    destroy() {
-      if (this._rafId !== null) {
-        cancelAnimationFrame(this._rafId);
+        // Safety net: in case initial syntax tree arrived later
+        this.decorations = livePreviewDecorations(update.view);
       }
     }
   },

@@ -18,7 +18,7 @@ export function useNoteContent() {
   const notes = useNoteStore((s) => s.notes);
   const vaultTags = useNoteStore((s) => s.vaultTags);
   const updateNoteTags = useNoteStore((s) => s.updateNoteTags);
-  const [localContent, setLocalContent] = useState('');
+  const [localContent, setLocalContent] = useState(() => useNoteStore.getState().currentNoteContent || '');
   const [showTagPopover, setShowTagPopover] = useState(false);
 
   // Debounce timer refs
@@ -77,8 +77,11 @@ export function useNoteContent() {
 
       loadedNoteIdRef.current = currentNoteId;
       clearLivePreviewCaches();
-      setLocalContent(currentNoteContent || '');
-      localContentRef.current = currentNoteContent || '';
+      const newContent = currentNoteContent || '';
+      if (localContentRef.current !== newContent) {
+        setLocalContent(newContent);
+        localContentRef.current = newContent;
+      }
     } else if (currentNoteContent !== localContentRef.current && !saveTimerRef.current) {
       // Note content in noteStore was refreshed externally (e.g. by sync/git)
       clearLivePreviewCaches();
@@ -95,9 +98,12 @@ export function useNoteContent() {
           clearTimeout(saveTimerRef.current);
           saveTimerRef.current = null;
         }
-        clearLivePreviewCaches();
-        setLocalContent(payload.content || '');
-        localContentRef.current = payload.content || '';
+        const newContent = payload.content || '';
+        if (localContentRef.current !== newContent) {
+          clearLivePreviewCaches();
+          setLocalContent(newContent);
+          localContentRef.current = newContent;
+        }
       }
     });
 
@@ -116,9 +122,12 @@ export function useNoteContent() {
           clearTimeout(saveTimerRef.current);
           saveTimerRef.current = null;
         }
-        clearLivePreviewCaches();
-        setLocalContent(e.detail.content || '');
-        localContentRef.current = e.detail.content || '';
+        const newContent = e.detail?.content || '';
+        if (localContentRef.current !== newContent) {
+          clearLivePreviewCaches();
+          setLocalContent(newContent);
+          localContentRef.current = newContent;
+        }
       }
     };
 

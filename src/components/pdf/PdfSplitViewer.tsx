@@ -44,7 +44,7 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
   const [doc, setDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState<number>(1);
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
-  const [scale, setScale] = useState<number>(1.25);
+  const [scale, setScale] = useState<number>(isMobile ? 0.75 : 1.25);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pageDims, setPageDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -61,6 +61,25 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textLayerRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const pageWrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto fit & pinch gesture refs
+  const unscaledPageWidthRef = useRef<number>(595);
+  const hasAutoFittedRef = useRef<boolean>(false);
+  const pinchStartDistRef = useRef<number>(0);
+  const pinchStartScaleRef = useRef<number>(scale);
+  const isPinchingRef = useRef<boolean>(false);
+  const currentPinchScaleRef = useRef<number>(scale);
+  const lastTapTimeRef = useRef<number>(0);
+
+  // Helper to calculate Fit-to-Width scale based on container width
+  const getFitWidthScale = useCallback((baseWidth?: number) => {
+    const containerW = containerRef.current?.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 480);
+    const w = baseWidth || unscaledPageWidthRef.current || 595;
+    const padding = isMobile ? 16 : 32;
+    const fit = (containerW - padding) / w;
+    return Math.min(2.5, Math.max(0.35, Number(fit.toFixed(2))));
+  }, [isMobile]);
 
   // Jump to initialPage when prop or jumpKey changes
   useEffect(() => {
@@ -71,6 +90,11 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
       }
     }
   }, [initialPage, jumpKey]);
+
+  // Reset auto-fit on new document
+  useEffect(() => {
+    hasAutoFittedRef.current = false;
+  }, [pdfPath]);
 
   // Load PDF Document
   useEffect(() => {
@@ -136,6 +160,17 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        unscaledPageWidthRef.current = unscaledViewport.width;
+
+        // Auto fit to width on first mobile render
+        if (!hasAutoFittedRef.current && isMobile) {
+          hasAutoFittedRef.current = true;
+          const autoScale = getFitWidthScale(unscaledViewport.width);
+          setScale(autoScale);
+          return;
+        }
+
         const pixelRatio = window.devicePixelRatio || 1;
         const viewport = page.getViewport({ scale });
         const w = Math.floor(viewport.width);
@@ -186,7 +221,91 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
         renderTask.cancel();
       }
     };
-  }, [doc, currentPage, scale]);
+  }, [doc, currentPage, scale, isMobile, getFitWidthScale]);
+
+  // Touch Gesture Handling: Pinch-to-Zoom & Double-Tap
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isMobile) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const dist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+        pinchStartDistRef.current = dist;
+        pinchStartScaleRef.current = scale;
+        currentPinchScaleRef.current = scale;
+        isPinchingRef.current = true;
+      } else if (e.touches.length === 1) {
+        const now = Date.now();
+        if (now - lastTapTimeRef.current < 300) {
+          // Double tap detected
+          e.preventDefault();
+          const fitScale = getFitWidthScale();
+          setScale((curr) => {
+            const isNearFit = Math.abs(curr - fitScale) < 0.15;
+            return isNearFit ? Math.min(2.5, Number((fitScale * 1.6).toFixed(2))) : fitScale;
+          });
+          lastTapTimeRef.current = 0;
+        } else {
+          lastTapTimeRef.current = now;
+        }
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && isPinchingRef.current) {
+        e.preventDefault(); // Prevent native browser page zoom
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const dist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+        const ratio = dist / (pinchStartDistRef.current || 1);
+        const targetScale = Math.min(2.5, Math.max(0.35, Number((pinchStartScaleRef.current * ratio).toFixed(2))));
+        currentPinchScaleRef.current = targetScale;
+        if (pageWrapperRef.current) {
+          pageWrapperRef.current.style.transform = `scale(${ratio})`;
+          pageWrapperRef.current.style.transformOrigin = 'center top';
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (isPinchingRef.current && e.touches.length < 2) {
+        isPinchingRef.current = false;
+        if (pageWrapperRef.current) {
+          pageWrapperRef.current.style.transform = '';
+          pageWrapperRef.current.style.transformOrigin = '';
+        }
+        if (currentPinchScaleRef.current && Math.abs(currentPinchScaleRef.current - scale) > 0.02) {
+          setScale(currentPinchScaleRef.current);
+        }
+      }
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+    container.addEventListener('touchcancel', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [isMobile, scale, getFitWidthScale]);
+
+  // Orientation Change / Window Resize Auto Re-fit
+  useEffect(() => {
+    if (!isMobile) return;
+    const handleResize = () => {
+      const newFit = getFitWidthScale();
+      setScale(newFit);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobile, getFitWidthScale]);
 
   // Handle Text Selection for Floating Quote Pill
   const handleMouseUp = useCallback((e?: React.MouseEvent) => {
@@ -237,7 +356,7 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
 
         setSelectedText(text);
         setPillPos({
-          top: Math.round(top),
+          top: Math.max(10, Math.round(top)),
           left: Math.round(relCenterX),
         });
       } catch {
@@ -266,7 +385,7 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
     }, 1200);
   };
 
-  // Resizer Dragging
+  // Resizer Dragging (Desktop Only)
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingResizer) return;
@@ -293,15 +412,15 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
     <div
       style={isMobile ? undefined : { width: `${width}px` }}
       className={cn(
-        "border-r border-gray-200 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-950 flex flex-col relative shrink-0",
+        "border-r border-gray-200 dark:border-zinc-800 flex flex-col relative shrink-0",
         isMobile
-          ? "fixed inset-0 z-50 w-full h-full pt-safe pb-safe shadow-2xl animate-in fade-in duration-200"
-          : "h-full z-20"
+          ? "fixed inset-0 z-[90] w-full h-[100dvh] max-h-[100dvh] bg-zinc-200 dark:bg-zinc-950 pt-safe pb-safe shadow-2xl animate-in fade-in duration-200 overflow-hidden"
+          : "h-full z-20 bg-gray-50/80 dark:bg-zinc-950"
       )}
     >
       {/* Top Header & Page Navigation Toolbar */}
-      <div className="h-12 min-h-[48px] px-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2 truncate min-w-0 pr-1 max-w-[120px] sm:max-w-xs">
+      <div className="h-12 min-h-[48px] px-2 sm:px-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-1 sm:gap-2 shrink-0 select-none">
+        <div className="flex items-center gap-1.5 sm:gap-2 truncate min-w-0 pr-1 max-w-[90px] sm:max-w-xs">
           <FileText size={16} className="text-purple-600 dark:text-purple-400 shrink-0" />
           <span
             className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate cursor-help"
@@ -312,24 +431,24 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
         </div>
 
         {/* Page Switcher */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1 || isLoading}
-            className="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer active:scale-95"
+            className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer active:scale-95"
             title={t('previousPage')}
           >
             <ChevronLeft size={16} />
           </button>
 
-          <span className="text-[11px] font-mono text-gray-600 dark:text-gray-400 px-1">
+          <span className="text-[11px] font-mono text-gray-600 dark:text-gray-400 px-0.5 sm:px-1">
             {currentPage} / {numPages}
           </span>
 
           <button
             onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
             disabled={currentPage >= numPages || isLoading}
-            className="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer active:scale-95"
+            className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer active:scale-95"
             title={t('nextPage')}
           >
             <ChevronRight size={16} />
@@ -337,37 +456,37 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
         </div>
 
         {/* Zoom & Close Controls */}
-        <div className="flex items-center gap-1 shrink-0">
-          <div className="hidden sm:flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <div className="flex items-center gap-0.5">
             <button
-              onClick={() => setScale((s) => Math.max(0.6, s - 0.15))}
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+              onClick={() => setScale((s) => Math.max(0.35, Number((s - 0.15).toFixed(2))))}
+              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer active:scale-95"
               title={t('zoomOut')}
             >
-              <ZoomOut size={13} />
+              <ZoomOut size={14} />
             </button>
             <button
-              onClick={() => setScale(1.25)}
-              className="text-[10px] font-mono text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 px-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded cursor-pointer"
-              title={t('reset')}
+              onClick={() => setScale(getFitWidthScale())}
+              className="text-[11px] sm:text-[10px] font-mono font-medium text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 px-1 sm:px-1.5 py-0.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded cursor-pointer transition-colors"
+              title={t('fitToWidth')}
             >
-              {Math.round((scale / 1.25) * 100)}%
+              {Math.round(scale * 100)}%
             </button>
             <button
-              onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+              onClick={() => setScale((s) => Math.min(2.5, Number((s + 0.15).toFixed(2))))}
+              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer active:scale-95"
               title={t('zoomIn')}
             >
-              <ZoomIn size={13} />
+              <ZoomIn size={14} />
             </button>
           </div>
 
           <button
             onClick={onClose}
-            className="w-9 h-9 sm:w-7 sm:h-7 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 bg-gray-100/80 dark:bg-zinc-800/80 transition-all cursor-pointer ml-1 active:scale-95 shrink-0"
+            className="w-8 h-8 sm:w-7 sm:h-7 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 bg-gray-100/80 dark:bg-zinc-800/80 transition-all cursor-pointer ml-0.5 sm:ml-1 active:scale-95 shrink-0"
             title={t('pdfCloseReader')}
           >
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
       </div>
@@ -376,7 +495,10 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
       <div
         ref={containerRef}
         onMouseUp={handleMouseUp}
-        className="pdfViewer flex-1 overflow-auto p-4 flex justify-center items-start relative select-text"
+        onTouchEnd={() => {
+          setTimeout(handleMouseUp, 150);
+        }}
+        className="pdfViewer flex-1 overflow-auto p-2 sm:p-4 relative select-text touch-pan-x touch-pan-y"
         style={{
           '--scale-factor': `${scale}`,
         } as any}
@@ -393,7 +515,8 @@ export const PdfSplitViewer: React.FC<PdfSplitViewerProps> = ({
           </div>
         ) : (
           <div
-            className="page relative shadow-lg rounded-sm overflow-hidden bg-white select-text"
+            ref={pageWrapperRef}
+            className="page relative shadow-lg rounded-sm overflow-hidden bg-white select-text mx-auto will-change-transform"
             style={{
               width: pageDims.width ? `${pageDims.width}px` : undefined,
               height: pageDims.height ? `${pageDims.height}px` : undefined,
