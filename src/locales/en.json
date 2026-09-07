@@ -754,5 +754,15 @@
   "createAndMove": "Create and Move",
   "searchFolderPlaceholder": "Search folder...",
   "goToWorkspace": "Go to {{name}}",
-  "cannotMoveIntoSelf": "Cannot move a folder into itself or its descendant"
+  "cannotMoveIntoSelf": "Cannot move a folder into itself or its descendant",
+  "selectionTools": "Selection Tools",
+  "selectWord": "Select Word",
+  "selectLine": "Select Line",
+  "expandSelection": "Expand",
+  "selectAll": "Select All",
+  "clearSelection": "Clear Selection",
+  "stepLeft": "Step Left",
+  "stepRight": "Step Right",
+  "extendLeft": "Extend Left",
+  "extendRight": "Extend Right"
 }

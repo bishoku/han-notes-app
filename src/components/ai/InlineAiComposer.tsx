@@ -236,10 +236,10 @@ Example format:
     >
       <div
         ref={containerRef}
-        className="w-full max-w-xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 select-none text-xs"
+        className="w-full max-w-xl max-h-[88dvh] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 select-none text-xs"
       >
         {/* 1. Header */}
-        <div className="p-3.5 px-4 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between bg-gradient-to-r from-purple-500/10 via-pink-500/5 to-mac-accent/10">
+        <div className="p-3.5 px-4 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between bg-gradient-to-r from-purple-500/10 via-pink-500/5 to-mac-accent/10 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-600 to-mac-accent text-white shadow-xs">
               <Bot size={16} />
@@ -264,7 +264,7 @@ Example format:
         </div>
 
         {/* 2. Prompt Input & Action Chips */}
-        <div className="p-4 flex flex-col gap-3">
+        <div className="p-4 flex flex-col gap-3 overflow-y-auto flex-1">
           <div className="flex items-start gap-2 bg-gray-50/80 dark:bg-zinc-800/80 p-2.5 rounded-xl border border-gray-200/80 dark:border-zinc-700/80 focus-within:ring-2 focus-within:ring-purple-500/30 focus-within:border-purple-500 transition-all">
             <textarea
               ref={textareaRef}

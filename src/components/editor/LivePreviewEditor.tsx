@@ -212,8 +212,6 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
 
   // Mobile Toolbar Handlers
   const isAiEnabled = useAiStore((s) => s.settings.enabled);
-  const isChatDrawerOpen = useAiStore((s) => s.isChatDrawerOpen);
-  const setChatDrawerOpen = useAiStore((s) => s.setChatDrawerOpen);
   const setSettingsModalOpen = useUiStore((s) => s.setSettingsModalOpen);
 
   const handleInsertHeading = useCallback((level: 1 | 2) => {
@@ -293,13 +291,145 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
     view.focus();
   }, [editorRef]);
 
-  const handleToggleAiToolbar = useCallback(() => {
-    if (isAiEnabled) {
-      setChatDrawerOpen(!isChatDrawerOpen);
-    } else {
+  // Mobile AI Paragraph & Content Generator (InlineAiComposer)
+  const handleOpenInlineAiFromMobile = useCallback(() => {
+    if (!isAiEnabled) {
       setSettingsModalOpen(true);
+      return;
     }
-  }, [isAiEnabled, isChatDrawerOpen, setChatDrawerOpen, setSettingsModalOpen]);
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    onOpenInlineAi(0, line.from);
+  }, [editorRef, isAiEnabled, onOpenInlineAi, setSettingsModalOpen]);
+
+  // Mobile Selection Helpers
+  const handleSelectWord = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const pos = view.state.selection.main.head;
+    const word = view.state.wordAt(pos) || (pos > 0 ? view.state.wordAt(pos - 1) : null);
+    if (word) {
+      view.dispatch({
+        selection: { anchor: word.from, head: word.to },
+        scrollIntoView: true,
+      });
+    }
+    view.focus();
+  }, [editorRef]);
+
+  const handleSelectLine = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    view.dispatch({
+      selection: { anchor: line.from, head: line.to },
+      scrollIntoView: true,
+    });
+    view.focus();
+  }, [editorRef]);
+
+  const handleExpandSelection = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const sel = view.state.selection.main;
+    const doc = view.state.doc;
+
+    if (sel.empty) {
+      // 1. Point -> Word
+      const word = view.state.wordAt(sel.head) || (sel.head > 0 ? view.state.wordAt(sel.head - 1) : null);
+      if (word && (word.from !== sel.from || word.to !== sel.to)) {
+        view.dispatch({ selection: { anchor: word.from, head: word.to }, scrollIntoView: true });
+        view.focus();
+        return;
+      }
+    }
+
+    // 2. Word -> Line
+    const line = doc.lineAt(sel.head);
+    if (sel.from > line.from || sel.to < line.to) {
+      view.dispatch({ selection: { anchor: line.from, head: line.to }, scrollIntoView: true });
+      view.focus();
+      return;
+    }
+
+    // 3. Line -> Paragraph / Block (delimited by blank lines)
+    let startLine = line.number;
+    while (startLine > 1 && doc.line(startLine - 1).text.trim() !== '') {
+      startLine--;
+    }
+    let endLine = line.number;
+    while (endLine < doc.lines && doc.line(endLine + 1).text.trim() !== '') {
+      endLine++;
+    }
+    const blockFrom = doc.line(startLine).from;
+    const blockTo = doc.line(endLine).to;
+    if (sel.from > blockFrom || sel.to < blockTo) {
+      view.dispatch({ selection: { anchor: blockFrom, head: blockTo }, scrollIntoView: true });
+      view.focus();
+      return;
+    }
+
+    // 4. Block -> Entire Document
+    if (sel.from > 0 || sel.to < doc.length) {
+      view.dispatch({ selection: { anchor: 0, head: doc.length }, scrollIntoView: true });
+      view.focus();
+    }
+  }, [editorRef]);
+
+  const handleSelectAll = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    view.dispatch({
+      selection: { anchor: 0, head: view.state.doc.length },
+      scrollIntoView: true,
+    });
+    view.focus();
+  }, [editorRef]);
+
+  const handleClearSelection = useCallback(() => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const head = view.state.selection.main.head;
+    view.dispatch({
+      selection: { anchor: head },
+      scrollIntoView: true,
+    });
+    view.focus();
+  }, [editorRef]);
+
+  const handleStepCursor = useCallback((direction: 'left' | 'right', extend = false) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    const sel = view.state.selection.main;
+    const delta = direction === 'left' ? -1 : 1;
+    const docLen = view.state.doc.length;
+
+    if (extend) {
+      const newHead = Math.max(0, Math.min(docLen, sel.head + delta));
+      view.dispatch({
+        selection: { anchor: sel.anchor, head: newHead },
+        scrollIntoView: true,
+      });
+    } else {
+      if (!sel.empty) {
+        const targetPos = direction === 'left' ? sel.from : sel.to;
+        view.dispatch({
+          selection: { anchor: targetPos },
+          scrollIntoView: true,
+        });
+      } else {
+        const newPos = Math.max(0, Math.min(docLen, sel.head + delta));
+        view.dispatch({
+          selection: { anchor: newPos },
+          scrollIntoView: true,
+        });
+      }
+    }
+    view.focus();
+  }, [editorRef]);
 
   // Mobile Undo / Redo / Indent / Outdent / Symbol Handlers
   const handleUndo = useCallback(() => {
@@ -421,10 +551,12 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
             />
           </div>
 
-          <SelectionBubbleMenu
-            bubbleState={selectionBubble}
-            onFormat={handleFormat}
-          />
+          <div className="hidden md:block">
+            <SelectionBubbleMenu
+              bubbleState={selectionBubble}
+              onFormat={handleFormat}
+            />
+          </div>
 
           <CodeMirror
             value={value}
@@ -482,7 +614,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
         onInsertBullet={handleInsertBullet}
         onOpenImagePicker={() => onOpenImagePicker()}
         onOpenExcalidraw={() => onOpenExcalidrawEditor()}
-        onToggleAi={handleToggleAiToolbar}
+        onToggleAi={handleOpenInlineAiFromMobile}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onIndent={handleIndent}
@@ -493,6 +625,13 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
         onEditTask={() => onOpenTaskModal(taskEditBtn)}
         decisionEditActive={decisionEditBtn.show}
         onEditDecision={() => onOpenDecisionModal(decisionEditBtn)}
+        hasSelection={selectionBubble.show}
+        onSelectWord={handleSelectWord}
+        onSelectLine={handleSelectLine}
+        onExpandSelection={handleExpandSelection}
+        onSelectAll={handleSelectAll}
+        onClearSelection={handleClearSelection}
+        onStepCursor={handleStepCursor}
       />
     </div>
   );

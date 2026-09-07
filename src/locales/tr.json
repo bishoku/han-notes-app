@@ -754,5 +754,15 @@
   "createAndMove": "Oluştur ve Taşı",
   "searchFolderPlaceholder": "Klasör ara...",
   "goToWorkspace": "{{name}} Alanına Git",
-  "cannotMoveIntoSelf": "Bir klasör kendi içine veya alt klasörüne taşınamaz"
+  "cannotMoveIntoSelf": "Bir klasör kendi içine veya alt klasörüne taşınamaz",
+  "selectionTools": "Seçim Araçları",
+  "selectWord": "Kelime Seç",
+  "selectLine": "Satır Seç",
+  "expandSelection": "Genişlet",
+  "selectAll": "Tümünü Seç",
+  "clearSelection": "Seçimi Kaldır",
+  "stepLeft": "Sola Adımla",
+  "stepRight": "Sağa Adımla",
+  "extendLeft": "Sola Genişlet",
+  "extendRight": "Sağa Genişlet"
 }

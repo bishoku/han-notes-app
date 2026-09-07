@@ -175,6 +175,10 @@
   box-sizing: border-box !important;
   /* Inline layout changes (widget insert/remove) stay contained within content */
   contain: layout style;
+  touch-action: manipulation;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-touch-callout: default !important;
 }
 
 .cm-theme-han .cm-line,
@@ -183,6 +187,9 @@
   width: 100% !important;
   min-width: 0 !important;
   box-sizing: border-box !important;
+  touch-action: manipulation;
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 /* Headings: remove underlines and set proper typography */

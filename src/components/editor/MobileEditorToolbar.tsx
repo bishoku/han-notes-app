@@ -8,7 +8,6 @@ import {
   List,
   Image as ImageIcon,
   PenTool,
-  Sparkles,
   SlidersHorizontal,
   ShieldCheck,
   Undo2,
@@ -17,6 +16,14 @@ import {
   Outdent,
   Search,
   Code2,
+  Bot,
+  TextSelect,
+  CaseSensitive,
+  Rows,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -41,6 +48,13 @@ interface MobileEditorToolbarProps {
   onEditTask?: () => void;
   decisionEditActive?: boolean;
   onEditDecision?: () => void;
+  hasSelection?: boolean;
+  onSelectWord?: () => void;
+  onSelectLine?: () => void;
+  onExpandSelection?: () => void;
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  onStepCursor?: (direction: 'left' | 'right', extend?: boolean) => void;
 }
 
 export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
@@ -64,14 +78,139 @@ export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
   onEditTask,
   decisionEditActive,
   onEditDecision,
+  hasSelection,
+  onSelectWord,
+  onSelectLine,
+  onExpandSelection,
+  onSelectAll,
+  onClearSelection,
+  onStepCursor,
 }) => {
   const { t } = useTranslation();
   const [showSymbols, setShowSymbols] = useState(false);
+  const [showSelectionTools, setShowSelectionTools] = useState(false);
 
   const QUICK_SYMBOLS = ['#', '*', '`', '~', '==', '|', '-', '>', '[ ]', '---'];
 
   return (
     <div className="sticky bottom-0 inset-x-0 z-20 flex flex-col md:hidden bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-gray-200/80 dark:border-zinc-800/80 shadow-md select-none shrink-0">
+      {/* Quick Text Selection & Navigation Strip */}
+      {(showSelectionTools || hasSelection) && (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-purple-50/90 dark:bg-purple-950/40 border-b border-purple-200/60 dark:border-purple-800/50 overflow-x-auto no-scrollbar animate-in slide-in-from-bottom-1 duration-150">
+          <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider shrink-0 mr-0.5">
+            {t('selectionTools', 'Seçim')}:
+          </span>
+
+          {/* Select Word */}
+          {onSelectWord && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelectWord();
+              }}
+              className="px-2 py-0.5 rounded bg-white dark:bg-zinc-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60 text-xs font-medium shrink-0 active:scale-95 transition-transform flex items-center gap-1"
+              title={t('selectWord', 'Kelime Seç')}
+            >
+              <CaseSensitive size={13} />
+              <span>{t('selectWord', 'Kelime')}</span>
+            </button>
+          )}
+
+          {/* Select Line */}
+          {onSelectLine && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelectLine();
+              }}
+              className="px-2 py-0.5 rounded bg-white dark:bg-zinc-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60 text-xs font-medium shrink-0 active:scale-95 transition-transform flex items-center gap-1"
+              title={t('selectLine', 'Satır Seç')}
+            >
+              <Rows size={13} />
+              <span>{t('selectLine', 'Satır')}</span>
+            </button>
+          )}
+
+          {/* Expand Selection */}
+          {onExpandSelection && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onExpandSelection();
+              }}
+              className="px-2 py-0.5 rounded bg-white dark:bg-zinc-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60 text-xs font-medium shrink-0 active:scale-95 transition-transform flex items-center gap-1"
+              title={t('expandSelection', 'Genişlet')}
+            >
+              <Maximize2 size={11} />
+              <span>{t('expandSelection', 'Genişlet')}</span>
+            </button>
+          )}
+
+          <div className="w-px h-3.5 bg-purple-200 dark:bg-purple-800 mx-0.5 shrink-0" />
+
+          {/* Step Cursor Left / Right */}
+          {onStepCursor && (
+            <>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onStepCursor('left', false);
+                }}
+                className="p-1 rounded bg-white dark:bg-zinc-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-zinc-700 text-xs shrink-0 active:scale-95 transition-transform"
+                title={t('stepLeft', 'Sola Adımla')}
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onStepCursor('right', false);
+                }}
+                className="p-1 rounded bg-white dark:bg-zinc-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-zinc-700 text-xs shrink-0 active:scale-95 transition-transform"
+                title={t('stepRight', 'Sağa Adımla')}
+              >
+                <ChevronRight size={14} />
+              </button>
+            </>
+          )}
+
+          {/* Select All */}
+          {onSelectAll && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelectAll();
+              }}
+              className="px-2 py-0.5 rounded bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-700 text-xs font-medium shrink-0 active:scale-95 transition-transform"
+              title={t('selectAll', 'Tümünü Seç')}
+            >
+              {t('selectAll', 'Tümü')}
+            </button>
+          )}
+
+          {/* Clear Selection */}
+          {hasSelection && onClearSelection && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onClearSelection();
+              }}
+              className="p-1 rounded bg-white dark:bg-zinc-800 hover:bg-red-50 text-red-500 border border-red-200 dark:border-red-900/50 text-xs shrink-0 active:scale-95 transition-transform"
+              title={t('clearSelection', 'Seçimi Bırak')}
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Quick Markdown Symbols Strip (collapsible or toggleable) */}
       {showSymbols && (
         <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-50/90 dark:bg-zinc-950/80 border-b border-gray-200/50 dark:border-zinc-800/60 overflow-x-auto no-scrollbar animate-in slide-in-from-bottom-1 duration-150">
@@ -273,12 +412,33 @@ export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
 
           <div className="w-px h-4 bg-gray-200 dark:bg-zinc-800 mx-1 shrink-0" />
 
+          {/* Quick Selection Tools Toggle */}
+          {(onSelectWord || onSelectLine || onExpandSelection) && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setShowSelectionTools(!showSelectionTools);
+                if (!showSelectionTools) setShowSymbols(false);
+              }}
+              className={`p-2 rounded-lg transition-all active:scale-95 flex items-center gap-0.5 ${
+                showSelectionTools || hasSelection
+                  ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-bold'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+              title={t('selectionTools', 'Seçim Araçları')}
+            >
+              <TextSelect size={16} />
+            </button>
+          )}
+
           {/* Quick Markdown Symbols Strip Toggle */}
           <button
             type="button"
             onMouseDown={(e) => {
               e.preventDefault();
               setShowSymbols(!showSymbols);
+              if (!showSymbols) setShowSelectionTools(false);
             }}
             className={`p-2 rounded-lg transition-all active:scale-95 ${
               showSymbols
@@ -331,18 +491,18 @@ export const MobileEditorToolbar: React.FC<MobileEditorToolbarProps> = ({
             </button>
           )}
 
-          {/* AI Assistant */}
+          {/* AI Ghostwriter / Paragraph Generator */}
           <button
             type="button"
             onMouseDown={(e) => {
               e.preventDefault();
               onToggleAi();
             }}
-            className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 active:scale-95 transition-all flex items-center gap-1 font-medium text-xs"
-            title={t('aiAssistantTitle', 'Yapay Zeka')}
+            className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-500/15 active:scale-95 transition-all flex items-center gap-1 font-semibold text-xs"
+            title={t('aiInlineTitle', 'AI Paragraf & İçerik Üretici')}
           >
-            <Sparkles size={16} />
-            <span className="text-[11px] font-semibold">AI</span>
+            <Bot size={16} className="text-purple-600 dark:text-purple-400" />
+            <span className="text-[11px] font-bold">AI</span>
           </button>
         </div>
       </div>
