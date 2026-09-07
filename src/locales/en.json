@@ -764,5 +764,7 @@
   "stepLeft": "Step Left",
   "stepRight": "Step Right",
   "extendLeft": "Extend Left",
-  "extendRight": "Extend Right"
+  "extendRight": "Extend Right",
+  "generalSettingsTab": "General Settings",
+  "gitSettingsTab": "Git Settings"
 }

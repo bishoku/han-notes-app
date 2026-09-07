@@ -19,6 +19,8 @@ import {
   isTauriEnvironment,
 } from '@/services/storage';
 import { vectorStore, VectorStore } from '@/services/ai/vectorStore';
+import { indexingCoordinator } from '@/services/ai/indexingCoordinator';
+import { useAiStore } from './aiStore';
 import { useNoteStore } from './noteStore';
 import { useTaskStore } from './taskStore';
 import { useDecisionStore } from './decisionStore';
@@ -95,6 +97,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
         // Initialize vector store for target workspace
         await vectorStore.setWorkspace(target.id);
+        useAiStore.getState().refreshStats().catch(() => {});
       }
 
       set({
@@ -125,6 +128,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
       // 2. Switch isolated vector database
       await vectorStore.setWorkspace(workspaceId);
+      indexingCoordinator.cancelPendingUpdates();
+
+      // Reset vector stats immediately during switch so old workspace numbers are not displayed
+      useAiStore.setState({ vectorStats: { totalChunks: 0, totalNotes: 0 } });
 
       // 3. Update access timestamp and save
       target.updatedAt = Date.now();
@@ -157,11 +164,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await useTaskStore.getState().loadTasks();
       await useDecisionStore.getState().loadDecisions();
 
-      // 6. Reload Graph & Mindmap
+      // 7. Reload Graph & Mindmap
       const currentNotes = useNoteStore.getState().notes;
       useGraphStore.getState().buildFullGraph(currentNotes);
 
-      // 7. Refresh Git Status
+      // 8. Refresh Git Status
       useGitStore.getState().refreshStatus().catch(() => {});
 
       // Refresh workspaces order
@@ -173,6 +180,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         isSwitching: false,
         isWorkspaceModalOpen: false,
       });
+
+      // 9. Refresh Vector Store Stats for the newly active workspace
+      await useAiStore.getState().refreshStats();
     } catch (err) {
       console.error('[WorkspaceStore] Switch workspace error:', err);
       set({ isSwitching: false });

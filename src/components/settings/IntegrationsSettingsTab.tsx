@@ -2,9 +2,10 @@
  * IntegrationsSettingsTab.tsx — Settings panel for configuring LLM Providers,
  * API Keys, and managing Local-First Vector Indexing with multi-language i18n support.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAiStore } from '@/store/aiStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import { llmClient } from '@/services/ai/llmClient';
 import { embeddingService } from '@/services/ai/embeddingService';
 import {
@@ -31,6 +32,8 @@ import { cn } from '@/lib/utils';
 
 export const IntegrationsSettingsTab: React.FC = () => {
   const { t } = useTranslation();
+  const activeWorkspace = useWorkspaceStore((s) => s.getActiveWorkspace());
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const {
     settings,
     updateSettings,
@@ -40,7 +43,12 @@ export const IntegrationsSettingsTab: React.FC = () => {
     indexingProgress,
     reindexVault,
     purgeVectors,
+    refreshStats,
   } = useAiStore();
+
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats, activeWorkspaceId]);
 
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<{ loading: boolean; success?: boolean; message?: string } | null>(null);
@@ -275,12 +283,18 @@ export const IntegrationsSettingsTab: React.FC = () => {
 
           {/* 6. Vector Database & Indexing Status */}
           <div className="p-4 rounded-2xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-800 flex flex-col gap-3.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Database size={15} className="text-mac-accent" />
                 <span className="font-bold text-xs text-gray-900 dark:text-gray-100">
                   {t('aiVectorStats')}
                 </span>
+                {activeWorkspace && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-200/70 dark:bg-zinc-700/70 px-2 py-0.5 rounded-full border border-gray-300/40 dark:border-zinc-600/40">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: activeWorkspace.color }} />
+                    <span className="truncate max-w-[140px]">{activeWorkspace.name}</span>
+                  </span>
+                )}
               </div>
 
               {isIndexing ? (

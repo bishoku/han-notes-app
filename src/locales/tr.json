@@ -764,5 +764,7 @@
   "stepLeft": "Sola Adımla",
   "stepRight": "Sağa Adımla",
   "extendLeft": "Sola Genişlet",
-  "extendRight": "Sağa Genişlet"
+  "extendRight": "Sağa Genişlet",
+  "generalSettingsTab": "Genel Ayarlar",
+  "gitSettingsTab": "Git Ayarları"
 }

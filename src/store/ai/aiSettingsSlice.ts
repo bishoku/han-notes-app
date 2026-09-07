@@ -181,8 +181,9 @@ export const createSettingsSlice = (
     try {
       const stats = await vectorStore.getStats();
       set({ vectorStats: stats });
-    } catch {
-      // Ignored
+    } catch (e) {
+      console.warn('[AI] refreshStats failed, resetting stats:', e);
+      set({ vectorStats: { totalChunks: 0, totalNotes: 0 } });
     }
   },
 });

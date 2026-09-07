@@ -185,6 +185,18 @@ class IndexingCoordinator {
     await this.indexSingleNote(newPath, newTitle, newContent);
   }
 
+  public cancelPendingUpdates(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+    this.pendingNoteUpdates.clear();
+    this.isProcessing = false;
+    if (this.onProgressCallback) {
+      this.onProgressCallback({ isIndexing: false, current: 0, total: 0 });
+    }
+  }
+
   public async purgeAll(): Promise<void> {
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);
