@@ -24,6 +24,432 @@ export interface ConvertResult {
   metadata: ClipperMetadata;
 }
 
+export interface ClipperCleanOptions {
+  /** Strip Wikipedia citations [1], [20], cite_note links and reference lists (default: true) */
+  stripCitations?: boolean;
+  /** Strip section edit links like [değiştir | kaynağı değiştir], [edit] (default: true) */
+  stripEditLinks?: boolean;
+  /** Strip Wikipedia navboxes, sidebars, hatnotes, category lists, maintenance boxes (default: true) */
+  stripNavigationAndSidebars?: boolean;
+  /** Strip social sharing buttons, floating bars, and newsletter signup boxes (default: true) */
+  stripSocialAndNewsletters?: boolean;
+  /** Strip comment sections and discussion widgets (default: true) */
+  stripComments?: boolean;
+  /** Unwrap internal fragment links <a href="#anchor">Text</a> to plain Text so no dead links are created (default: true) */
+  unwrapInternalAnchors?: boolean;
+  /** Strip tracking URL query parameters (utm_*, fbclid, gclid, ref, etc.) (default: true) */
+  removeTrackingParams?: boolean;
+  /** Normalize whitespace, convert nbsp to space, remove invisible zero-width characters (default: true) */
+  cleanTypography?: boolean;
+}
+
+export const DEFAULT_CLIPPER_CLEAN_OPTIONS: Required<ClipperCleanOptions> = {
+  stripCitations: true,
+  stripEditLinks: true,
+  stripNavigationAndSidebars: true,
+  stripSocialAndNewsletters: true,
+  stripComments: true,
+  unwrapInternalAnchors: true,
+  removeTrackingParams: true,
+  cleanTypography: true,
+};
+
+export const CLIPPER_CITATION_SELECTORS = [
+  'sup.reference',
+  'span.reference',
+  'ol.references',
+  'ul.references',
+  '.reflist',
+  '.mw-cite-backlink',
+  'a[href*="#cite_note"]',
+  'a[href*="#cite_ref"]',
+  '.citation',
+  '.refbegin',
+  '.refend',
+  '[id^="cite_note"]',
+  '[id^="cite_ref"]',
+];
+
+export const CLIPPER_WIKIPEDIA_NOISE_SELECTORS = [
+  '.mw-editsection',
+  '.mw-editsection-bracket',
+  '.mw-editsection-divider',
+  '.hatnote',
+  '.dablink',
+  '.navbox',
+  '.vertical-navbox',
+  '.sidebar',
+  '.catlinks',
+  '#catlinks',
+  '.ambox',
+  '.tmbox',
+  '.cmbox',
+  '.fmbox',
+  '.ombox',
+  '.mw-jump-link',
+  '.haudio',
+  '.audioplayer',
+  '.noprint',
+  '.mw-empty-elt',
+  '.metadata',
+  '.sistersitebox',
+];
+
+export const CLIPPER_SOCIAL_AND_NEWSLETTER_SELECTORS = [
+  '[class*="share-button"]',
+  '[class*="share-bar"]',
+  '[class*="social-share"]',
+  '[class*="social-icon"]',
+  '.share-buttons',
+  '.social-share',
+  '.post-share',
+  '.entry-share',
+  '[class*="newsletter"]',
+  '[class*="subscription-box"]',
+  '[class*="subscribe-card"]',
+  '[class*="subscribe-box"]',
+  '.newsletter',
+  '.subscription-box',
+  '.subscribe-card',
+  '.newsletter-form',
+];
+
+export const CLIPPER_COMMENTS_AND_ADS_SELECTORS = [
+  '#comments',
+  '.comments-area',
+  '[id*="disqus"]',
+  '.comment-list',
+  '.wp-comments',
+  '.ad-container',
+  '.advertisement',
+  '.sponsor-box',
+  '[id*="google_ads"]',
+  '.cookie-consent',
+  '.cookie-banner',
+  '[id*="cookie-banner"]',
+  '.related-posts',
+  '.recommended-articles',
+  '.read-more-container',
+  '.popular-posts',
+];
+
+/**
+ * Safely removes a DOM element across both standard browser environments
+ * and lightweight polyfilled DOM parsers.
+ */
+function removeElement(el: any): void {
+  if (!el) return;
+  if (typeof el.remove === 'function') {
+    el.remove();
+  } else if (el.parentNode && typeof el.parentNode.removeChild === 'function') {
+    el.parentNode.removeChild(el);
+  }
+}
+
+/**
+ * Safely collects all Element nodes from a document or element node,
+ * working seamlessly across both standard browser DOM and lightweight polyfills (like JSDOMParser).
+ */
+export function getAllElements(root: any): any[] {
+  if (!root) return [];
+  if (typeof root.querySelectorAll === 'function') {
+    try {
+      return Array.from(root.querySelectorAll('*'));
+    } catch {
+      // Fall through to manual tree traversal
+    }
+  }
+
+  const elements: any[] = [];
+  function walk(node: any) {
+    if (!node) return;
+    if (node.nodeType === 1) {
+      elements.push(node);
+    }
+    const children = node.childNodes || [];
+    for (let i = 0; i < children.length; i++) {
+      walk(children[i]);
+    }
+  }
+  walk(root);
+  return elements;
+}
+
+/**
+ * Checks whether an element matches noise criteria (citations, Wikipedia edit links,
+ * navboxes, sidebars, social sharing, newsletters, ads, or comments).
+ */
+export function shouldRemoveElement(el: any, options: Required<ClipperCleanOptions>): boolean {
+  if (!el || el.nodeType !== 1) return false;
+
+  const tag = (el.nodeName || '').toLowerCase();
+  const cls = (el.className || el.getAttribute?.('class') || '').toLowerCase();
+  const id = (el.id || el.getAttribute?.('id') || '').toLowerCase();
+  const href = (el.getAttribute?.('href') || el.href || '').toLowerCase();
+  const role = (el.getAttribute?.('role') || '').toLowerCase();
+
+  // 1. Citations & Footnotes
+  if (options.stripCitations) {
+    if (tag === 'sup' && (cls.includes('reference') || id.startsWith('cite_ref') || href.includes('cite_note'))) {
+      return true;
+    }
+    if (
+      cls.includes('reference') ||
+      cls.includes('reflist') ||
+      cls.includes('mw-cite-backlink') ||
+      cls.includes('citation') ||
+      cls.includes('refbegin') ||
+      cls.includes('refend')
+    ) {
+      return true;
+    }
+    if (
+      id.startsWith('cite_note') ||
+      id.startsWith('cite_ref') ||
+      href.includes('#cite_note') ||
+      href.includes('#cite_ref')
+    ) {
+      return true;
+    }
+    if ((tag === 'ol' || tag === 'ul') && cls.includes('references')) {
+      return true;
+    }
+  }
+
+  // 2. Wikipedia edit sections & UI noise
+  if (options.stripEditLinks && (cls.includes('mw-editsection') || cls.includes('editsection'))) {
+    return true;
+  }
+
+  if (options.stripNavigationAndSidebars) {
+    if (
+      cls.includes('navbox') ||
+      cls.includes('vertical-navbox') ||
+      cls.includes('sidebar') ||
+      cls.includes('catlinks') ||
+      id === 'catlinks' ||
+      cls.includes('hatnote') ||
+      cls.includes('dablink') ||
+      cls.includes('ambox') ||
+      cls.includes('tmbox') ||
+      cls.includes('cmbox') ||
+      cls.includes('fmbox') ||
+      cls.includes('ombox') ||
+      cls.includes('mw-jump-link') ||
+      cls.includes('haudio') ||
+      cls.includes('audioplayer') ||
+      cls.includes('noprint') ||
+      cls.includes('mw-empty-elt') ||
+      cls.includes('metadata') ||
+      cls.includes('sistersitebox') ||
+      role === 'navigation' ||
+      cls.includes('breadcrumb')
+    ) {
+      return true;
+    }
+  }
+
+  // 3. Social sharing & Newsletters
+  if (options.stripSocialAndNewsletters) {
+    if (
+      cls.includes('share-button') ||
+      cls.includes('share-bar') ||
+      cls.includes('social-share') ||
+      cls.includes('social-icon') ||
+      cls.includes('share-buttons') ||
+      cls.includes('post-share') ||
+      cls.includes('entry-share') ||
+      cls.includes('newsletter') ||
+      cls.includes('subscription-box') ||
+      cls.includes('subscribe-card') ||
+      cls.includes('subscribe-box')
+    ) {
+      return true;
+    }
+  }
+
+  // 4. Comments & Ads
+  if (options.stripComments) {
+    if (
+      id === 'comments' ||
+      cls.includes('comments-area') ||
+      id.includes('disqus') ||
+      cls.includes('comment-list') ||
+      cls.includes('wp-comments') ||
+      cls.includes('ad-container') ||
+      cls.includes('advertisement') ||
+      cls.includes('sponsor-box') ||
+      id.includes('google_ads') ||
+      cls.includes('cookie-consent') ||
+      cls.includes('cookie-banner') ||
+      id.includes('cookie-banner') ||
+      cls.includes('related-posts') ||
+      cls.includes('recommended-articles') ||
+      cls.includes('read-more-container') ||
+      cls.includes('popular-posts')
+    ) {
+      return true;
+    }
+  }
+
+  // 5. Jump to content / Back to top links
+  if (tag === 'a') {
+    if (
+      href === '#top' ||
+      href === '#header' ||
+      href === '#content' ||
+      href === '#main' ||
+      /başa\s*dön|back\s*to\s*top|içeriğe\s*atla|jump\s*to/i.test((el.textContent || '').trim())
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Sanitizes the raw DOM before Readability parses it, stripping references,
+ * edit buttons, sidebars, navboxes, social share widgets, and comments.
+ */
+export function sanitizeDomBeforeReadability(
+  doc: Document,
+  options: Required<ClipperCleanOptions>
+): void {
+  if (!doc) return;
+
+  const all = getAllElements(doc);
+  for (const el of all) {
+    if (shouldRemoveElement(el, options)) {
+      removeElement(el);
+    }
+  }
+}
+
+/**
+ * Sanitizes the isolated article DOM tree extracted by Readability,
+ * unwrapping internal anchors, removing tracking pixels, and stripping empty elements.
+ */
+export function sanitizeArticleDom(
+  articleDoc: Document,
+  options: Required<ClipperCleanOptions>
+): void {
+  if (!articleDoc) return;
+
+  const all = getAllElements(articleDoc);
+
+  for (const el of all) {
+    if (shouldRemoveElement(el, options)) {
+      removeElement(el);
+      continue;
+    }
+
+    const tag = (el.nodeName || '').toLowerCase();
+
+    // Process anchors
+    if (tag === 'a') {
+      const href = (el.getAttribute?.('href') || el.href || '').trim();
+      const text = (el.textContent || '').trim();
+
+      // Citations or footnotes
+      if (
+        options.stripCitations &&
+        (href.includes('#cite_note') ||
+          href.includes('#cite_ref') ||
+          href.startsWith('#fn') ||
+          href.startsWith('#footnote') ||
+          href.startsWith('#ref') ||
+          /^\[?\d+\]?$/.test(text))
+      ) {
+        removeElement(el);
+        continue;
+      }
+
+      // Back-to-top or navigation jump links
+      if (
+        href === '#top' ||
+        href === '#header' ||
+        href === '#content' ||
+        href === '#main' ||
+        /başa\s*dön|back\s*to\s*top|içeriğe\s*atla|jump\s*to/i.test(text)
+      ) {
+        removeElement(el);
+        continue;
+      }
+
+      // Internal fragment links -> unwrap to plain text
+      if (href.startsWith('#')) {
+        if (options.unwrapInternalAnchors) {
+          const parent = el.parentNode;
+          if (parent && typeof parent.insertBefore === 'function') {
+            while (el.firstChild) {
+              parent.insertBefore(el.firstChild, el);
+            }
+            parent.removeChild(el);
+          }
+        }
+        continue;
+      }
+
+      // Clean tracking query params from external links
+      if (options.removeTrackingParams && (href.startsWith('http://') || href.startsWith('https://'))) {
+        try {
+          const url = new URL(href);
+          const trackingKeys = [
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_term',
+            'utm_content',
+            'source',
+            'fbclid',
+            'gclid',
+            'mc_cid',
+            'mc_eid',
+            'igshid',
+            'ref',
+          ];
+          let modified = false;
+          trackingKeys.forEach((key) => {
+            if (url.searchParams.has(key)) {
+              url.searchParams.delete(key);
+              modified = true;
+            }
+          });
+          if (modified) {
+            el.setAttribute('href', url.toString());
+          }
+        } catch {}
+      }
+      continue;
+    }
+
+    // Process images: tracking pixels
+    if (tag === 'img') {
+      const w = el.getAttribute?.('width');
+      const h = el.getAttribute?.('height');
+      const src = el.getAttribute?.('src') || '';
+      if (w === '1' || h === '1' || w === '0' || h === '0' || src.includes('spacer.gif')) {
+        removeElement(el);
+      }
+      continue;
+    }
+
+    // Process empty blocks
+    if (['p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+      const txt = (el.textContent || '').trim();
+      if (!txt) {
+        const hasMedia = getAllElements(el).some((child) =>
+          ['img', 'iframe', 'table', 'svg', 'pre'].includes((child.nodeName || '').toLowerCase())
+        );
+        if (!hasMedia) {
+          removeElement(el);
+        }
+      }
+    }
+  }
+}
+
 /**
  * Cleans the HTML content of a table cell and converts it into a single-line Markdown string.
  * Converts <br>, <p>, <div>, and list items into <br> tags, and escapes lone pipe characters.
@@ -194,7 +620,7 @@ export function convertTableElementToMarkdown(
 /**
  * Creates and configures a TurndownService instance with GFM and web article rules.
  */
-function createClipperTurndownService(): TurndownService {
+function createClipperTurndownService(options: Required<ClipperCleanOptions>): TurndownService {
   const service = new TurndownService({
     headingStyle: 'atx',
     hr: '---',
@@ -218,6 +644,24 @@ function createClipperTurndownService(): TurndownService {
     filter: 'table',
     replacement: function (_content, node) {
       return convertTableElementToMarkdown(node as HTMLElement);
+    },
+  });
+
+  // Rule: Clean headings — strip Wikipedia [değiştir | kaynağı değiştir] or [edit] links from titles
+  service.addRule('cleanHeadings', {
+    filter: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+    replacement: function (content, node) {
+      const h = node as HTMLElement;
+      const level = Number(h.nodeName.charAt(1)) || 2;
+      let cleanText = content;
+      if (options.stripEditLinks) {
+        cleanText = cleanText
+          .replace(/\[\s*(?:değiştir|kaynağı değiştir|edit|edit source)\s*\]/gi, '')
+          .replace(/\[\s*(?:değiştir|kaynağı değiştir|edit|edit source)\s*\]\([^)]*\)/gi, '');
+      }
+      cleanText = cleanText.trim();
+      if (!cleanText) return '';
+      return `\n\n${'#'.repeat(level)} ${cleanText}\n\n`;
     },
   });
 
@@ -261,37 +705,72 @@ function createClipperTurndownService(): TurndownService {
     },
   });
 
-  // Rule: Strip tracking parameters from links
+  // Rule: Strip tracking parameters, handle internal anchors, and strip citation links
   service.addRule('cleanLinks', {
     filter: 'a',
     replacement: function (content, node) {
       const el = node as HTMLAnchorElement;
       let href = el.getAttribute('href') || '';
-      if (!href || !content.trim()) return content;
+      const trimmedContent = content.trim();
+      if (!href || !trimmedContent) return '';
 
-      try {
-        if (href.startsWith('http://') || href.startsWith('https://')) {
-          const url = new URL(href);
-          url.searchParams.delete('utm_source');
-          url.searchParams.delete('utm_medium');
-          url.searchParams.delete('utm_campaign');
-          url.searchParams.delete('utm_term');
-          url.searchParams.delete('utm_content');
-          url.searchParams.delete('source');
-          href = url.toString();
+      // Internal fragment links
+      if (href.startsWith('#')) {
+        if (
+          options.stripCitations &&
+          (href.includes('cite_note') ||
+            href.includes('cite_ref') ||
+            /^\[?\d+\]?$/.test(trimmedContent))
+        ) {
+          return '';
         }
-      } catch {
-        // keep original href if invalid
+        if (
+          href === '#top' ||
+          href === '#header' ||
+          href === '#content' ||
+          href === '#main' ||
+          /başa\s*dön|back\s*to\s*top|içeriğe\s*atla|jump\s*to/i.test(trimmedContent)
+        ) {
+          return '';
+        }
+        if (options.unwrapInternalAnchors) {
+          return trimmedContent;
+        }
       }
 
-      return `[${content}](${href})`;
+      // Tracking parameters on external links
+      if (options.removeTrackingParams && (href.startsWith('http://') || href.startsWith('https://'))) {
+        try {
+          const url = new URL(href);
+          const trackingKeys = [
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_term',
+            'utm_content',
+            'source',
+            'fbclid',
+            'gclid',
+            'mc_cid',
+            'mc_eid',
+            'igshid',
+            'ref',
+          ];
+          trackingKeys.forEach((key) => url.searchParams.delete(key));
+          href = url.toString();
+        } catch {
+          // keep original href if URL constructor fails
+        }
+      }
+
+      return `[${trimmedContent}](${href})`;
     },
   });
 
   // Rule: Strip unwanted noise tags completely
   service.remove((node) => {
     const tag = node.nodeName.toLowerCase();
-    return [
+    const isNoiseTag = [
       'script',
       'style',
       'noscript',
@@ -305,6 +784,18 @@ function createClipperTurndownService(): TurndownService {
       'dialog',
       'template',
     ].includes(tag);
+
+    if (isNoiseTag) return true;
+
+    if (options.stripCitations && tag === 'sup') {
+      const el = node as HTMLElement;
+      const cls = el.className || '';
+      if (cls.includes('reference') || el.querySelector?.('a[href*="#cite_note"]')) {
+        return true;
+      }
+    }
+
+    return false;
   });
 
   return service;
@@ -435,15 +926,91 @@ function escapeYaml(str: string): string {
 }
 
 /**
+ * Post-processes Markdown text to strip residual citation brackets, edit links,
+ * empty links/headings, fix whitespace before punctuation, and normalize typography.
+ * Preserves fenced code blocks (``` ... ```) so code syntax like arr[20] is never altered.
+ */
+export function sanitizeMarkdownOutput(
+  markdown: string,
+  options: Required<ClipperCleanOptions>
+): string {
+  if (!markdown) return '';
+
+  // Split by fenced code blocks (``` ... ```)
+  const parts = markdown.split(/(```[\s\S]*?```)/g);
+
+  for (let i = 0; i < parts.length; i += 2) {
+    let text = parts[i];
+
+    if (options.stripCitations) {
+      // 1. Escaped bracket links from Turndown: [\[20\]](#cite_note-...) or [\[42\]](#cite_note-...)
+      text = text.replace(/\[\\?\[\s*[\d\w\p{L}.-]+\s*\\?\]\]\(\s*#cite_note[^)]*\)/giu, '');
+      // 2. Unescaped bracket links: [[20]](#cite_note-...) or [20](#cite_note-...)
+      text = text.replace(/\[\s*[\d\w\p{L}.-]+\s*\]\(\s*#cite_note[^)]*\)/giu, '');
+      // 3. Same for #cite_ref
+      text = text.replace(/\[\\?\[\s*[\d\w\p{L}.-]+\s*\\?\]\]\(\s*#cite_ref[^)]*\)/giu, '');
+      text = text.replace(/\[\s*[\d\w\p{L}.-]+\s*\]\(\s*#cite_ref[^)]*\)/giu, '');
+      // 4. Standalone escaped citation numbers like [\[20\]] or [\[kaynak belirtilmeli\]]
+      text = text.replace(/\[\\?\[\s*\d+\s*\\?\]\]/g, '');
+      text = text.replace(/\[\\?\[\s*(?:kaynak belirtilmeli|citation needed)\s*\\?\]\]/gi, '');
+    }
+
+    if (options.stripEditLinks) {
+      // Catch residual edit links like [değiştir | kaynağı değiştir] or [edit]
+      text = text.replace(/\[\s*(?:değiştir|kaynağı değiştir|edit|edit source)\s*\]/gi, '');
+      text = text.replace(/\[\s*(?:değiştir|kaynağı değiştir|edit|edit source)\s*\]\([^)]*\)/gi, '');
+    }
+
+    // Clean empty links: [ ]() or []()
+    text = text.replace(/\[\s*\]\([^)]*\)/g, '');
+
+    // Clean whitespace before punctuation introduced by removed citations (e.g. "girdi . " -> "girdi. ")
+    text = text.replace(/([\p{L}\d])\s+([.,;:!?])/gu, '$1$2');
+
+    if (options.cleanTypography) {
+      // Replace non-breaking spaces (\u00A0) with standard spaces
+      text = text.replace(/\u00A0/g, ' ');
+      // Remove invisible zero-width characters (\u200B, \u200C, \u200D, \uFEFF)
+      text = text.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
+    }
+
+    parts[i] = text;
+  }
+
+  let result = parts.join('');
+
+  // Remove lines that only contain empty heading markers (e.g. "## ")
+  result = result.replace(/^#{1,6}\s*$/gm, '');
+
+  // Trim trailing whitespace on each line
+  result = result.replace(/[ \t]+$/gm, '');
+
+  // Collapse 3 or more consecutive newlines into 2
+  result = result.replace(/\n{3,}/g, '\n\n').trim();
+
+  return result;
+}
+
+/**
  * Converts raw HTML string and page URL into a clean, structured Markdown document.
  */
-export function convertHtmlToMarkdown(htmlString: string, pageUrl: string): ConvertResult {
+export function convertHtmlToMarkdown(
+  htmlString: string,
+  pageUrl: string,
+  cleanOptions?: ClipperCleanOptions
+): ConvertResult {
+  const options: Required<ClipperCleanOptions> = {
+    ...DEFAULT_CLIPPER_CLEAN_OPTIONS,
+    ...(cleanOptions || {}),
+  };
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString || '', 'text/html');
 
-  // 1. Pre-process DOM: resolve relative URLs and preserve table alignments
+  // 1. Pre-process DOM: resolve relative URLs, preserve table alignments, and sanitize DOM before Readability
   resolveRelativeUrls(doc, pageUrl);
   preserveTableAlignments(doc);
+  sanitizeDomBeforeReadability(doc, options);
 
   const docTitle = doc.title?.trim() || '';
 
@@ -484,21 +1051,23 @@ export function convertHtmlToMarkdown(htmlString: string, pageUrl: string): Conv
   // 4. Fallback if Readability fails or produces empty content
   let contentHtml: string = (article?.content as string) || '';
   if (!contentHtml.trim()) {
-    // Fallback to body content or innerText
     if (doc.body) {
-      // Remove noise elements from body
-      if (doc.body.querySelectorAll) {
-        const noise = doc.body.querySelectorAll(
-          'script, style, noscript, svg, button, form, iframe, nav, footer, header'
-        );
-        noise.forEach((n) => n.remove());
-      } else {
-        const noiseTags = ['script', 'style', 'noscript', 'svg', 'button', 'form', 'iframe', 'nav', 'footer', 'header'];
-        for (const tag of noiseTags) {
-          const els = doc.body.getElementsByTagName?.(tag) || [];
-          for (let i = els.length - 1; i >= 0; i--) {
-            els[i]?.remove?.();
-          }
+      const all = getAllElements(doc.body);
+      const fallbackNoiseTags = [
+        'script',
+        'style',
+        'noscript',
+        'svg',
+        'button',
+        'form',
+        'iframe',
+        'nav',
+        'footer',
+        'header',
+      ];
+      for (const el of all) {
+        if (fallbackNoiseTags.includes((el.nodeName || '').toLowerCase())) {
+          removeElement(el);
         }
       }
       contentHtml = doc.body.innerHTML || `<p>${(doc.body as any).innerText || doc.body.textContent || ''}</p>`;
@@ -507,18 +1076,29 @@ export function convertHtmlToMarkdown(htmlString: string, pageUrl: string): Conv
     }
   }
 
-  // 5. Convert content HTML to Markdown using Turndown
-  const turndownService = createClipperTurndownService();
+  // 5. Post-Readability HTML sanitization (dead anchors, tracking pixels, empty tags)
+  try {
+    const articleDoc = parser.parseFromString(contentHtml, 'text/html');
+    sanitizeArticleDom(articleDoc, options);
+    contentHtml = articleDoc.body?.innerHTML || contentHtml;
+  } catch (err) {
+    console.warn('[webClipperService] sanitizeArticleDom failed:', err);
+  }
+
+  // 6. Convert content HTML to Markdown using Turndown
+  const turndownService = createClipperTurndownService(options);
   let markdownBody = '';
   try {
     markdownBody = turndownService.turndown(contentHtml);
-    markdownBody = markdownBody.replace(/\n{3,}/g, '\n\n').trim();
   } catch (err) {
     console.error('[webClipperService] Turndown conversion error:', err);
     markdownBody = doc.body?.innerText || '';
   }
 
-  // 6. Build Frontmatter and Header
+  // 7. Post-Markdown typography, citation regex and layout sanitization
+  markdownBody = sanitizeMarkdownOutput(markdownBody, options);
+
+  // 8. Build Frontmatter and Header
   const frontmatterLines: string[] = ['---'];
   frontmatterLines.push(`title: "${escapeYaml(title)}"`);
   frontmatterLines.push(`source: "${escapeYaml(pageUrl)}"`);

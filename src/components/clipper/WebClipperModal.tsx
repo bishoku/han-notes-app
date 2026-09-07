@@ -205,6 +205,12 @@ export const WebClipperModal: React.FC<WebClipperModalProps> = ({ isOpen, onClos
               <li className="flex items-start gap-2">
                 <span className="text-emerald-500 font-bold">•</span>
                 <span>
+                  <strong>Akıllı İçerik & Alıntı Ayıklama:</strong> Wikipedia dipnotları ([1], [20]), ölü iç linkler, başlık düzenleme butonları, gezinme kutuları ve bülten formları otomatik ayıklanarak tertemiz bir Markdown notu elde edilir.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 font-bold">•</span>
+                <span>
                   <strong>CSP Uyumlu:</strong> Ziyaret ettiğiniz sitelere harici script veya kütüphane yüklemez, tarayıcı güvenlik politikalarını (CSP) ihlal etmez.
                 </span>
               </li>

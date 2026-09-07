@@ -36,6 +36,8 @@ import {
   sanitizeNoteTitle,
   resolveRelativeUrls,
   convertHtmlToMarkdown,
+  sanitizeMarkdownOutput,
+  DEFAULT_CLIPPER_CLEAN_OPTIONS,
 } from '../webClipperService.ts';
 
 describe('Web Clipper: bookmarkletGenerator', () => {
@@ -204,4 +206,172 @@ describe('Web Clipper: webClipperService convertHtmlToMarkdown', () => {
     assert.ok(result.markdown.includes('`a | b` veya c \\| d'), 'Pipes escaped outside code');
     assert.ok(result.markdown.includes('Satır 1<br>Satır 2'), 'Multiline cells converted to <br>');
   });
+
+  it('strips Wikipedia citations, edit links, and reflist while preserving external links', () => {
+    if (typeof (globalThis as any).DOMParser === 'undefined') return;
+
+    const wikiHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head><title>Recep Tayyip Erdoğan - Vikipedi</title></head>
+        <body>
+          <article>
+            <h1>Recep Tayyip Erdoğan</h1>
+            <h2>Erken yaşamı ve eğitimi<span class="mw-editsection"><span class="mw-editsection-bracket">[</span><a href="/w/index.php?action=edit">değiştir</a><span class="mw-editsection-divider"> | </span><a href="/w/index.php?action=edit">kaynağı değiştir</a><span class="mw-editsection-bracket">]</span></span></h2>
+            <p>
+              Lise yıllarında <a href="https://tr.wikipedia.org/wiki/Mill%C3%AE_T%C3%BCrk_Talebe_Birli%C4%9Fi_(1946)">Millî Türk Talebe Birliği</a>'ne girdi.<sup id="cite_ref-Milliyet-2001-20" class="reference"><a href="#cite_note-Milliyet-2001-20"><span class="cite-bracket">[</span>20<span class="cite-bracket">]</span></a></sup><sup id="cite_ref-Yalçın-49-42" class="reference"><a href="#cite_note-Yalçın-49-42">[42]</a></sup> 1975'te <a href="https://tr.wikipedia.org/wiki/Mill%C3%AE_Selamet_Partisi">Millî Selamet Partisi</a> gençlik kollarına katıldı.
+            </p>
+            <div class="reflist">
+              <ol class="references">
+                <li id="cite_note-Milliyet-2001-20">Milliyet Gazetesi Arşivi, 2001.</li>
+                <li id="cite_note-Yalçın-49-42">Yalçın, Soner, 2006, s. 49.</li>
+              </ol>
+            </div>
+          </article>
+        </body>
+      </html>
+    `;
+
+    const result = convertHtmlToMarkdown(wikiHtml, 'https://tr.wikipedia.org/wiki/Recep_Tayyip_Erdo%C4%9Fan');
+
+    // 1. Valid external topic links must be preserved
+    assert.ok(
+      result.markdown.includes('[Millî Türk Talebe Birliği](https://tr.wikipedia.org/wiki/Mill%C3%AE_T%C3%BCrk_Talebe_Birli%C4%9Fi_(1946))'),
+      'Valid topic link preserved'
+    );
+    assert.ok(
+      result.markdown.includes('[Millî Selamet Partisi](https://tr.wikipedia.org/wiki/Mill%C3%AE_Selamet_Partisi)'),
+      'Second topic link preserved'
+    );
+
+    // 2. Citation markers like [20], [42], [\[20\]], #cite_note MUST be gone
+    assert.ok(!result.markdown.includes('cite_note'), 'No cite_note links');
+    assert.ok(!result.markdown.includes('cite_ref'), 'No cite_ref links');
+    assert.ok(!result.markdown.includes('[20]'), 'No [20]');
+    assert.ok(!result.markdown.includes('[42]'), 'No [42]');
+    assert.ok(!result.markdown.includes('[\\[20\\]]'), 'No escaped bracket [20]');
+    assert.ok(!result.markdown.includes('[\\[42\\]]'), 'No escaped bracket [42]');
+
+    // 3. Edit links in headings must be stripped
+    assert.ok(result.markdown.includes('## Erken yaşamı ve eğitimi'), 'Clean heading');
+    assert.ok(!result.markdown.includes('değiştir'), 'No edit button in heading');
+    assert.ok(!result.markdown.includes('kaynağı değiştir'), 'No edit source button in heading');
+
+    // 4. Bibliography / reflist must be removed
+    assert.ok(!result.markdown.includes('Milliyet Gazetesi Arşivi'), 'No reflist footnotes');
+  });
+
+  it('unwraps internal fragment anchors into plain text to prevent dead links', () => {
+    if (typeof (globalThis as any).DOMParser === 'undefined') return;
+
+    const html = `
+      <html>
+        <head><title>Makale</title></head>
+        <body>
+          <article>
+            <h1>Test</h1>
+            <p>Ayrıntılı bilgi için <a href="#tablo-detay">bu tabloya</a> bakabilirsiniz. Ayrıca <a href="#top">Başa Dön</a>.</p>
+          </article>
+        </body>
+      </html>
+    `;
+
+    const result = convertHtmlToMarkdown(html, 'https://example.com/makale');
+    assert.ok(result.markdown.includes('Ayrıntılı bilgi için bu tabloya bakabilirsiniz.'), 'Unwrapped internal anchor to plain text');
+    assert.ok(!result.markdown.includes('[bu tabloya](#tablo-detay)'), 'No dead anchor markdown link');
+    assert.ok(!result.markdown.includes('Başa Dön'), 'Removed navigation jump link');
+  });
+
+  it('strips social share buttons, newsletters, and sidebar navigation noise', () => {
+    if (typeof (globalThis as any).DOMParser === 'undefined') return;
+
+    const noisyHtml = `
+      <html>
+        <head><title>Haber Başlığı</title></head>
+        <body>
+          <article>
+            <h1>Haber Başlığı</h1>
+            <div class="share-buttons">
+              <a href="https://twitter.com/share">Twitter'da Paylaş</a>
+              <a href="https://facebook.com/share">Facebook'ta Paylaş</a>
+            </div>
+            <div class="hatnote">Bu sayfa haber içerir.</div>
+            <p>Bu haberin ana gövdesidir ve kalması gerekir.</p>
+            <div class="newsletter-form">
+              <input type="email" placeholder="E-posta" />
+              <button>Bültene Katıl</button>
+            </div>
+            <div class="navbox">Gezinme Kutusu İçeriği</div>
+          </article>
+        </body>
+      </html>
+    `;
+
+    const result = convertHtmlToMarkdown(noisyHtml, 'https://example.com/haber');
+    assert.ok(result.markdown.includes('Bu haberin ana gövdesidir ve kalması gerekir.'), 'Article body preserved');
+    assert.ok(!result.markdown.includes("Twitter'da Paylaş"), 'Social share buttons removed');
+    assert.ok(!result.markdown.includes('Bültene Katıl'), 'Newsletter form removed');
+    assert.ok(!result.markdown.includes('Gezinme Kutusu İçeriği'), 'Navbox removed');
+    assert.ok(!result.markdown.includes('Bu sayfa haber içerir.'), 'Hatnote removed');
+  });
+
+  it('preserves square brackets inside code blocks without stripping them', () => {
+    if (typeof (globalThis as any).DOMParser === 'undefined') return;
+
+    const codeHtml = `
+      <html>
+        <head><title>Kod Rehberi</title></head>
+        <body>
+          <article>
+            <h1>Kod Rehberi</h1>
+            <p>Dizi indeksleme örneği:</p>
+            <pre><code class="language-typescript">const items = [10, 20, 30];\nconst first = items[0];\nconst second = items[20];</code></pre>
+          </article>
+        </body>
+      </html>
+    `;
+
+    const result = convertHtmlToMarkdown(codeHtml, 'https://example.com/kod');
+    assert.ok(result.markdown.includes('items[0]'), 'items[0] preserved in code block');
+    assert.ok(result.markdown.includes('items[20]'), 'items[20] preserved in code block');
+    assert.ok(result.markdown.includes('[10, 20, 30]'), 'Array literal preserved in code block');
+  });
+
+  it('cleans the exact user citation sample string while preserving text and topic links', () => {
+    const rawMarkdownWithTurndownArtifacts = `Lise yıllarında [Millî Türk Talebe Birliği](https://tr.wikipedia.org/wiki/Mill%C3%AE_T%C3%BCrk_Talebe_Birli%C4%9Fi_(1946))'ne girdi.[\[20\]](#cite_note-Milliyet-2001-20)[\[42\]](#cite_note-Yalçın-49-42) 1975'te [Millî Selamet Partisi](https://tr.wikipedia.org/wiki/Mill%C3%AE_Selamet_Partisi) gençlik kollarına katıldı.`;
+
+    const cleaned = sanitizeMarkdownOutput(rawMarkdownWithTurndownArtifacts, DEFAULT_CLIPPER_CLEAN_OPTIONS);
+
+    assert.ok(!cleaned.includes('cite_note'), 'Stripped citation anchor');
+    assert.ok(!cleaned.includes('[20]'), 'Stripped [20]');
+    assert.ok(!cleaned.includes('[42]'), 'Stripped [42]');
+    assert.ok(!cleaned.includes('[\\[20\\]]'), 'Stripped escaped [20]');
+    assert.ok(!cleaned.includes('[\\[42\\]]'), 'Stripped escaped [42]');
+    assert.ok(cleaned.includes("girdi. 1975'te"), 'Clean sentence flow with punctuation intact');
+    assert.ok(
+      cleaned.includes("[Millî Türk Talebe Birliği](https://tr.wikipedia.org/wiki/Mill%C3%AE_T%C3%BCrk_Talebe_Birli%C4%9Fi_(1946))"),
+      'Topic link preserved'
+    );
+  });
+
+  it('respects options when stripCitations is set to false', () => {
+    if (typeof (globalThis as any).DOMParser === 'undefined') return;
+
+    const html = `
+      <html>
+        <head><title>Akademik Makale</title></head>
+        <body>
+          <article>
+            <h1>Başlık</h1>
+            <p>Bir önerme yapıldı<sup class="reference"><a href="#cite_note-1">[1]</a></sup>.</p>
+          </article>
+        </body>
+      </html>
+    `;
+
+    const result = convertHtmlToMarkdown(html, 'https://example.com/akademik', { stripCitations: false });
+    assert.ok(result.markdown.includes('1'), 'Citation preserved when stripCitations is false');
+  });
 });
+
+
