@@ -135,15 +135,31 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
 
   const handlePreset = (e: React.MouseEvent, daysCount: number) => {
     e.preventDefault();
-    const today = new Date();
-    const startStr = formatDateStr(today);
-    const endDateObj = new Date(today);
-    endDateObj.setDate(today.getDate() + (daysCount - 1));
+    
+    // If a start date is already chosen, calculate the duration starting from that date.
+    // Otherwise, default the start date to today.
+    let baseDate: Date;
+    const currentStart = tempStart || startDate;
+    if (currentStart && !isNaN(new Date(currentStart).getTime())) {
+      const parts = currentStart.split('-');
+      if (parts.length === 3) {
+        baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      } else {
+        baseDate = new Date(currentStart);
+      }
+    } else {
+      baseDate = new Date();
+    }
+
+    const startStr = formatDateStr(baseDate);
+    const endDateObj = new Date(baseDate);
+    endDateObj.setDate(baseDate.getDate() + (daysCount - 1));
     const endStr = formatDateStr(endDateObj);
 
     setTempStart(startStr);
     setTempEnd(endStr);
     setIsSelectingEnd(false);
+    setViewDate(new Date(baseDate.getFullYear(), baseDate.getMonth(), 1));
     onChange(startStr, endStr);
     setIsOpen(false);
   };

@@ -199,9 +199,27 @@ export const InlineAiComposer: React.FC<InlineAiComposerProps> = ({
     }
   };
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const nextWeekStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   const quickChips = [
     { label: t('aiInlineChipExplain'), prompt: isEnglish ? 'Explain and elaborate on this topic with clear, structured paragraphs.' : 'Bu konuyu detaylıca açıkla ve paragraflarla detaylandır.' },
-    { label: t('aiInlineChipTodos'), prompt: isEnglish ? 'Generate an actionable checklist (- [ ] task) for this section.' : 'Bu bölüm için aksiyona dönüştürülebilir bir yapılacaklar listesi (- [ ]) çıkar.' },
+    {
+      label: t('aiInlineChipTodos'),
+      prompt: isEnglish
+        ? `Generate an actionable checklist for this section. Each task must strictly follow the format below:
+- Task title must be concise (max 10 words).
+- Followed by HTML comment metadata: <!-- task:{"description":"detailed description (max 4-5 sentences)","priority":"medium","assignee":"unassigned","assignees":["unassigned"],"start_date":"${todayStr}","end_date":"${nextWeekStr}","progress":0,"tags":["unassigned"]} -->
+
+Example format:
+- [ ] Implement CI/CD pipeline <!-- task:{"description":"Connect the WASM build pipeline to GitHub Actions. Configure caching to ensure build speed. Run automated regression tests before deployment.","priority":"medium","assignee":"unassigned","assignees":["unassigned"],"start_date":"${todayStr}","end_date":"${nextWeekStr}","progress":0,"tags":["unassigned"]} -->`
+        : `Bu bölüm için aksiyona dönüştürülebilir bir yapılacaklar listesi çıkar. Her task mutlaka aşağıdaki formata birebir uygun olmalıdır:
+- Task başlığı en fazla 10 kelime olmalıdır.
+- Task başlığının hemen ardından şu formatta HTML açıklama satırı (metadata) eklenmelidir: <!-- task:{"description":"taskın detaylı açıklaması (maks 4-5 cümle)","priority":"medium","assignee":"unassigned","assignees":["unassigned"],"start_date":"${todayStr}","end_date":"${nextWeekStr}","progress":0,"tags":["unassigned"]} -->
+
+Örnek format:
+- [ ] WASM derleme hattının CI/CD pipeline'ına bağlanması <!-- task:{"description":"WASM derleme adımlarını GitHub Actions hattına entegre edin. Hızlı derleme için derleme önbelleklerini yapılandırın. Dağıtım öncesinde otomatik regresyon testlerinin başarıyla geçtiğinden emin olun.","priority":"medium","assignee":"unassigned","assignees":["unassigned"],"start_date":"${todayStr}","end_date":"${nextWeekStr}","progress":0,"tags":["unassigned"]} -->`
+    },
     { label: t('aiInlineChipDecision'), prompt: isEnglish ? 'Draft a decision record (- [D] decision) with context and rationales.' : 'Bu konuyla ilgili gerekçeleriyle birlikte bir karar kaydı taslağı (- [D]) oluştur.' },
     { label: t('aiInlineChipTable'), prompt: isEnglish ? 'Create a structured comparison markdown table summarizing the key aspects.' : 'Konuyu özetleyen ve karşılaştıran düzenli bir Markdown tablosu oluştur.' },
     { label: t('aiInlineChipSummary'), prompt: isEnglish ? 'Summarize the key takeaways and conclusions as concise bullet points.' : 'Temel çıkarımları ve özet maddelerini listele.' },

@@ -116,6 +116,7 @@ export const TasksView: React.FC = () => {
         todayStr={todayStr}
         rightPanelOpen={rightPanelOpen}
         toggleRightPanel={toggleRightPanel}
+        onEditTask={setEditingTask}
         onUpdateTask={updateTaskMetadata}
       />
 

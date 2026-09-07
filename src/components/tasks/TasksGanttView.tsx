@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import type { Task as GanttTask } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
-import { BarChart, Calendar, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { BarChart, Calendar, PanelRightClose, PanelRightOpen, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TaskInfo } from '@/services/storage';
+import type { TaskEditData } from '@/components/TaskEditModal';
 import { isTaskOverdue, getTaskAssignees } from './useTaskFilters';
 
 interface TasksGanttViewProps {
@@ -13,6 +14,7 @@ interface TasksGanttViewProps {
   todayStr: string;
   rightPanelOpen: boolean;
   toggleRightPanel: () => void;
+  onEditTask?: (task: TaskEditData) => void;
   onUpdateTask: (
     noteId: string,
     lineNumber: number,
@@ -35,6 +37,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
   todayStr,
   rightPanelOpen,
   toggleRightPanel,
+  onEditTask,
   onUpdateTask,
 }) => {
   const { t, i18n } = useTranslation();
@@ -55,6 +58,10 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
 
     const tasksWithDates = filteredTasks.filter(t => t.start_date && t.end_date);
     if (tasksWithDates.length === 0) return [];
+
+    const truncateGanttName = (text: string, maxLen = 35) => {
+      return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+    };
 
     if (groupByAssignee) {
       const activeAssignees = new Set<string>();
@@ -90,7 +97,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
           gTasks.push({
             id: `${task.note_id}_${task.line_number}_${assignee}`,
             type: 'task',
-            name: task.content,
+            name: truncateGanttName(task.content),
             start: new Date(task.start_date!),
             end: new Date(task.end_date!),
             progress: progress,
@@ -109,7 +116,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
         gTasks.push({
           id: `${task.note_id}_${task.line_number}`,
           type: 'task',
-          name: task.content,
+          name: truncateGanttName(task.content),
           start: new Date(task.start_date!),
           end: new Date(task.end_date!),
           progress: progress,
@@ -188,6 +195,15 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
     }
   };
 
+  const findTaskByGanttId = (ganttId: string): TaskInfo | undefined => {
+    return tasksWithDatesRef.current.find(t => {
+      if (groupByAssignee) {
+        return ganttId.startsWith(`${t.note_id}_${t.line_number}_`);
+      }
+      return `${t.note_id}_${t.line_number}` === ganttId;
+    });
+  };
+
   const TaskListHeader = ({ headerHeight, fontSize }: any) => {
     return (
       <div 
@@ -211,36 +227,65 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
 
     return (
       <div className="flex flex-col bg-white dark:bg-zinc-900 select-none" style={{ fontSize }}>
-        {tasks.map((t: GanttTask) => (
-          <div 
-            key={t.id} 
-            className="flex border-b border-gray-100 dark:border-zinc-800/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors" 
-            style={{ height: rowHeight }}
-          >
-            <div className="flex-1 flex items-center px-3 truncate min-w-0" title={t.name}>
-              {t.type === 'project' && (
-                <button 
-                  className="mr-1.5 text-gray-400 hover:text-mac-accent shrink-0 text-xs flex items-center justify-center w-4 h-4 transition-colors" 
-                  onClick={() => onExpanderClick(t)}
-                >
-                  {t.hideChildren ? '▶' : '▼'}
-                </button>
-              )}
-              <span className={cn(
-                "truncate font-medium text-gray-800 dark:text-gray-200", 
-                t.type === 'project' && "font-bold text-mac-accent dark:text-blue-400"
-              )}>
-                {t.name}
-              </span>
+        {tasks.map((gTask: GanttTask) => {
+          const rawTask = gTask.type !== 'project' ? findTaskByGanttId(gTask.id) : undefined;
+
+          return (
+            <div 
+              key={gTask.id} 
+              className="flex border-b border-gray-100 dark:border-zinc-800/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group" 
+              style={{ height: rowHeight }}
+            >
+              <div className="flex-1 flex items-center px-3 truncate min-w-0" title={rawTask?.content || gTask.name}>
+                {gTask.type === 'project' && (
+                  <button 
+                    className="mr-1.5 text-gray-400 hover:text-mac-accent shrink-0 text-xs flex items-center justify-center w-4 h-4 transition-colors" 
+                    onClick={() => onExpanderClick(gTask)}
+                  >
+                    {gTask.hideChildren ? '▶' : '▼'}
+                  </button>
+                )}
+                {gTask.type !== 'project' && onEditTask && rawTask && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditTask({
+                        noteId: rawTask.note_id,
+                        lineNumber: rawTask.line_number,
+                        content: rawTask.content,
+                        completed: rawTask.completed,
+                        description: rawTask.description,
+                        startDate: rawTask.start_date,
+                        endDate: rawTask.end_date,
+                        priority: rawTask.priority,
+                        assignee: rawTask.assignee,
+                        assignees: rawTask.assignees,
+                        progress: rawTask.progress,
+                        tags: rawTask.tags,
+                      });
+                    }}
+                    className="mr-1.5 p-1 rounded-md text-gray-400 hover:text-mac-accent hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0"
+                    title={t('editTaskDetails', 'Görev Detaylarını Düzenle')}
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                )}
+                <span className={cn(
+                  "truncate font-medium text-gray-800 dark:text-gray-200", 
+                  gTask.type === 'project' && "font-bold text-mac-accent dark:text-blue-400"
+                )}>
+                  {gTask.name}
+                </span>
+              </div>
+              <div className="w-[75px] flex items-center text-[10px] text-gray-500 dark:text-gray-400 shrink-0 font-mono pl-1">
+                {formatDate(gTask.start)}
+              </div>
+              <div className="w-[75px] flex items-center text-[10px] text-gray-500 dark:text-gray-400 shrink-0 font-mono pl-1">
+                {formatDate(gTask.end)}
+              </div>
             </div>
-            <div className="w-[75px] flex items-center text-[10px] text-gray-500 dark:text-gray-400 shrink-0 font-mono pl-1">
-              {formatDate(t.start)}
-            </div>
-            <div className="w-[75px] flex items-center text-[10px] text-gray-500 dark:text-gray-400 shrink-0 font-mono pl-1">
-              {formatDate(t.end)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
