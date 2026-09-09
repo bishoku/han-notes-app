@@ -371,7 +371,7 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
           setDiagramModalOpen(false);
         }}
         initialMetadata={diagramInitialMetadata}
-        theme={theme === 'system' ? 'auto' : (theme as any)}
+        theme={theme === 'light' || theme === 'retro' ? 'light' : 'dark'}
         lang={language}
         yadaUrl={(import.meta as any).env?.VITE_YADA_URL || undefined}
       />

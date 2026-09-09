@@ -123,7 +123,7 @@ export class ResizableImageWidget extends WidgetType {
         const projectData = extractPngMetadata(bytes, YADA_METADATA_KEYWORD);
         const url = buildYadaEmbedUrl({
           yadaUrl: YADA_URL,
-          theme: theme === 'system' ? 'auto' : (theme as any),
+          theme: theme === 'light' || theme === 'retro' ? 'light' : 'dark',
           lang: language,
           projectData: projectData || undefined,
         });
@@ -133,7 +133,7 @@ export class ResizableImageWidget extends WidgetType {
         console.warn('Failed to extract embedded YADA diagram for simulation:', err);
         return buildYadaEmbedUrl({
           yadaUrl: YADA_URL,
-          theme: theme === 'system' ? 'auto' : (theme as any),
+          theme: theme === 'light' || theme === 'retro' ? 'light' : 'dark',
           lang: language,
         });
       }
