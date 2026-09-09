@@ -7,7 +7,7 @@
  * - Floating action toolbar (Play / Edit / Delete)
  */
 import { WidgetType, EditorView } from '@codemirror/view';
-import LZString from 'lz-string';
+import { buildYadaEmbedUrl } from 'yada-preview';
 import { storage } from '@/services/storage';
 import { extractPngMetadata, YADA_METADATA_KEYWORD } from '@/utils/pngMetadata';
 import { useUiStore } from '@/store/uiStore';
@@ -111,21 +111,32 @@ export class ResizableImageWidget extends WidgetType {
     let isSimulation = false;
     let iframe: HTMLIFrameElement | null = null;
 
-    // Helper to generate the YADA Embed URL from embedded PNG metadata
+    // Helper to generate the YADA Embed URL from embedded PNG metadata with memoization
     const getYadaEmbedUrl = async (): Promise<string> => {
+      if ((wrap as any)._cachedEmbedUrl) {
+        return (wrap as any)._cachedEmbedUrl;
+      }
       const YADA_URL = (import.meta as any).env?.VITE_YADA_URL || 'https://bishoku.github.io/yada/';
       const { theme, language } = useUiStore.getState();
       try {
         const bytes = await storage.getImageBytes(this.relPath);
         const projectData = extractPngMetadata(bytes, YADA_METADATA_KEYWORD);
-        if (projectData) {
-          const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(projectData));
-          return `${YADA_URL}?embed=true&theme=${theme}&lang=${language}#share=${compressed}`;
-        }
+        const url = buildYadaEmbedUrl({
+          yadaUrl: YADA_URL,
+          theme: theme === 'system' ? 'auto' : (theme as any),
+          lang: language,
+          projectData: projectData || undefined,
+        });
+        (wrap as any)._cachedEmbedUrl = url;
+        return url;
       } catch (err) {
         console.warn('Failed to extract embedded YADA diagram for simulation:', err);
+        return buildYadaEmbedUrl({
+          yadaUrl: YADA_URL,
+          theme: theme === 'system' ? 'auto' : (theme as any),
+          lang: language,
+        });
       }
-      return `${YADA_URL}?embed=true&theme=${theme}&lang=${language}`;
     };
 
     // Live Simulation Mode Toggle (for YADA diagrams)
@@ -162,7 +173,7 @@ export class ResizableImageWidget extends WidgetType {
           if (!iframe) {
             iframe = document.createElement('iframe');
             iframe.className = 'rounded-xl shadow-md border border-gray-200 dark:border-zinc-800 block bg-slate-50 dark:bg-slate-950 transition-all';
-            iframe.setAttribute('allow', 'fullscreen');
+            iframe.setAttribute('allow', 'fullscreen; clipboard-read; clipboard-write');
             wrap.appendChild(iframe);
           }
           iframe.style.width = `${exactW}px`;
@@ -253,6 +264,7 @@ export class ResizableImageWidget extends WidgetType {
               .catch((err) => { console.error('Failed to reload diagram image:', err); });
           }
 
+          (wrap as any)._cachedEmbedUrl = null;
           // If iframe is currently visible in simulation mode, refresh its content
           if (iframe && isSimulation) {
             const embedUrl = await getYadaEmbedUrl();

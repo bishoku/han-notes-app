@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Maximize2, Sun, Moon, Grid } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { YadaSimulationIframe } from 'yada-preview';
 
 export interface FullscreenMediaData {
   src?: string;
@@ -136,10 +137,8 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
       >
         {isSimulation && embedUrl ? (
           <div className="w-[96vw] h-[88vh] max-w-[1700px] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-slate-950 flex flex-col animate-in zoom-in-95 duration-150">
-            <iframe
-              src={embedUrl}
-              className="w-full h-full border-0"
-              allow="fullscreen"
+            <YadaSimulationIframe
+              embedUrl={embedUrl}
               title={cleanTitle || "Simulation View"}
             />
           </div>

@@ -10,7 +10,7 @@ import {
   formatDiagramAiComment,
   updateDiagramAiCommentInMarkdown,
 } from '@/utils/diagramAiGenerator';
-import type { DiagramPayload } from '@/components/DiagramEditorModal';
+import type { DiagramSavePayload } from 'yada-preview';
 import type { ExcalidrawSavePayload } from '@/components/ExcalidrawEditorModal';
 
 /**
@@ -125,7 +125,7 @@ export function useDiagramManager(
     return () => window.removeEventListener('edit-diagram', handleEditDiagram as EventListener);
   }, [openDiagramEditor, openExcalidrawEditor]);
 
-  const handleSaveDiagram = useCallback(async (payload: DiagramPayload) => {
+  const handleSaveDiagram = useCallback(async (payload: DiagramSavePayload) => {
     if (!currentNoteId) return;
 
     try {

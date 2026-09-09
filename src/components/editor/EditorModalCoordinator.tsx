@@ -12,7 +12,8 @@ import type { NoteInfo } from '@/store/noteStore';
 // Modals
 import { TaskEditModal, type TaskEditData } from '@/components/TaskEditModal';
 import { DecisionEditModal, type DecisionEditData } from '@/components/DecisionEditModal';
-import { DiagramEditorModal } from '@/components/DiagramEditorModal';
+import { YadaEditorModal } from 'yada-preview';
+import { useUiStore } from '@/store/uiStore';
 import { ExcalidrawEditorModal } from '@/components/ExcalidrawEditorModal';
 import { MermaidEditorModal, type MermaidSavePayload } from '@/components/MermaidEditorModal';
 import { CodeEditorModal, type CodeSavePayload } from '@/components/CodeEditorModal';
@@ -70,6 +71,7 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
   setInlineAiState,
 }) => {
   const { t } = useTranslation();
+  const { theme, language } = useUiStore();
 
   // Fullscreen Media & Web Modals
   const [fullscreenMedia, setFullscreenMedia] = useState<FullscreenMediaData | null>(null);
@@ -361,11 +363,17 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
       )}
 
       {/* Diagrams & Sketches Modals */}
-      <DiagramEditorModal
+      <YadaEditorModal
         isOpen={diagramModalOpen}
         onClose={() => setDiagramModalOpen(false)}
-        onSave={handleSaveDiagram}
+        onSave={(payload) => {
+          handleSaveDiagram(payload);
+          setDiagramModalOpen(false);
+        }}
         initialMetadata={diagramInitialMetadata}
+        theme={theme === 'system' ? 'auto' : (theme as any)}
+        lang={language}
+        yadaUrl={(import.meta as any).env?.VITE_YADA_URL || undefined}
       />
       <ExcalidrawEditorModal
         isOpen={excalidrawModalOpen}
