@@ -38,6 +38,10 @@ import {
   convertHtmlToMarkdown,
   sanitizeMarkdownOutput,
   DEFAULT_CLIPPER_CLEAN_OPTIONS,
+  shouldRemoveElement,
+  getElementClassString,
+  getElementIdString,
+  getElementHrefString,
 } from '../webClipperService.ts';
 
 describe('Web Clipper: bookmarkletGenerator', () => {
@@ -338,7 +342,7 @@ describe('Web Clipper: webClipperService convertHtmlToMarkdown', () => {
   });
 
   it('cleans the exact user citation sample string while preserving text and topic links', () => {
-    const rawMarkdownWithTurndownArtifacts = `Lise yıllarında [Millî Türk Talebe Birliği](https://tr.wikipedia.org/wiki/Mill%C3%AE_T%C3%BCrk_Talebe_Birli%C4%9Fi_(1946))'ne girdi.[\[20\]](#cite_note-Milliyet-2001-20)[\[42\]](#cite_note-Yalçın-49-42) 1975'te [Millî Selamet Partisi](https://tr.wikipedia.org/wiki/Mill%C3%AE_Selamet_Partisi) gençlik kollarına katıldı.`;
+    const rawMarkdownWithTurndownArtifacts = `Lise yıllarında [Millî Türk Talebe Birliği](https://tr.wikipedia.org/wiki/Mill%C3%AE_T%C3%BCrk_Talebe_Birli%C4%9Fi_(1946))'ne girdi.[\\[20\\]](#cite_note-Milliyet-2001-20)[\\[42\\]](#cite_note-Yalçın-49-42) 1975'te [Millî Selamet Partisi](https://tr.wikipedia.org/wiki/Mill%C3%AE_Selamet_Partisi) gençlik kollarına katıldı.`;
 
     const cleaned = sanitizeMarkdownOutput(rawMarkdownWithTurndownArtifacts, DEFAULT_CLIPPER_CLEAN_OPTIONS);
 
@@ -372,6 +376,54 @@ describe('Web Clipper: webClipperService convertHtmlToMarkdown', () => {
     const result = convertHtmlToMarkdown(html, 'https://example.com/akademik', { stripCitations: false });
     assert.ok(result.markdown.includes('1'), 'Citation preserved when stripCitations is false');
   });
+
+  it('safely handles elements with SVGAnimatedString or object className/href without throwing', () => {
+    // 1. Test helper extractions
+    const svgEl = {
+      nodeType: 1,
+      nodeName: 'svg',
+      className: { baseVal: 'feather-icon icon-share' },
+      getAttribute: (name: string) => (name === 'class' ? 'feather-icon icon-share' : null),
+    };
+    assert.equal(getElementClassString(svgEl), 'feather-icon icon-share');
+
+    const svgUseEl = {
+      nodeType: 1,
+      nodeName: 'use',
+      href: { baseVal: '#symbol-1' },
+      getAttribute: (name: string) => (name === 'href' ? '#symbol-1' : null),
+    };
+    assert.equal(getElementHrefString(svgUseEl), '#symbol-1');
+
+    const formWithInputId = {
+      nodeType: 1,
+      nodeName: 'form',
+      id: { nodeType: 1, nodeName: 'input', name: 'id' }, // form.id collided with child input
+      getAttribute: (name: string) => (name === 'id' ? 'search-form' : null),
+    };
+    assert.equal(getElementIdString(formWithInputId), 'search-form');
+
+    // 2. Test shouldRemoveElement doesn't crash on SVGAnimatedString
+    const removeSocialSvg = shouldRemoveElement(svgEl, DEFAULT_CLIPPER_CLEAN_OPTIONS);
+    assert.equal(typeof removeSocialSvg, 'boolean');
+
+    // 3. Test convertHtmlToMarkdown with SVG markup
+    const htmlWithSvg = `
+      <html>
+        <head><title>SVG Makale</title></head>
+        <body>
+          <article>
+            <h1>SVG Makale</h1>
+            <p>Paragraf içinde <svg class="inline-icon"><circle cx="5" cy="5" r="5"/></svg> ikon var.</p>
+          </article>
+        </body>
+      </html>
+    `;
+    const result = convertHtmlToMarkdown(htmlWithSvg, 'https://example.com/svg-page');
+    assert.ok(result.markdown.includes('SVG Makale'));
+    assert.ok(result.markdown.includes('Paragraf içinde'));
+  });
 });
+
 
 

@@ -176,17 +176,67 @@ export function getAllElements(root: any): any[] {
 }
 
 /**
+ * Safely extracts the class name string from any DOM node,
+ * accounting for SVGAnimatedString in SVG elements and non-string className properties.
+ */
+export function getElementClassString(el: any): string {
+  if (!el) return '';
+  if (typeof el.className === 'string') return el.className;
+  if (el.className && typeof el.className.baseVal === 'string') return el.className.baseVal;
+  if (typeof el.getAttribute === 'function') {
+    try {
+      const attr = el.getAttribute('class');
+      if (typeof attr === 'string') return attr;
+    } catch {}
+  }
+  return '';
+}
+
+/**
+ * Safely extracts the ID string from any DOM node,
+ * avoiding object collision in forms (e.g. form with input name="id").
+ */
+export function getElementIdString(el: any): string {
+  if (!el) return '';
+  if (typeof el.getAttribute === 'function') {
+    try {
+      const attr = el.getAttribute('id');
+      if (typeof attr === 'string') return attr;
+    } catch {}
+  }
+  if (typeof el.id === 'string') return el.id;
+  return '';
+}
+
+/**
+ * Safely extracts the href string from any DOM node,
+ * accounting for SVGAnimatedString in SVG elements (<use>, <a>, etc.).
+ */
+export function getElementHrefString(el: any): string {
+  if (!el) return '';
+  if (typeof el.getAttribute === 'function') {
+    try {
+      const attr = el.getAttribute('href') || el.getAttribute('xlink:href');
+      if (typeof attr === 'string') return attr;
+    } catch {}
+  }
+  if (typeof el.href === 'string') return el.href;
+  if (el.href && typeof el.href.baseVal === 'string') return el.href.baseVal;
+  return '';
+}
+
+/**
  * Checks whether an element matches noise criteria (citations, Wikipedia edit links,
  * navboxes, sidebars, social sharing, newsletters, ads, or comments).
  */
 export function shouldRemoveElement(el: any, options: Required<ClipperCleanOptions>): boolean {
   if (!el || el.nodeType !== 1) return false;
 
-  const tag = (el.nodeName || '').toLowerCase();
-  const cls = (el.className || el.getAttribute?.('class') || '').toLowerCase();
-  const id = (el.id || el.getAttribute?.('id') || '').toLowerCase();
-  const href = (el.getAttribute?.('href') || el.href || '').toLowerCase();
-  const role = (el.getAttribute?.('role') || '').toLowerCase();
+  const tag = (typeof el.nodeName === 'string' ? el.nodeName : '').toLowerCase();
+  const cls = getElementClassString(el).toLowerCase();
+  const id = getElementIdString(el).toLowerCase();
+  const href = getElementHrefString(el).toLowerCase();
+  const role = (typeof el.getAttribute === 'function' && typeof el.getAttribute('role') === 'string' ? el.getAttribute('role') : '').toLowerCase();
 
   // 1. Citations & Footnotes
   if (options.stripCitations) {
@@ -348,7 +398,7 @@ export function sanitizeArticleDom(
 
     // Process anchors
     if (tag === 'a') {
-      const href = (el.getAttribute?.('href') || el.href || '').trim();
+      const href = getElementHrefString(el).trim();
       const text = (el.textContent || '').trim();
 
       // Citations or footnotes
@@ -672,9 +722,8 @@ function createClipperTurndownService(options: Required<ClipperCleanOptions>): T
       const el = node as HTMLElement;
       const codeEl = el.querySelector ? el.querySelector('code') : el.getElementsByTagName?.('code')?.[0];
       const classAttr =
-        (codeEl ? codeEl.className || codeEl.getAttribute?.('class') : '') ||
-        el.className ||
-        el.getAttribute?.('class') ||
+        (codeEl ? getElementClassString(codeEl) : '') ||
+        getElementClassString(el) ||
         '';
       const langMatch = classAttr.match(/(?:language-|lang-)([a-zA-Z0-9_-]+)/);
       const lang = langMatch ? langMatch[1] : (el.getAttribute('data-lang') || '');
@@ -789,7 +838,7 @@ function createClipperTurndownService(options: Required<ClipperCleanOptions>): T
 
     if (options.stripCitations && tag === 'sup') {
       const el = node as HTMLElement;
-      const cls = el.className || '';
+      const cls = getElementClassString(el);
       if (cls.includes('reference') || el.querySelector?.('a[href*="#cite_note"]')) {
         return true;
       }
@@ -971,7 +1020,7 @@ export function sanitizeMarkdownOutput(
       // Replace non-breaking spaces (\u00A0) with standard spaces
       text = text.replace(/\u00A0/g, ' ');
       // Remove invisible zero-width characters (\u200B, \u200C, \u200D, \uFEFF)
-      text = text.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
+      text = text.replace(/[\u200B\u200C\uFEFF]|\u200D/gu, '');
     }
 
     parts[i] = text;
