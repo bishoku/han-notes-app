@@ -3,7 +3,7 @@
  * Manages active note state, tag updates, and switches
  * between LivePreviewEditor (WYSIWYG) and RawSourceEditor (Plain-text code editor).
  */
-import React, { useRef, useCallback, useState, useEffect } from 'react';
+import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { storage } from '@/services/storage';
 import { useUiStore } from '@/store/uiStore';
@@ -22,6 +22,9 @@ import { EditorHeader } from '@/components/EditorHeader';
 import { EditorModalCoordinator } from '@/components/editor/EditorModalCoordinator';
 import { PdfSplitViewer } from '@/components/pdf/PdfSplitViewer';
 import { formatPdfQuote } from '@/utils/pdfQuoteFormatter';
+import { useTaskStore } from '@/store/taskStore';
+import { isNoteIdMatch } from '@/utils/pathUtils';
+import { NoteTasksBottomPanel } from '@/components/tasks/NoteTasksBottomPanel';
 
 export const MainEditor: React.FC = () => {
   const { t } = useTranslation();
@@ -120,10 +123,29 @@ export const MainEditor: React.FC = () => {
     decisionModalData,
     setDecisionModalData,
     handleOpenTaskModal,
+    handleEditTaskDirect,
     handleSaveTaskModal,
     handleOpenDecisionModal,
     handleSaveDecisionModal,
   } = useTaskDecisionModals(currentNoteId);
+
+  // 3.1 Task Store & Note Tasks
+  const tasks = useTaskStore((s) => s.tasks);
+  const taskRegistry = useTaskStore((s) => s.registry);
+  const loadTasks = useTaskStore((s) => s.loadTasks);
+  const toggleTask = useTaskStore((s) => s.toggleTask);
+  const updateTaskMetadata = useTaskStore((s) => s.updateTaskMetadata);
+
+  useEffect(() => {
+    if (currentNoteId) {
+      loadTasks();
+    }
+  }, [currentNoteId, loadTasks]);
+
+  const noteTasks = useMemo(() => {
+    if (!currentNoteId) return [];
+    return tasks.filter((t) => isNoteIdMatch(t.note_id, currentNoteId));
+  }, [tasks, currentNoteId]);
 
   // 4. Inline AI State
   const [inlineAiState, setInlineAiState] = useState<{
@@ -434,34 +456,51 @@ export const MainEditor: React.FC = () => {
         )}
 
         <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden relative">
-          {editorMode === 'preview' ? (
-            <LivePreviewEditor
-              value={localContent}
-              onChange={handleUpdate}
-              editorRef={editorRef}
-              theme={theme}
-              fontSize={fontSize}
-              currentNoteId={currentNoteId}
-              otherNotes={otherNotes}
-              onOpenDiagramEditor={openDiagramEditor}
-              onOpenExcalidrawEditor={openExcalidrawEditor}
-              onOpenImagePicker={handleOpenImagePicker}
-              onOpenPdfPicker={handleOpenPdfPicker}
-              onOpenTaskModal={handleOpenTaskModal}
-              onOpenDecisionModal={handleOpenDecisionModal}
-              onOpenMermaidModal={() => eventBus.emit('modal:edit-mermaid', { code: '' })}
-              onOpenCodeModal={(lang) =>
-                eventBus.emit('modal:edit-code-block', { code: '', lang: lang || 'typescript' })
-              }
-              onOpenInlineAi={(top, lineFrom) => setInlineAiState({ isOpen: true, top, lineFrom })}
-            />
-          ) : (
-            <RawSourceEditor
-              value={localContent}
-              onChange={handleUpdate}
-              editorRef={editorRef}
-              theme={theme}
-              fontSize={fontSize}
+          <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden relative">
+            {editorMode === 'preview' ? (
+              <LivePreviewEditor
+                value={localContent}
+                onChange={handleUpdate}
+                editorRef={editorRef}
+                theme={theme}
+                fontSize={fontSize}
+                currentNoteId={currentNoteId}
+                otherNotes={otherNotes}
+                onOpenDiagramEditor={openDiagramEditor}
+                onOpenExcalidrawEditor={openExcalidrawEditor}
+                onOpenImagePicker={handleOpenImagePicker}
+                onOpenPdfPicker={handleOpenPdfPicker}
+                onOpenTaskModal={handleOpenTaskModal}
+                onOpenDecisionModal={handleOpenDecisionModal}
+                onOpenMermaidModal={() => eventBus.emit('modal:edit-mermaid', { code: '' })}
+                onOpenCodeModal={(lang) =>
+                  eventBus.emit('modal:edit-code-block', { code: '', lang: lang || 'typescript' })
+                }
+                onOpenInlineAi={(top, lineFrom) => setInlineAiState({ isOpen: true, top, lineFrom })}
+              />
+            ) : (
+              <RawSourceEditor
+                value={localContent}
+                onChange={handleUpdate}
+                editorRef={editorRef}
+                theme={theme}
+                fontSize={fontSize}
+              />
+            )}
+          </div>
+
+          {/* Note Tasks Bottom Collapsible Panel (Only shown if note has tasks) */}
+          {noteTasks.length > 0 && (
+            <NoteTasksBottomPanel
+              tasks={noteTasks}
+              registry={taskRegistry}
+              onToggleTask={toggleTask}
+              onEditTask={handleEditTaskDirect}
+              onUpdateTask={updateTaskMetadata}
+              onScrollToTask={(lineNumber) => {
+                eventBus.emit('editor:scroll-to-heading', { line: lineNumber });
+                window.dispatchEvent(new CustomEvent('scroll-to-heading', { detail: { line: lineNumber } }));
+              }}
             />
           )}
         </div>

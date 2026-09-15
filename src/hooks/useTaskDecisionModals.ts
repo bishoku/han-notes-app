@@ -105,6 +105,7 @@ export function useTaskDecisionModals(currentNoteId: string | null) {
     decisionModalData,
     setDecisionModalData,
     handleOpenTaskModal,
+    handleEditTaskDirect: (task: TaskEditData) => setTaskModalData(task),
     handleSaveTaskModal,
     handleOpenDecisionModal,
     handleSaveDecisionModal,
