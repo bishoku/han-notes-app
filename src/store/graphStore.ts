@@ -30,6 +30,17 @@ export interface GraphEdge {
 export type GraphLayoutMode = 'fcose' | 'breadthfirst' | 'concentric' | 'circle';
 export type GraphColorBy = 'folder' | 'tag' | 'connections';
 
+export type EdgeType = 'reference' | 'task-ref' | 'decision-ref';
+export type GraphLayer = 'notes' | 'tasks' | 'decisions';
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  type: EdgeType;
+}
+
 interface GraphState {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -42,6 +53,7 @@ interface GraphState {
   colorBy: GraphColorBy;
   localGraphOnly: boolean;
   isLoading: boolean;
+  visibleLayers: Set<GraphLayer>;
 
   // In-memory cache of note contents
   noteContentsCache: Map<string, string>;
@@ -58,6 +70,7 @@ interface GraphState {
   setGroupByFolder: (groupByFolder: boolean) => void;
   setColorBy: (colorBy: GraphColorBy) => void;
   setLocalGraphOnly: (localOnly: boolean) => void;
+  toggleLayer: (layer: GraphLayer) => void;
   resetGraph: () => void;
 }
 
@@ -70,7 +83,12 @@ export function extractWikilinks(content: string): string[] {
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(content)) !== null) {
-    const rawTarget = match[1].trim();
+    let rawTarget = match[1].trim();
+    const hashIndex = rawTarget.indexOf('#');
+    if (hashIndex >= 0) {
+      rawTarget = rawTarget.substring(0, hashIndex).trim();
+    }
+    
     if (rawTarget) {
       const clean = normalizeNoteId(rawTarget);
       if (clean && !links.includes(clean)) {
@@ -118,6 +136,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   colorBy: 'folder',
   localGraphOnly: false,
   isLoading: false,
+  visibleLayers: new Set(['notes', 'tasks', 'decisions']),
   noteContentsCache: new Map<string, string>(),
 
   buildFullGraph: async (notes: NoteInfo[], forceRefresh = true) => {
@@ -154,13 +173,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       for (const note of notes) {
         const content = cache.get(note.id) || '';
         const rawLinks = extractWikilinks(content);
+        const taskMatches = [...content.matchAll(/<!--\s*task:\s*({[^}]+})\s*-->/gi)];
+        const decisionMatches = [...content.matchAll(/<!--\s*decision:\s*({[^}]+})\s*-->/gi)];
 
-        for (const raw of rawLinks) {
+        const processTarget = (raw: string, edgeType: EdgeType) => {
           const resolvedId = resolveTargetNoteId(raw, notes);
 
           // Self loop check
           if (resolvedId === note.id) {
-            continue;
+            return;
           }
 
           // Register outgoing on source
@@ -202,14 +223,41 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           }
 
           // Edge
-          const edgeId = `${note.id}->${resolvedId}`;
+          const edgeId = `${note.id}->${resolvedId}-${edgeType}`;
           if (!edges.some((e) => e.id === edgeId)) {
             edges.push({
               id: edgeId,
               source: note.id,
               target: resolvedId,
+              type: edgeType,
             });
           }
+        };
+
+        for (const raw of rawLinks) {
+          processTarget(raw, 'reference');
+        }
+
+        for (const match of taskMatches) {
+          try {
+            const meta = JSON.parse(match[1]);
+            if (meta.related_notes && Array.isArray(meta.related_notes)) {
+              for (const rn of meta.related_notes) {
+                processTarget(rn, 'task-ref');
+              }
+            }
+          } catch (e) {}
+        }
+
+        for (const match of decisionMatches) {
+          try {
+            const meta = JSON.parse(match[1]);
+            if (meta.related_notes && Array.isArray(meta.related_notes)) {
+              for (const rn of meta.related_notes) {
+                processTarget(rn, 'decision-ref');
+              }
+            }
+          } catch (e) {}
         }
       }
 
@@ -279,7 +327,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
 
     const rawOutgoing = extractWikilinks(content);
+    const taskMatches = [...content.matchAll(/<!--\s*task:\s*({[^}]+})\s*-->/gi)];
+    const decisionMatches = [...content.matchAll(/<!--\s*decision:\s*({[^}]+})\s*-->/gi)];
+
     const resolvedOutgoingSet = new Set<string>();
+    const resolvedTasksSet = new Set<string>();
+    const resolvedDecisionsSet = new Set<string>();
 
     for (const raw of rawOutgoing) {
       const resolvedId = resolveTargetNoteId(raw, currentNodes);
@@ -288,15 +341,62 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       }
     }
 
+    for (const match of taskMatches) {
+      try {
+        const meta = JSON.parse(match[1]);
+        if (meta.related_notes && Array.isArray(meta.related_notes)) {
+          for (const rn of meta.related_notes) {
+            const resolvedId = resolveTargetNoteId(rn, currentNodes);
+            if (resolvedId && resolvedId !== cleanId) {
+              resolvedTasksSet.add(resolvedId);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    for (const match of decisionMatches) {
+      try {
+        const meta = JSON.parse(match[1]);
+        if (meta.related_notes && Array.isArray(meta.related_notes)) {
+          for (const rn of meta.related_notes) {
+            const resolvedId = resolveTargetNoteId(rn, currentNodes);
+            if (resolvedId && resolvedId !== cleanId) {
+              resolvedDecisionsSet.add(resolvedId);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
     // Filter out previous outgoing edges from this source
     const preservedEdges = edges.filter((e) => e.source !== cleanId);
     const newEdges: GraphEdge[] = [...preservedEdges];
 
     for (const targetId of resolvedOutgoingSet) {
       newEdges.push({
-        id: `${cleanId}->${targetId}`,
+        id: `${cleanId}->${targetId}-reference`,
         source: cleanId,
         target: targetId,
+        type: 'reference',
+      });
+    }
+
+    for (const targetId of resolvedTasksSet) {
+      newEdges.push({
+        id: `${cleanId}->${targetId}-task-ref`,
+        source: cleanId,
+        target: targetId,
+        type: 'task-ref',
+      });
+    }
+
+    for (const targetId of resolvedDecisionsSet) {
+      newEdges.push({
+        id: `${cleanId}->${targetId}-decision-ref`,
+        source: cleanId,
+        target: targetId,
+        type: 'decision-ref',
       });
     }
 
@@ -365,5 +465,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       hoveredNodeId: null,
       searchQuery: '',
       noteContentsCache: new Map(),
+    }),
+  toggleLayer: (layer) =>
+    set((state) => {
+      const newLayers = new Set(state.visibleLayers);
+      if (newLayers.has(layer)) {
+        newLayers.delete(layer);
+      } else {
+        newLayers.add(layer);
+      }
+      return { visibleLayers: newLayers };
     }),
 }));

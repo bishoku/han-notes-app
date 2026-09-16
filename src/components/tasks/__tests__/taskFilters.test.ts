@@ -14,6 +14,7 @@ describe('Task Filter Helpers & Multi-select Logic', () => {
       priority: 'urgent',
       assignees: ['Alice', 'Bob'],
       tags: ['bug', 'auth'],
+      related_notes: [],
       raw_line: '- [ ] Fix critical auth bug',
     },
     {
@@ -25,6 +26,7 @@ describe('Task Filter Helpers & Multi-select Logic', () => {
       priority: 'medium',
       assignees: ['Bob'],
       tags: ['ui', 'frontend'],
+      related_notes: [],
       raw_line: '- [ ] Implement dark mode toggle',
     },
     {
@@ -38,6 +40,7 @@ describe('Task Filter Helpers & Multi-select Logic', () => {
       assignee: 'Charlie',
       assignees: ['Charlie'],
       tags: ['testing'],
+      related_notes: [],
       raw_line: '- [x] Write unit tests',
     },
     {
@@ -48,6 +51,7 @@ describe('Task Filter Helpers & Multi-select Logic', () => {
       progress: 0,
       assignees: [],
       tags: ['backlog'],
+      related_notes: [],
       raw_line: '- [ ] Unassigned backlog item',
     },
   ];

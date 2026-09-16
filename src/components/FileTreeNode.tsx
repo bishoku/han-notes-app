@@ -1,12 +1,30 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useNoteStore } from '@/store/noteStore';
 import type { FileNode } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
-import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Plus, Trash2, Edit3, MoreVertical, FolderInput } from 'lucide-react';
+import {
+  Folder, FolderOpen, FileText, ChevronRight, ChevronDown,
+  Plus, Trash2, Edit3, MoreVertical, FolderInput,
+  Lightbulb, ListChecks, BookOpen, BookMarked, Scale, ClipboardList,
+} from 'lucide-react';
 import { eventBus } from '@/lib/eventBus';
 import { cn } from '@/lib/utils';
+import { normalizeNoteId, isNoteIdMatch } from '@/utils/pathUtils';
+
+/** Returns the appropriate lucide icon component for a given OKF note type */
+function getNoteTypeIcon(noteType: string | undefined) {
+  switch (noteType) {
+    case 'concept':      return Lightbulb;
+    case 'procedure':    return ListChecks;
+    case 'guide':        return BookOpen;
+    case 'reference':    return BookMarked;
+    case 'decision-log': return Scale;
+    case 'task-log':     return ClipboardList;
+    default:             return FileText;
+  }
+}
 
 interface FileTreeNodeProps {
   node: FileNode;
@@ -45,6 +63,16 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
   const cleanName = node.name.replace(/\.md$/, '');
   const isSelected = !node.is_dir && (currentNoteId === cleanRelPath || currentNoteId === node.relative_path || currentNoteId === cleanName);
   const isFolderActive = node.is_dir && activeFolderPath === node.relative_path;
+
+  // O(1)-amortized: Zustand only triggers re-render if the returned string changes
+  const normalizedRelPath = normalizeNoteId(node.relative_path);
+  const noteType = useNoteStore(
+    useCallback((s) => {
+      if (node.is_dir) return undefined;
+      return s.notes.find(n => isNoteIdMatch(n.id, normalizedRelPath))?.note_type;
+    }, [node.is_dir, normalizedRelPath])
+  );
+  const NoteIcon = getNoteTypeIcon(noteType);
 
   useEffect(() => {
     return () => {
@@ -265,7 +293,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
           </>
         ) : (
           <>
-            <FileText size={14} className={cn("shrink-0", isSelected ? "text-white" : "text-gray-400")} />
+            <NoteIcon size={14} className={cn("shrink-0", isSelected ? "text-white" : noteType ? "text-blue-400" : "text-gray-400")} />
             <span className="truncate">{node.name}</span>
           </>
         )}

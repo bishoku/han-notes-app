@@ -102,6 +102,7 @@ export class TauriStorage implements IStorageService {
     assignees: string[],
     progress: number | null,
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void> {
     await invoke('update_task_metadata', {
       noteId,
@@ -116,6 +117,7 @@ export class TauriStorage implements IStorageService {
       assignees,
       progress,
       tags,
+      relatedNotes: relatedNotes || [],
     });
   }
 
@@ -136,9 +138,11 @@ export class TauriStorage implements IStorageService {
     description: string | null,
     date: string | null,
     status: string | null,
+    supersedes: string | null,
     participants: string[],
     approvedBy: string[],
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void> {
     await invoke('update_decision_metadata', {
       noteId,
@@ -147,9 +151,11 @@ export class TauriStorage implements IStorageService {
       description,
       date,
       status,
+      supersedes,
       participants,
       approvedBy,
       tags,
+      relatedNotes: relatedNotes || [],
     });
   }
 

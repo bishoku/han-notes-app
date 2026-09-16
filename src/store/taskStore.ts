@@ -26,6 +26,7 @@ interface TaskState {
       assignees?: string[];
       progress?: number | null;
       tags?: string[];
+      relatedNotes?: string[];
     }
   ) => Promise<void>;
 }
@@ -84,6 +85,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         finalAssignees,
         metadata.progress !== undefined ? metadata.progress : null,
         metadata.tags || [],
+        metadata.relatedNotes || [],
       );
       await get().loadTasks();
 

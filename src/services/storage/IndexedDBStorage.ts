@@ -17,9 +17,9 @@ import type {
   DecisionRegistry,
 } from './types';
 import { toNoteFilePath, normalizeNoteId, extractTitleFromId, extractFolderFromId } from '@/utils/pathUtils';
+import { updateFrontmatterFields, splitFrontmatter } from '@/utils/frontmatter';
 import initWasm, {
   wasm_parse_yaml_frontmatter,
-  wasm_inject_yaml_frontmatter,
   wasm_parse_tasks_from_content,
   wasm_parse_decisions_from_content,
   wasm_find_backlinks,
@@ -286,11 +286,24 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
         }
       }
 
+      let note_type = '';
+      if (r.content) {
+        try {
+          const parsed = wasm_parse_yaml_frontmatter(r.content);
+          if (parsed?.[0]) {
+            note_type = parsed[0].type || parsed[0].note_type || '';
+          }
+        } catch {
+          // Ignored
+        }
+      }
+
       return {
         id: r.id,
         title: r.title || extractTitleFromId(r.id),
         path: r.path,
         tags,
+        note_type,
       };
     });
   }
@@ -412,9 +425,24 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
     const filePath = toNoteFilePath(cleanId);
     const title = extractTitleFromId(cleanId);
 
+    let finalContent = content;
+    if (content.trimStart().startsWith('---')) {
+      try {
+        const now = new Date().toISOString();
+        const updates: Record<string, string> = { updated_at: now };
+        const [yaml] = splitFrontmatter(content);
+        if (!yaml.includes('created_at:')) {
+          updates.created_at = now;
+        }
+        finalContent = updateFrontmatterFields(content, updates);
+      } catch (err) {
+        console.warn('[IndexedDBStorage] Failed to auto-update frontmatter timestamps:', err);
+      }
+    }
+
     let tags: string[] = [];
     try {
-      const parsed = wasm_parse_yaml_frontmatter(content);
+      const parsed = wasm_parse_yaml_frontmatter(finalContent);
       if (parsed?.[0]?.tags && Array.isArray(parsed[0].tags)) {
         tags = parsed[0].tags;
       }
@@ -426,7 +454,7 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
       id: cleanId,
       path: filePath,
       title,
-      content,
+      content: finalContent,
       updatedAt: Date.now(),
       deleted: false,
       tags,
@@ -452,7 +480,9 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
   async createNoteInFolder(parentPath: string, title: string): Promise<void> {
     const cleanTitle = title.replace(/\.md$/, '');
     const id = parentPath ? `${parentPath}/${cleanTitle}` : cleanTitle;
-    await this.writeNote(id, `# ${cleanTitle}\n\n`);
+    const now = new Date().toISOString();
+    const frontmatter = `---\ncreated_at: ${now}\nupdated_at: ${now}\ntags: []\n---\n\n`;
+    await this.writeNote(id, `${frontmatter}# ${cleanTitle}\n\n`);
   }
 
   async createFolder(parentPath: string, folderName: string): Promise<void> {
@@ -623,16 +653,8 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
   }
 
   async updateNoteTags(id: string, tags: string[]): Promise<void> {
-    await ensureWasmLoaded();
     const content = await this.readNote(id);
-    let newContent = content;
-    try {
-      const parsed = wasm_parse_yaml_frontmatter(content);
-      const body: string = parsed?.[1] ?? content;
-      newContent = wasm_inject_yaml_frontmatter(JSON.stringify({ tags }), body);
-    } catch {
-      newContent = `---\ntags: [${tags.join(', ')}]\n---\n\n${content}`;
-    }
+    const newContent = updateFrontmatterFields(content, { tags });
     await this.writeNote(id, newContent);
   }
 
@@ -660,6 +682,7 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
               completed: match[2].toLowerCase() === 'x',
               assignees: [],
               tags: [],
+              related_notes: [],
               raw_line: line,
             });
           }
@@ -712,6 +735,7 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
     assignees: string[],
     progress: number | null,
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void> {
     const fileContent = await this.readNote(noteId);
     const lines = fileContent.split('\n');
@@ -729,6 +753,7 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
       if (assignees.length > 0) meta.assignees = assignees;
       if (progress !== null && progress !== undefined) meta.progress = progress;
       if (tags.length > 0) meta.tags = tags;
+      if (relatedNotes && relatedNotes.length > 0) meta.related_notes = relatedNotes;
 
       const hasMeta = Object.keys(meta).length > 0;
       lines[lineNumber] = hasMeta
@@ -763,6 +788,7 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
               participants: [],
               approved_by: [],
               tags: [],
+              related_notes: [],
               raw_line: line,
             });
           }
@@ -799,16 +825,20 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
     description: string | null,
     date: string | null,
     status: string | null,
+    supersedes: string | null,
     participants: string[],
     approvedBy: string[],
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void> {
     const fileContent = await this.readNote(noteId);
     const lines = fileContent.split('\n');
 
     if (lineNumber < lines.length) {
       const indent = lines[lineNumber].match(/^(\s*)/)?.[1] ?? '';
-      const meta = { description, date, status, participants, approved_by: approvedBy, tags };
+      const meta: Record<string, any> = { description, date, status, participants, approved_by: approvedBy, tags };
+      if (supersedes) meta.supersedes = supersedes;
+      if (relatedNotes && relatedNotes.length > 0) meta.related_notes = relatedNotes;
       const jsonMeta = JSON.stringify(meta);
       lines[lineNumber] = `${indent}- [D] ${content} <!-- decision:${jsonMeta} -->`;
       await this.writeNote(noteId, lines.join('\n'));

@@ -28,6 +28,14 @@ pub struct TagCount {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct NoteMetadata {
     #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default, rename = "type")]
+    pub note_type: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
     pub tags: Vec<String>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, serde_json::Value>,
@@ -46,6 +54,10 @@ pub fn parse_yaml_frontmatter(content: &str) -> (NoteMetadata, String) {
 
         let mut tags = Vec::new();
         let mut extra = BTreeMap::new();
+        let mut created_at = None;
+        let mut updated_at = None;
+        let mut note_type = None;
+        let mut description = None;
 
         let mut in_tags = false;
         for line in yaml_str.lines() {
@@ -76,13 +88,23 @@ pub fn parse_yaml_frontmatter(content: &str) -> (NoteMetadata, String) {
                 in_tags = false;
                 let key = l_trim[..colon_idx].trim().to_string();
                 let val_str = l_trim[colon_idx + 1..].trim();
-                if !key.is_empty() && key != "tags" {
+                let clean_val = val_str.trim_matches('"').trim_matches('\'').to_string();
+                
+                if key == "created_at" {
+                    created_at = Some(clean_val);
+                } else if key == "updated_at" {
+                    updated_at = Some(clean_val);
+                } else if key == "type" {
+                    note_type = Some(clean_val);
+                } else if key == "description" {
+                    description = Some(clean_val);
+                } else if !key.is_empty() && key != "tags" {
                     extra.insert(key, serde_json::Value::String(val_str.to_string()));
                 }
             }
         }
 
-        return (NoteMetadata { tags, extra }, body);
+        return (NoteMetadata { created_at, updated_at, note_type, description, tags, extra }, body);
     }
 
     (NoteMetadata::default(), content.to_string())
@@ -92,15 +114,39 @@ pub fn inject_yaml_frontmatter(metadata: &NoteMetadata, body_content: &str) -> S
     let mut yaml_lines = Vec::new();
     yaml_lines.push("---".to_string());
     
+    if let Some(t) = metadata.extra.get("title") {
+        if let Some(s) = t.as_str() {
+            yaml_lines.push(format!("title: {}", s));
+        } else {
+            yaml_lines.push(format!("title: {}", t));
+        }
+    }
+    
+    if let Some(t) = &metadata.note_type {
+        yaml_lines.push(format!("type: {}", t));
+    }
+    
+    if let Some(d) = &metadata.description {
+        yaml_lines.push(format!("description: {}", d));
+    }
+
     if !metadata.tags.is_empty() {
         yaml_lines.push("tags:".to_string());
         for t in &metadata.tags {
             yaml_lines.push(format!("  - {}", t));
         }
     }
+    
+    if let Some(c) = &metadata.created_at {
+        yaml_lines.push(format!("created_at: {}", c));
+    }
+    
+    if let Some(u) = &metadata.updated_at {
+        yaml_lines.push(format!("updated_at: {}", u));
+    }
 
     for (k, v) in &metadata.extra {
-        if k == "tags" { continue; }
+        if k == "tags" || k == "title" { continue; }
         if let Some(s) = v.as_str() {
             yaml_lines.push(format!("{}: {}", k, s));
         } else {
@@ -110,7 +156,13 @@ pub fn inject_yaml_frontmatter(metadata: &NoteMetadata, body_content: &str) -> S
 
     yaml_lines.push("---".to_string());
 
-    if metadata.tags.is_empty() && metadata.extra.is_empty() {
+    if metadata.tags.is_empty() 
+        && metadata.extra.is_empty() 
+        && metadata.note_type.is_none() 
+        && metadata.description.is_none() 
+        && metadata.created_at.is_none() 
+        && metadata.updated_at.is_none() 
+    {
         body_content.to_string()
     } else {
         format!("{}\n\n{}", yaml_lines.join("\n"), body_content.trim_start())
@@ -129,6 +181,8 @@ pub struct TaskMeta {
     pub progress: Option<u8>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub related_notes: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -145,6 +199,7 @@ pub struct TaskInfo {
     pub assignees: Vec<String>,
     pub progress: Option<u8>,
     pub tags: Vec<String>,
+    pub related_notes: Vec<String>,
     pub raw_line: String,
 }
 
@@ -221,11 +276,15 @@ pub struct DecisionMeta {
     pub date: Option<String>,
     pub status: Option<String>,
     #[serde(default)]
+    pub supersedes: Option<String>,
+    #[serde(default)]
     pub participants: Vec<String>,
     #[serde(default)]
     pub approved_by: Vec<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub related_notes: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -236,9 +295,11 @@ pub struct DecisionInfo {
     pub description: Option<String>,
     pub date: Option<String>,
     pub status: Option<String>,
+    pub supersedes: Option<String>,
     pub participants: Vec<String>,
     pub approved_by: Vec<String>,
     pub tags: Vec<String>,
+    pub related_notes: Vec<String>,
     pub raw_line: String,
 }
 
@@ -314,6 +375,7 @@ pub fn wasm_parse_tasks_from_content(content: &str, note_id: &str) -> JsValue {
                 assignees: meta.assignees,
                 progress: meta.progress,
                 tags: meta.tags,
+                related_notes: meta.related_notes,
                 raw_line: line.to_string(),
             });
         }
@@ -333,9 +395,11 @@ pub fn wasm_parse_decisions_from_content(content: &str, note_id: &str) -> JsValu
                 description: meta.description,
                 date: meta.date,
                 status: meta.status,
+                supersedes: meta.supersedes,
                 participants: meta.participants,
                 approved_by: meta.approved_by,
                 tags: meta.tags,
+                related_notes: meta.related_notes,
                 raw_line: line.to_string(),
             });
         }

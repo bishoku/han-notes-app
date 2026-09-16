@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { TagCount } from '@/store/noteStore';
@@ -22,10 +22,22 @@ import {
   MoreVertical,
   Sparkles,
   List,
+  FileText,
 } from 'lucide-react';
 
 import { useUiStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
+import { splitFrontmatter, parseFrontmatterFields } from '@/utils/frontmatter';
+
+const NOTE_TYPES = [
+  { value: '', labelKey: '—' },
+  { value: 'concept', labelKey: 'typeConcept' },
+  { value: 'procedure', labelKey: 'typeProcedure' },
+  { value: 'guide', labelKey: 'typeGuide' },
+  { value: 'reference', labelKey: 'typeReference' },
+  { value: 'decision-log', labelKey: 'typeDecisionLog' },
+  { value: 'task-log', labelKey: 'typeTaskLog' },
+];
 
 interface EditorHeaderProps {
   currentNoteId: string;
@@ -38,6 +50,7 @@ interface EditorHeaderProps {
   onToggleTagPopover: () => void;
   onCloseTagPopover: () => void;
   onUpdateTags: (tags: string[]) => void;
+  onUpdateMetadata?: (updates: Record<string, string | string[]>) => void;
 }
 
 export const EditorHeader: React.FC<EditorHeaderProps> = ({
@@ -51,6 +64,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onToggleTagPopover,
   onCloseTagPopover,
   onUpdateTags,
+  onUpdateMetadata,
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -67,6 +81,18 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   const setChatDrawerOpen = useAiStore(s => s.setChatDrawerOpen);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showMetaPopover, setShowMetaPopover] = useState(false);
+
+  // Parse current frontmatter fields from localContent
+  const frontmatterFields = useMemo(() => {
+    const [yaml] = splitFrontmatter(_localContent);
+    return parseFrontmatterFields(yaml);
+  }, [_localContent]);
+
+  const currentType = (frontmatterFields.get('type') as string) || '';
+  const currentDescription = (frontmatterFields.get('description') as string) || '';
+  const currentCreatedAt = (frontmatterFields.get('created_at') as string) || '';
+  const currentUpdatedAt = (frontmatterFields.get('updated_at') as string) || '';
 
   const handleToggleAi = () => {
     if (isAiEnabled) {
@@ -132,7 +158,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         )}
 
         {/* Desktop Navigation Arrows */}
-        <div className="hidden md:flex items-center gap-0.5 pr-1.5 border-r border-gray-200 dark:border-zinc-800 shrink-0">
+        <div className="flex max-md:invisible max-md:w-0 max-md:overflow-hidden items-center gap-0.5 pr-1.5 border-r border-gray-200 dark:border-zinc-800 shrink-0">
           <button
             onClick={() => navigate(-1)}
             className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
@@ -156,7 +182,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </div>
         
         {/* Desktop Note Tags Badges & Popover Trigger */}
-        <div className="hidden md:flex relative items-center gap-1.5 border-l border-gray-200 dark:border-zinc-800 pl-2 shrink-0">
+        <div className="flex max-md:invisible max-md:w-0 max-md:overflow-hidden relative items-center gap-1.5 border-l border-gray-200 dark:border-zinc-800 pl-2 shrink-0">
           <div className="hidden lg:flex items-center gap-1 max-w-[200px] overflow-hidden truncate">
             {currentTags.map((tag: string) => (
               <span 
@@ -211,10 +237,96 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             </>
           )}
         </div>
+
+        {/* Note Properties Popover */}
+        <div className="flex max-md:invisible max-md:w-0 max-md:overflow-hidden relative items-center shrink-0">
+          <button
+            onClick={() => setShowMetaPopover(!showMetaPopover)}
+            className="px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:bg-blue-500/15 hover:text-blue-600 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+            title={t('noteProperties')}
+          >
+            <FileText size={11} />
+            <span className="hidden sm:inline">
+              {currentType
+                ? t(NOTE_TYPES.find(nt => nt.value === currentType)?.labelKey || currentType)
+                : t('properties')}
+            </span>
+          </button>
+
+          {showMetaPopover && (
+            <>
+              <div
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => setShowMetaPopover(false)}
+              />
+              <div className="absolute top-9 left-0 z-50 w-80 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                    <FileText size={12} className="text-blue-500" /> {t('noteProperties')}
+                  </span>
+                  <button
+                    onClick={() => setShowMetaPopover(false)}
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-md cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+
+                {/* Note Type */}
+                <div className="mb-3">
+                  <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">
+                    {t('noteType')}
+                  </label>
+                  <select
+                    value={currentType}
+                    onChange={(e) => onUpdateMetadata?.({ type: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-blue-500/40 focus:outline-none text-gray-800 dark:text-gray-200 cursor-pointer"
+                  >
+                    {NOTE_TYPES.map(nt => (
+                      <option key={nt.value} value={nt.value}>
+                        {nt.value ? t(nt.labelKey) : nt.labelKey}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Description */}
+                <div className="mb-3">
+                  <label className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">
+                    {t('description')}
+                  </label>
+                  <input
+                    type="text"
+                    value={currentDescription}
+                    onChange={(e) => onUpdateMetadata?.({ description: e.target.value })}
+                    placeholder={t('descriptionPlaceholder')}
+                    className="w-full px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-blue-500/40 focus:outline-none text-gray-800 dark:text-gray-200"
+                  />
+                </div>
+
+                {/* Timestamps (readonly) */}
+                <div className="border-t border-gray-100 dark:border-zinc-800 pt-2 mt-1 space-y-1">
+                  {currentCreatedAt && (
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
+                      <span className="font-medium">{t('created')}</span>
+                      <span className="font-mono">{new Date(currentCreatedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {currentUpdatedAt && (
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
+                      <span className="font-medium">{t('updated')}</span>
+                      <span className="font-mono">{new Date(currentUpdatedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── Desktop Right Side: Mode Switcher, Font Size (a/A/A), History, Right Panel ── */}
-      <div className="hidden md:flex items-center gap-1.5 shrink-0">
+      <div className="flex max-md:invisible max-md:w-0 max-md:overflow-hidden items-center gap-1.5 shrink-0">
         {/* Editor Mode Segmented Control: Önizleme vs Ham Metin */}
         <div className="flex items-center bg-gray-100/90 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 select-none">
           <button

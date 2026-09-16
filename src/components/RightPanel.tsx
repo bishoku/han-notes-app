@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useTaskStore } from '@/store/taskStore';
+import { useDecisionStore } from '@/store/decisionStore';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { eventBus } from '@/lib/eventBus';
 import { isNoteIdMatch } from '@/utils/pathUtils';
@@ -22,6 +23,8 @@ import {
   Tag,
   AlignLeft,
   X,
+  FileCheck,
+  CheckSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -49,6 +52,9 @@ export const RightPanel: React.FC = () => {
   const toggleTask = useTaskStore((s) => s.toggleTask);
   const updateTaskMetadata = useTaskStore((s) => s.updateTaskMetadata);
 
+  const decisions = useDecisionStore((s) => s.decisions);
+  const loadDecisions = useDecisionStore((s) => s.loadDecisions);
+
   const [activeTab, setActiveTab] = useState<'links' | 'outline'>('links');
   const [editingTask, setEditingTask] = useState<TaskEditData | null>(null);
 
@@ -56,13 +62,24 @@ export const RightPanel: React.FC = () => {
   useEffect(() => {
     if (rightPanelOpen) {
       loadTasks();
+      loadDecisions();
     }
-  }, [rightPanelOpen, currentNoteId, loadTasks]);
+  }, [rightPanelOpen, currentNoteId, loadTasks, loadDecisions]);
 
   // Filter tasks belonging ONLY to the currently active note
   const noteTasks = useMemo(() => {
     return tasks.filter((t) => isNoteIdMatch(t.note_id, currentNoteId));
   }, [tasks, currentNoteId]);
+
+  const taskReferences = useMemo(() => {
+    if (!currentNoteId) return [];
+    return tasks.filter((t) => !isNoteIdMatch(t.note_id, currentNoteId) && t.related_notes?.includes(currentNoteId));
+  }, [tasks, currentNoteId]);
+
+  const decisionReferences = useMemo(() => {
+    if (!currentNoteId) return [];
+    return decisions.filter((d) => !isNoteIdMatch(d.note_id, currentNoteId) && d.related_notes?.includes(currentNoteId));
+  }, [decisions, currentNoteId]);
 
   // Extract H1-H4 headings via event bus from MainEditor
   const [headings, setHeadings] = useState<OutlineHeading[]>([]);
@@ -161,46 +178,138 @@ export const RightPanel: React.FC = () => {
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col select-none">
         {activeTab === 'links' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {t('backlinks')}
+          <div className="flex flex-col gap-6">
+            {/* Backlinks */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Link2 size={13} className="text-mac-accent" />
+                  {t('backlinks')}
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-zinc-800 text-gray-600 dark:text-gray-300">
+                  {backlinks.length}
+                </span>
               </div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-zinc-800 text-gray-600 dark:text-gray-300">
-                {backlinks.length}
-              </span>
+
+              {backlinks.length === 0 ? (
+                <div className="text-xs text-gray-400 italic p-3 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-lg">
+                  {t('noResultsFound')}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {backlinks.map((link, idx) => (
+                    <button
+                      key={`${link.source_note_id}-${idx}`}
+                      onClick={() => {
+                        selectNote(link.source_note_id);
+                        setViewMode('notes');
+                        navigate(`/notes/${encodeURIComponent(link.source_note_id)}`);
+                      }}
+                      className="group text-left p-3 rounded-lg bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/80 shadow-sm hover:border-mac-accent/50 hover:shadow-md transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between mb-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200 group-hover:text-mac-accent transition-colors">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <FileText size={13} className="text-mac-accent" />
+                          <span className="truncate">{link.source_note_id}</span>
+                        </div>
+                        <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 bg-gray-50 dark:bg-zinc-800/50 p-1.5 rounded font-mono">
+                        {link.snippet}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {backlinks.length === 0 ? (
-              <div className="text-xs text-gray-400 italic p-3 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-lg">
-                {t('noResultsFound')}
+            {/* Task References */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckSquare size={13} className="text-mac-accent" />
+                  {t('taskReferences', 'Task References')}
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-zinc-800 text-gray-600 dark:text-gray-300">
+                  {taskReferences.length}
+                </span>
               </div>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {backlinks.map((link, idx) => (
-                  <button
-                    key={`${link.source_note_id}-${idx}`}
-                    onClick={() => {
-                      selectNote(link.source_note_id);
-                      setViewMode('notes');
-                      navigate(`/notes/${encodeURIComponent(link.source_note_id)}`);
-                    }}
-                    className="group text-left p-3 rounded-lg bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/80 shadow-sm hover:border-mac-accent/50 hover:shadow-md transition-all cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between mb-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200 group-hover:text-mac-accent transition-colors">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <FileText size={13} className="text-mac-accent" />
-                        <span className="truncate">{link.source_note_id}</span>
+
+              {taskReferences.length === 0 ? (
+                <div className="text-xs text-gray-400 italic p-3 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-lg">
+                  {t('noResultsFound')}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {taskReferences.map((tRef, idx) => (
+                    <button
+                      key={`${tRef.note_id}-${tRef.line_number}-${idx}`}
+                      onClick={() => {
+                        selectNote(tRef.note_id);
+                        setViewMode('notes');
+                        navigate(`/notes/${encodeURIComponent(tRef.note_id)}`);
+                      }}
+                      className="group text-left p-3 rounded-lg bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/80 shadow-sm hover:border-mac-accent/50 hover:shadow-md transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between mb-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200 group-hover:text-mac-accent transition-colors">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <FileText size={13} className="text-mac-accent" />
+                          <span className="truncate">{tRef.note_id}</span>
+                        </div>
+                        <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
-                      <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 bg-gray-50 dark:bg-zinc-800/50 p-1.5 rounded font-mono">
-                      {link.snippet}
-                    </p>
-                  </button>
-                ))}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 bg-gray-50 dark:bg-zinc-800/50 p-1.5 rounded font-mono">
+                        {tRef.content}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Decision References */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileCheck size={13} className="text-mac-accent" />
+                  {t('decisionReferences', 'Decision References')}
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-zinc-800 text-gray-600 dark:text-gray-300">
+                  {decisionReferences.length}
+                </span>
               </div>
-            )}
+
+              {decisionReferences.length === 0 ? (
+                <div className="text-xs text-gray-400 italic p-3 text-center border border-dashed border-gray-200 dark:border-zinc-800 rounded-lg">
+                  {t('noResultsFound')}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {decisionReferences.map((dRef, idx) => (
+                    <button
+                      key={`${dRef.note_id}-${dRef.line_number}-${idx}`}
+                      onClick={() => {
+                        selectNote(dRef.note_id);
+                        setViewMode('notes');
+                        navigate(`/notes/${encodeURIComponent(dRef.note_id)}`);
+                      }}
+                      className="group text-left p-3 rounded-lg bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/80 shadow-sm hover:border-mac-accent/50 hover:shadow-md transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between mb-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200 group-hover:text-mac-accent transition-colors">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <FileText size={13} className="text-mac-accent" />
+                          <span className="truncate">{dRef.note_id}</span>
+                        </div>
+                        <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 bg-gray-50 dark:bg-zinc-800/50 p-1.5 rounded font-mono">
+                        {dRef.content}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

@@ -24,6 +24,9 @@ import {
   Sparkles,
   FolderTree,
   Menu,
+  Link2,
+  CheckSquare,
+  FileCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -58,6 +61,8 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
     localGraphOnly,
     setLocalGraphOnly,
     selectedNodeId,
+    visibleLayers,
+    toggleLayer,
   } = useGraphStore();
 
   const realNodesCount = nodes.filter((n) => !n.isGhost).length;
@@ -150,6 +155,48 @@ export const MindmapToolbar: React.FC<MindmapToolbarProps> = ({
             title={t('mindmapCircle')}
           >
             <CircleDot size={14} />
+          </button>
+        </div>
+
+        <div className="h-4 w-px bg-gray-200 dark:bg-zinc-700" />
+
+        {/* Semantic Layers Toggle */}
+        <div className="flex items-center gap-1 bg-gray-100/70 dark:bg-zinc-800/70 p-0.5 rounded-xl">
+          <button
+            onClick={() => toggleLayer('notes')}
+            className={cn(
+              "p-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-all cursor-pointer",
+              visibleLayers.has('notes')
+                ? "bg-white dark:bg-zinc-700 text-mac-accent shadow-xs font-semibold"
+                : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+            )}
+            title={t('mindmapLayerNotes', 'Notes Layer')}
+          >
+            <Link2 size={14} />
+          </button>
+          <button
+            onClick={() => toggleLayer('tasks')}
+            className={cn(
+              "p-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-all cursor-pointer",
+              visibleLayers.has('tasks')
+                ? "bg-white dark:bg-zinc-700 text-amber-500 shadow-xs font-semibold"
+                : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+            )}
+            title={t('mindmapLayerTasks', 'Tasks Layer')}
+          >
+            <CheckSquare size={14} />
+          </button>
+          <button
+            onClick={() => toggleLayer('decisions')}
+            className={cn(
+              "p-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-all cursor-pointer",
+              visibleLayers.has('decisions')
+                ? "bg-white dark:bg-zinc-700 text-purple-500 shadow-xs font-semibold"
+                : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+            )}
+            title={t('mindmapLayerDecisions', 'Decisions Layer')}
+          >
+            <FileCheck size={14} />
           </button>
         </div>
 

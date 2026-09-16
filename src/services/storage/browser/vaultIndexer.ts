@@ -19,6 +19,7 @@ import { listAllMdFiles, getOrCreateFile, readFileText } from './fileOps';
 interface CachedNoteMetadata {
   mtime: number;
   tags: string[];
+  note_type: string;
   tasks: TaskInfo[];
   decisions: DecisionInfo[];
 }
@@ -63,10 +64,10 @@ export async function mapConcurrent<T, R>(
 async function getOrIndexNoteMetadata(
   dir: FileSystemDirectoryHandle,
   relativePath: string
-): Promise<{ tags: string[]; tasks: TaskInfo[]; decisions: DecisionInfo[] }> {
+): Promise<{ tags: string[]; note_type: string; tasks: TaskInfo[]; decisions: DecisionInfo[] }> {
   const handle = await getOrCreateFile(dir, relativePath);
   if (!handle) {
-    return { tags: [], tasks: [], decisions: [] };
+    return { tags: [], note_type: '', tasks: [], decisions: [] };
   }
 
   const file = await handle.getFile();
@@ -82,12 +83,14 @@ async function getOrIndexNoteMetadata(
 
   const parsedYml = wasm_parse_yaml_frontmatter(content);
   const tags: string[] = parsedYml?.[0]?.tags || [];
+  const note_type: string = parsedYml?.[0]?.type || parsedYml?.[0]?.note_type || '';
   const tasks: TaskInfo[] = wasm_parse_tasks_from_content(content, noteId) || [];
   const decisions: DecisionInfo[] = wasm_parse_decisions_from_content(content, noteId) || [];
 
   const entry: CachedNoteMetadata = {
     mtime: file.lastModified,
     tags,
+    note_type,
     tasks,
     decisions,
   };
@@ -103,7 +106,7 @@ export async function getVaultFilesBatched(dir: FileSystemDirectoryHandle): Prom
     const meta = await getOrIndexNoteMetadata(dir, f.relativePath);
     const noteId = normalizeNoteId(f.relativePath);
     const title = f.name.replace(/\.md$/, '');
-    return { id: noteId, title, path: f.relativePath, tags: meta.tags };
+    return { id: noteId, title, path: f.relativePath, tags: meta.tags, note_type: meta.note_type };
   });
 
   notes.sort((a, b) => a.title.localeCompare(b.title));

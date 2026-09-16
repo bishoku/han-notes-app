@@ -4,6 +4,7 @@ import { marked } from "marked";
 import { storage } from "@/services/storage";
 import { useNoteStore } from "@/store/noteStore";
 import { useUiStore } from "@/store/uiStore";
+import { eventBus } from "@/lib/eventBus";
 
 export interface ParsedTable {
   headers: string[];
@@ -260,11 +261,19 @@ export class TableWidget extends WidgetType {
           e.stopPropagation();
           const target = wikilink.getAttribute("data-target") || wikilink.textContent?.trim();
           if (target) {
-            const cleanTitle = target.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
+            let cleanTitle = target.replace(/^\[\[/, '').replace(/\]\]$/, '').trim();
             if (cleanTitle.toLowerCase().includes('.pdf')) {
               useUiStore.getState().openPdfSplitReader(cleanTitle);
               return;
             }
+
+            let heading = '';
+            const hashIndex = cleanTitle.indexOf('#');
+            if (hashIndex >= 0) {
+              heading = cleanTitle.substring(hashIndex + 1).trim();
+              cleanTitle = cleanTitle.substring(0, hashIndex).trim();
+            }
+
             const { notes, selectNote, createNote } = useNoteStore.getState();
             const targetNote = notes.find(
               (n) =>
@@ -272,9 +281,26 @@ export class TableWidget extends WidgetType {
                 n.title.toLowerCase() === cleanTitle.toLowerCase() ||
                 n.id.toLowerCase().endsWith(`/${cleanTitle.toLowerCase()}`)
             );
+            
+            const handleHeadingScroll = (_noteId: string) => {
+              if (!heading) return;
+              setTimeout(() => {
+                const content = useNoteStore.getState().currentNoteContent;
+                if (content) {
+                  const lines = content.split('\n');
+                  const headingRegex = new RegExp(`^#{1,6}\\s+${heading}$`, 'i');
+                  const lineIndex = lines.findIndex((l: string) => headingRegex.test(l.trim()));
+                  if (lineIndex >= 0) {
+                    eventBus.emit('editor:scroll-to-heading', { line: lineIndex + 1 });
+                  }
+                }
+              }, 100);
+            };
+
             if (targetNote) {
               selectNote(targetNote.id);
               window.location.hash = `/notes/${encodeURIComponent(targetNote.id)}`;
+              handleHeadingScroll(targetNote.id);
             } else {
               createNote(cleanTitle).then((newId) => {
                 selectNote(newId);

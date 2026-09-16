@@ -51,6 +51,7 @@ export const MindmapView: React.FC = () => {
   const groupByFolder = useGraphStore((s) => s.groupByFolder);
   const colorBy = useGraphStore((s) => s.colorBy);
   const localGraphOnly = useGraphStore((s) => s.localGraphOnly);
+  const visibleLayers = useGraphStore((s) => s.visibleLayers);
   const isLoading = useGraphStore((s) => s.isLoading);
   const buildFullGraph = useGraphStore((s) => s.buildFullGraph);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
@@ -90,10 +91,14 @@ export const MindmapView: React.FC = () => {
 
     const nodeIds = new Set(filteredNodes.map((n) => n.id));
 
-    // Filter Edges to only include visible nodes
-    const filteredEdges = edges.filter(
-      (e) => nodeIds.has(e.source) && nodeIds.has(e.target)
-    );
+    // Filter Edges to only include visible nodes and active layers
+    const filteredEdges = edges.filter((e) => {
+      if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) return false;
+      if (e.type === 'reference' && !visibleLayers.has('notes')) return false;
+      if (e.type === 'task-ref' && !visibleLayers.has('tasks')) return false;
+      if (e.type === 'decision-ref' && !visibleLayers.has('decisions')) return false;
+      return true;
+    });
 
     // Collect Folders for Compound Parent Nodes
     const folderNodes: any[] = [];
@@ -166,11 +171,12 @@ export const MindmapView: React.FC = () => {
         id: edge.id,
         source: edge.source,
         target: edge.target,
+        edgeType: edge.type,
       },
     }));
 
     return [...folderNodes, ...cyNodes, ...cyEdges];
-  }, [nodes, edges, showOrphans, groupByFolder, localGraphOnly, selectedNodeId, colorBy, searchQuery, isDark]);
+  }, [nodes, edges, showOrphans, groupByFolder, localGraphOnly, selectedNodeId, colorBy, searchQuery, isDark, visibleLayers]);
 
   // 3. Cytoscape Stylesheet based on theme
   const getCytoscapeStyle = useCallback(() => {
@@ -266,6 +272,22 @@ export const MindmapView: React.FC = () => {
           'curve-style': 'bezier',
           'transition-property': 'line-color, width, opacity',
           'transition-duration': 0.15,
+        },
+      },
+      {
+        selector: 'edge[edgeType="task-ref"]',
+        style: {
+          'line-color': '#f59e0b',
+          'target-arrow-color': '#f59e0b',
+          'line-style': 'dashed',
+        },
+      },
+      {
+        selector: 'edge[edgeType="decision-ref"]',
+        style: {
+          'line-color': '#8b5cf6',
+          'target-arrow-color': '#8b5cf6',
+          'line-style': 'dotted',
         },
       },
       {

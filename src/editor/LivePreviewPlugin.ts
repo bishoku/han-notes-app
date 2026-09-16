@@ -23,6 +23,7 @@ import {
   applyLineStyles,
 } from "./preview/blockDeco";
 import { processPrefixWidgets, processBadgesAndMedia } from "./preview/badgeDeco";
+import { processTransclusionBlock } from "./preview/transclusionWidget";
 import { buildDecorationSet } from "./preview/builder";
 import { handleEditorMouseDown } from "./preview/eventHandlers";
 
@@ -161,6 +162,12 @@ export function livePreviewDecorations(view: EditorView): DecorationSet {
         continue;
       }
     } else {
+      // Transclusion Block (![[note-name]])
+      if (processTransclusionBlock(line, collect)) {
+        l++;
+        continue;
+      }
+
       // Heading Level & Blockquote Line Classes
       applyLineStyles(line, collect);
 

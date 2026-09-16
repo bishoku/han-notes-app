@@ -20,6 +20,11 @@ export interface NoteInfo {
   title: string;
   path: string;
   tags: string[];
+  // New OKF fields (optional for backward compat)
+  note_type?: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface TagCount {
@@ -46,6 +51,7 @@ export interface TaskInfo {
   assignees: string[];
   progress?: number | null;
   tags: string[];
+  related_notes: string[];
   raw_line: string;
 }
 
@@ -61,9 +67,11 @@ export interface DecisionInfo {
   description?: string | null;
   date?: string | null;
   status?: string | null;
+  supersedes?: string | null;
   participants: string[];
   approved_by: string[];
   tags: string[];
+  related_notes: string[];
   raw_line: string;
 }
 
@@ -110,6 +118,7 @@ export interface IStorageService {
     assignees: string[],
     progress: number | null,
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void>;
 
   // ── Decisions ──
@@ -122,9 +131,11 @@ export interface IStorageService {
     description: string | null,
     date: string | null,
     status: string | null,
+    supersedes: string | null,
     participants: string[],
     approvedBy: string[],
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void>;
 
   // ── Backlinks ──

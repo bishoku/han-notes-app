@@ -126,6 +126,23 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   createSnapshot: async (message?: string) => {
     try {
+      // 0. Check if git repo is initialized for current workspace
+      const { isInitialized } = get();
+      if (!isInitialized) {
+        // Try to refresh — workspace may have changed
+        await get().refreshStatus();
+        if (!get().isInitialized) {
+          // Auto-initialize git repo for this workspace
+          try {
+            await gitService.init();
+            await get().refreshStatus();
+          } catch {
+            // Git init failed (e.g. no vault directory handle yet) — skip silently
+            return null;
+          }
+        }
+      }
+
       // 1. Flush any pending editor changes to storage before creating snapshot
       window.dispatchEvent(new CustomEvent('han-flush-note-save'));
       // Small tick for store update

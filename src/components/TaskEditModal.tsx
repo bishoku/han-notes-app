@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Calendar, User, Tag, AlertCircle, Percent, CheckSquare, AlignLeft } from 'lucide-react';
 import { EditModal } from '@/components/EditModal';
 import { MultiBadgeSelect } from '@/components/MultiBadgeSelect';
+import { NoteLinker } from '@/components/NoteLinker';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { useTaskStore } from '@/store/taskStore';
 
@@ -19,6 +20,7 @@ export interface TaskEditData {
   assignees?: string[];
   progress?: number | null;
   tags?: string[];
+  relatedNotes?: string[];
 }
 
 interface TaskEditModalProps {
@@ -45,6 +47,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ task, onSave, onCl
 
   const [progress, setProgress] = useState<number>(task.progress ?? (task.completed ? 100 : 0));
   const [tags, setTags] = useState<string[]>(task.tags || []);
+  const [relatedNotes, setRelatedNotes] = useState<string[]>(task.relatedNotes || []);
 
   useEffect(() => {
     loadTaskRegistry();
@@ -65,6 +68,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ task, onSave, onCl
       assignees,
       progress: Number(progress),
       tags,
+      relatedNotes,
     });
   };
 
@@ -192,6 +196,12 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ task, onSave, onCl
         suggestions={registry.tags}
         placeholder={t('tagsPlaceholder')}
         badgeStyle="bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-700"
+      />
+
+      {/* Related Notes */}
+      <NoteLinker
+        values={relatedNotes}
+        onChange={setRelatedNotes}
       />
     </EditModal>
   );

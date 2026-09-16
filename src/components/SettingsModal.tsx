@@ -8,8 +8,10 @@ import { IntegrationsSettingsTab } from '@/components/settings/IntegrationsSetti
 import { GitSyncSettingsTab } from '@/components/settings/GitSyncSettingsTab';
 import { WebClipperSettingsTab } from '@/components/settings/WebClipperSettingsTab';
 import { SyncSettingsTab } from '@/components/settings/SyncSettingsTab';
-import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot, GitBranch, ArrowDownUp, AlertTriangle, Trash2 } from 'lucide-react';
+import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot, GitBranch, ArrowDownUp, AlertTriangle, Trash2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { generateOkfBundle } from '@/services/export/okfExporter';
+import { downloadBundleAsJson } from '@/services/export/downloadBundle';
 
 interface ThemeOption {
   id: AppTheme;
@@ -74,6 +76,22 @@ export const SettingsModal: React.FC = () => {
   const [verifyInput, setVerifyInput] = useState('');
   const [isClearing, setIsClearing] = useState(false);
   const [clearSuccess, setClearSuccess] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState(false);
+
+  const handleExportBundle = async () => {
+    setIsExporting(true);
+    try {
+      const bundle = await generateOkfBundle();
+      downloadBundleAsJson(bundle);
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 4000);
+    } catch (err) {
+      console.error('Failed to export bundle:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const verificationWord = t('clearAllNotesVerificationWord') || 'DELETE';
 
@@ -223,6 +241,14 @@ export const SettingsModal: React.FC = () => {
                   <span>{t('clearAllNotesSuccess')}</span>
                 </div>
               )}
+              
+              {/* Export Success Banner */}
+              {exportSuccess && (
+                <div className="p-3.5 rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50/80 dark:bg-green-950/30 text-green-800 dark:text-green-300 text-xs font-medium flex items-center gap-2 animate-in fade-in">
+                  <Check size={16} className="text-green-600 dark:text-green-400 shrink-0" />
+                  <span>OKF Bundle exported successfully</span>
+                </div>
+              )}
 
               {/* Workspace / Vault Folder Selection */}
               <div className="flex flex-col gap-2.5">
@@ -352,6 +378,44 @@ export const SettingsModal: React.FC = () => {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Export Zone */}
+              <div className="flex flex-col gap-2.5 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                <label className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                  <Download size={14} className="text-green-500" />
+                  Data Export
+                </label>
+                <div className="p-3.5 rounded-xl border border-gray-200 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-800/30 flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                        Export OKF Bundle
+                      </div>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-normal mt-0.5">
+                        Download all your notes and knowledge graph in Open Knowledge Format (OKF).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportBundle}
+                      disabled={isExporting}
+                      className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-600 active:scale-95 transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+                    >
+                      {isExporting ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>Exporting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={13} />
+                          <span>Export OKF</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 

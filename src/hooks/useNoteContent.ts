@@ -194,6 +194,34 @@ export function useNoteContent() {
     };
   }, [updateNote]);
 
+  // Wrap updateNoteTags to flush pending editor save first, preventing
+  // the debounced save from overwriting the new frontmatter with stale content
+  const safeUpdateNoteTags = useCallback(
+    async (id: string, tags: string[]) => {
+      // 1. Cancel any pending debounced save to prevent it from overwriting
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        // Flush current editor content to disk first
+        if (localContentRef.current !== undefined) {
+          await updateNote(localContentRef.current);
+        }
+      }
+
+      // 2. Now safely update tags on disk
+      await updateNoteTags(id, tags);
+
+      // 3. Sync localContent with the updated content from disk
+      const storeContent = useNoteStore.getState().currentNoteContent || '';
+      if (storeContent !== localContentRef.current) {
+        setLocalContent(storeContent);
+        localContentRef.current = storeContent;
+        clearLivePreviewCaches();
+      }
+    },
+    [updateNote, updateNoteTags]
+  );
+
   return {
     currentNoteId,
     currentNote,
@@ -206,6 +234,6 @@ export function useNoteContent() {
     vaultTags,
     showTagPopover,
     setShowTagPopover,
-    updateNoteTags,
+    updateNoteTags: safeUpdateNoteTags,
   };
 }

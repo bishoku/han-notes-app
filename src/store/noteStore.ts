@@ -75,6 +75,7 @@ interface NoteState {
   loadVaultTags: () => Promise<void>;
   setActiveTagFilter: (tag: string | null) => void;
   updateNoteTags: (id: string, tags: string[]) => Promise<void>;
+  updateNoteMetadata: (id: string, metadata: { note_type?: string; description?: string }) => void;
   selectNote: (id: string, force?: boolean) => Promise<void>;
   setActiveFolder: (path: string | null) => void;
   updateNote: (content: string) => Promise<void>;
@@ -304,6 +305,11 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   updateNoteTags: async (id: string, tags: string[]) => {
     try {
+      // Cancel any pending debounced content sync timers — a stale storeContent
+      // timer from a prior updateNote call would overwrite currentNoteContent
+      // with old content (without the new tags) 2 seconds later.
+      clearDebounceTimers();
+
       await storage.updateNoteTags(id, tags);
       await get().loadVault();
       if (get().currentNoteId === id) {
@@ -313,6 +319,21 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     } catch (e) {
       console.error('Failed to update note tags:', e);
     }
+  },
+
+  updateNoteMetadata: (id: string, metadata: { note_type?: string; description?: string }) => {
+    const cleanId = normalizeNoteId(id);
+    const notes = get().notes.map(n => {
+      if (isNoteIdMatch(n.id, cleanId)) {
+        return {
+          ...n,
+          ...(metadata.note_type !== undefined ? { note_type: metadata.note_type } : {}),
+          ...(metadata.description !== undefined ? { description: metadata.description } : {}),
+        };
+      }
+      return n;
+    });
+    set({ notes });
   },
 
   updateNote: async (content: string) => {

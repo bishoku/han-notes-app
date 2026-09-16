@@ -187,17 +187,47 @@ export class BrowserGitService implements IGitService {
     }
 
     // 4. Create genuine standard Git commit object
-    const sha = await git.commit({
-      fs: fsaGitFs,
-      dir: '/',
-      message: message.trim() || 'Not güncellemesi',
-      author: {
-        name: 'HAN Kullanıcısı',
-        email: 'user@han-notes.local',
-      },
-    });
-
-    return sha;
+    try {
+      const sha = await git.commit({
+        fs: fsaGitFs,
+        dir: '/',
+        message: message.trim() || 'Not güncellemesi',
+        author: {
+          name: 'HAN Kullanıcısı',
+          email: 'user@han-notes.local',
+        },
+      });
+      return sha;
+    } catch (commitErr: any) {
+      // First commit in a fresh repo: HEAD ref doesn't exist yet.
+      // isomorphic-git may throw NotFoundError ('Could not find HEAD') or
+      // TypeError (null.startsWith) depending on the internal code path.
+      const msg = commitErr?.message || '';
+      if (msg.includes('startsWith') || msg.includes('HEAD') || msg.includes('resolve') || commitErr?.code === 'NotFoundError') {
+        try {
+          await git.init({ fs: fsaGitFs, dir: '/' });
+          // Re-stage all files after re-init
+          const files = await this.listAllVaultFiles();
+          for (const f of files) {
+            try { await git.add({ fs: fsaGitFs, dir: '/', filepath: f }); } catch { /* skip */ }
+          }
+          const sha = await git.commit({
+            fs: fsaGitFs,
+            dir: '/',
+            message: message.trim() || 'İlk snapshot',
+            author: {
+              name: 'HAN Kullanıcısı',
+              email: 'user@han-notes.local',
+            },
+          });
+          return sha;
+        } catch (retryErr) {
+          console.warn('Git commit retry also failed:', retryErr);
+          throw retryErr;
+        }
+      }
+      throw commitErr;
+    }
   }
 
   async getNoteHistory(filePath?: string, limit = 50): Promise<GitCommitInfo[]> {

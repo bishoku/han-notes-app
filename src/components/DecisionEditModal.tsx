@@ -3,6 +3,7 @@ import { Calendar, User, Tag, AlignLeft, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { EditModal } from '@/components/EditModal';
 import { MultiBadgeSelect } from '@/components/MultiBadgeSelect';
+import { NoteLinker } from '@/components/NoteLinker';
 import { SingleDatePicker } from '@/components/SingleDatePicker';
 import { useDecisionStore } from '@/store/decisionStore';
 
@@ -13,9 +14,11 @@ export interface DecisionEditData {
   description?: string | null;
   date?: string | null;
   status?: string | null;
+  supersedes?: string | null;
   participants: string[];
   approvedBy: string[];
   tags: string[];
+  relatedNotes?: string[];
 }
 
 interface DecisionEditModalProps {
@@ -32,9 +35,11 @@ export const DecisionEditModal: React.FC<DecisionEditModalProps> = ({ decision, 
   const [description, setDescription] = useState(decision.description || '');
   const [date, setDate] = useState(decision.date || '');
   const [status, setStatus] = useState<string>(decision.status || 'approved');
+  const [supersedes, setSupersedes] = useState<string>(decision.supersedes || '');
   const [participants, setParticipants] = useState<string[]>(decision.participants || []);
   const [approvedBy, setApprovedBy] = useState<string[]>(decision.approvedBy || []);
   const [tags, setTags] = useState<string[]>(decision.tags || []);
+  const [relatedNotes, setRelatedNotes] = useState<string[]>(decision.relatedNotes || []);
 
   useEffect(() => {
     loadDecisionRegistry();
@@ -49,9 +54,11 @@ export const DecisionEditModal: React.FC<DecisionEditModalProps> = ({ decision, 
       description: description.trim() || null,
       date: date || null,
       status: status || 'approved',
+      supersedes: supersedes.trim() || null,
       participants,
       approvedBy,
       tags,
+      relatedNotes,
     });
   };
 
@@ -118,6 +125,18 @@ export const DecisionEditModal: React.FC<DecisionEditModalProps> = ({ decision, 
         </div>
       </div>
 
+      {/* Supersedes */}
+      <div className="flex flex-col gap-1.5">
+        <label className="font-semibold text-gray-600 dark:text-gray-400">Supersedes</label>
+        <input
+          type="text"
+          value={supersedes}
+          onChange={(e) => setSupersedes(e.target.value)}
+          placeholder="Note ID or decision content being superseded..."
+          className="w-full px-3 py-2 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/40 text-gray-800 dark:text-gray-200"
+        />
+      </div>
+
       {/* Participants */}
       <MultiBadgeSelect
         label={t('participants')}
@@ -149,6 +168,12 @@ export const DecisionEditModal: React.FC<DecisionEditModalProps> = ({ decision, 
         suggestions={registry.tags}
         placeholder={t('decisionTagsPlaceholder')}
         badgeStyle="bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-zinc-700"
+      />
+
+      {/* Related Notes */}
+      <NoteLinker
+        values={relatedNotes}
+        onChange={setRelatedNotes}
       />
     </EditModal>
   );

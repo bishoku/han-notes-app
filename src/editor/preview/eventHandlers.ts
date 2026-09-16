@@ -1,6 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import { useNoteStore } from "@/store/noteStore";
 import { useUiStore } from "@/store/uiStore";
+import { eventBus } from "@/lib/eventBus";
 
 export function handleEditorMouseDown(event: MouseEvent, view: EditorView): boolean | void {
   const target = event.target as Node;
@@ -48,6 +49,13 @@ export function handleEditorMouseDown(event: MouseEvent, view: EditorView): bool
         cleanTitle = cleanTitle.split('|')[0].trim();
       }
 
+      let heading = '';
+      const hashIndex = cleanTitle.indexOf('#');
+      if (hashIndex >= 0) {
+        heading = cleanTitle.substring(hashIndex + 1).trim();
+        cleanTitle = cleanTitle.substring(0, hashIndex).trim();
+      }
+
       const { notes, selectNote, createNote } = useNoteStore.getState();
       
       const targetNote = notes.find((n) => 
@@ -56,9 +64,25 @@ export function handleEditorMouseDown(event: MouseEvent, view: EditorView): bool
         n.id.toLowerCase().endsWith(`/${cleanTitle.toLowerCase()}`)
       );
 
+      const handleHeadingScroll = (_noteId: string) => {
+        if (!heading) return;
+        setTimeout(() => {
+          const content = useNoteStore.getState().currentNoteContent;
+          if (content) {
+            const lines = content.split('\n');
+            const headingRegex = new RegExp(`^#{1,6}\\s+${heading}$`, 'i');
+            const lineIndex = lines.findIndex((l: string) => headingRegex.test(l.trim()));
+            if (lineIndex >= 0) {
+              eventBus.emit('editor:scroll-to-heading', { line: lineIndex + 1 });
+            }
+          }
+        }, 100);
+      };
+
       if (targetNote) {
         selectNote(targetNote.id);
         window.location.hash = `/notes/${encodeURIComponent(targetNote.id)}`;
+        handleHeadingScroll(targetNote.id);
       } else {
         createNote(cleanTitle).then((newId) => {
           window.location.hash = `/notes/${encodeURIComponent(newId)}`;

@@ -19,9 +19,11 @@ interface DecisionState {
       description?: string | null;
       date?: string | null;
       status?: string | null;
+      supersedes?: string | null;
       participants?: string[];
       approvedBy?: string[];
       tags?: string[];
+      relatedNotes?: string[];
     }
   ) => Promise<void>;
 }
@@ -58,9 +60,11 @@ export const useDecisionStore = create<DecisionState>((set, get) => ({
         metadata.description || null,
         metadata.date || null,
         metadata.status || 'approved',
+        metadata.supersedes || null,
         metadata.participants || [],
         metadata.approvedBy || [],
         metadata.tags || [],
+        metadata.relatedNotes || [],
       );
       await get().loadDecisions();
 

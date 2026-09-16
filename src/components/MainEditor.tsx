@@ -23,6 +23,8 @@ import { EditorModalCoordinator } from '@/components/editor/EditorModalCoordinat
 import { PdfSplitViewer } from '@/components/pdf/PdfSplitViewer';
 import { formatPdfQuote } from '@/utils/pdfQuoteFormatter';
 import { useTaskStore } from '@/store/taskStore';
+import { useNoteStore } from '@/store/noteStore';
+import { updateFrontmatterFields } from '@/utils/frontmatter';
 import { isNoteIdMatch } from '@/utils/pathUtils';
 import { NoteTasksBottomPanel } from '@/components/tasks/NoteTasksBottomPanel';
 
@@ -436,6 +438,16 @@ export const MainEditor: React.FC = () => {
         onCloseTagPopover={() => setShowTagPopover(false)}
         onUpdateTags={(newTags) => {
           if (currentNoteId) updateNoteTags(currentNoteId, newTags);
+        }}
+        onUpdateMetadata={(updates) => {
+          if (!currentNoteId) return;
+          const newContent = updateFrontmatterFields(localContent, updates);
+          handleUpdate(newContent);
+          // Immediately sync note_type into noteStore state so FileTreeNode updates instantly
+          useNoteStore.getState().updateNoteMetadata(currentNoteId, {
+            note_type: typeof updates.type === 'string' ? updates.type : undefined,
+            description: typeof updates.description === 'string' ? updates.description : undefined,
+          });
         }}
       />
 

@@ -19,10 +19,8 @@ import type {
   DecisionRegistry,
 } from './types';
 import { toNoteFilePath } from '@/utils/pathUtils';
-import initWasm, {
-  wasm_parse_yaml_frontmatter,
-  wasm_inject_yaml_frontmatter,
-} from '@/wasm/han-core/han_core';
+import { updateFrontmatterFields, splitFrontmatter } from '@/utils/frontmatter';
+import initWasm from '@/wasm/han-core/han_core';
 import wasmUrl from '@/wasm/han-core/han_core_bg.wasm?url';
 
 import { saveHandle, loadHandle, clearHandle } from './browser/handleDb';
@@ -206,8 +204,25 @@ export class BrowserStorage implements IStorageService {
   }
 
   async writeNote(id: string, content: string): Promise<void> {
+    let finalContent = content;
+
+    if (content.trimStart().startsWith('---')) {
+      try {
+        const now = new Date().toISOString();
+        const updates: Record<string, string> = { updated_at: now };
+        // Only set created_at if not already present in frontmatter
+        const [yaml] = splitFrontmatter(content);
+        if (!yaml.includes('created_at:')) {
+          updates.created_at = now;
+        }
+        finalContent = updateFrontmatterFields(content, updates);
+      } catch (err) {
+        console.warn('[BrowserStorage] Failed to auto-update frontmatter timestamps:', err);
+      }
+    }
+
     const path = toNoteFilePath(id);
-    await writeFileText(this.getDir(), path, content);
+    await writeFileText(this.getDir(), path, finalContent);
     invalidateNoteMetaCache(path);
   }
 
@@ -215,7 +230,9 @@ export class BrowserStorage implements IStorageService {
     const fileName = title.endsWith('.md') ? title : `${title}.md`;
     const path = parentPath ? `${parentPath}/${fileName}` : fileName;
     const noteTitle = title.replace(/\.md$/, '');
-    await writeFileText(this.getDir(), path, `# ${noteTitle}\n`);
+    const now = new Date().toISOString();
+    const frontmatter = `---\ncreated_at: ${now}\nupdated_at: ${now}\ntags: []\n---\n\n`;
+    await writeFileText(this.getDir(), path, `${frontmatter}# ${noteTitle}\n`);
     invalidateNoteMetaCache(path);
   }
 
@@ -315,11 +332,8 @@ export class BrowserStorage implements IStorageService {
   }
 
   async updateNoteTags(id: string, tags: string[]): Promise<void> {
-    await ensureWasmLoaded();
     const content = await this.readNote(id);
-    const parsed = wasm_parse_yaml_frontmatter(content);
-    const body: string = parsed?.[1] ?? content;
-    const newContent = wasm_inject_yaml_frontmatter(JSON.stringify({ tags }), body);
+    const newContent = updateFrontmatterFields(content, { tags });
     await this.writeNote(id, newContent);
   }
 
@@ -372,6 +386,7 @@ export class BrowserStorage implements IStorageService {
     assignees: string[],
     progress: number | null,
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void> {
     const fileContent = await this.readNote(noteId);
     const lines = fileContent.split('\n');
@@ -389,6 +404,7 @@ export class BrowserStorage implements IStorageService {
       if (assignees.length > 0) meta.assignees = assignees;
       if (progress !== null && progress !== undefined) meta.progress = progress;
       if (tags.length > 0) meta.tags = tags;
+      if (relatedNotes && relatedNotes.length > 0) meta.related_notes = relatedNotes;
 
       const hasMeta = Object.keys(meta).length > 0;
       lines[lineNumber] = hasMeta
@@ -432,16 +448,20 @@ export class BrowserStorage implements IStorageService {
     description: string | null,
     date: string | null,
     status: string | null,
+    supersedes: string | null,
     participants: string[],
     approvedBy: string[],
     tags: string[],
+    relatedNotes?: string[],
   ): Promise<void> {
     const fileContent = await this.readNote(noteId);
     const lines = fileContent.split('\n');
 
     if (lineNumber < lines.length) {
       const indent = lines[lineNumber].match(/^(\s*)/)?.[1] ?? '';
-      const meta = { description, date, status, participants, approved_by: approvedBy, tags };
+      const meta: Record<string, any> = { description, date, status, participants, approved_by: approvedBy, tags };
+      if (supersedes) meta.supersedes = supersedes;
+      if (relatedNotes && relatedNotes.length > 0) meta.related_notes = relatedNotes;
       const jsonMeta = JSON.stringify(meta);
       lines[lineNumber] = `${indent}- [D] ${content} <!-- decision:${jsonMeta} -->`;
       await this.writeNote(noteId, lines.join('\n'));
