@@ -17,6 +17,7 @@ import { useUiStore } from '@/store/uiStore';
 import { ExcalidrawEditorModal } from '@/components/ExcalidrawEditorModal';
 import { MermaidEditorModal, type MermaidSavePayload } from '@/components/MermaidEditorModal';
 import { CodeEditorModal, type CodeSavePayload } from '@/components/CodeEditorModal';
+import { EmbedInputModal, type EmbedSavePayload } from '@/components/EmbedInputModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { MediaFullscreenModal, type FullscreenMediaData } from '@/components/ui/MediaFullscreenModal';
 import { LinkPreviewPopover, type LinkPreviewData } from '@/components/ui/LinkPreviewPopover';
@@ -98,6 +99,15 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
     to?: number;
   }>({ isOpen: false });
 
+  // Embed Modal & Confirm Delete
+  const [embedModalData, setEmbedModalData] = useState<{
+    isOpen: boolean;
+    initialUrl?: string;
+    initialHeight?: number | null;
+    from?: number;
+    to?: number;
+  }>({ isOpen: false });
+
   // Delete Confirmations
   const [confirmDeleteImage, setConfirmDeleteImage] = useState<{
     from: number;
@@ -107,6 +117,7 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
   } | null>(null);
   const [confirmDeleteMermaid, setConfirmDeleteMermaid] = useState<{ from: number; to: number } | null>(null);
   const [confirmDeleteCodeBlock, setConfirmDeleteCodeBlock] = useState<{ from: number; to: number } | null>(null);
+  const [confirmDeleteEmbed, setConfirmDeleteEmbed] = useState<{ from: number; to: number } | null>(null);
   const [pdfImportData, setPdfImportData] = useState<{ file: File; buffer: ArrayBuffer } | null>(null);
 
   // Context for Inline AI Composer
@@ -169,6 +180,16 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
     const unbindDeleteMermaid = eventBus.on('modal:request-delete-mermaid', (payload) => setConfirmDeleteMermaid(payload));
     const unbindCode = eventBus.on('modal:edit-code-block', (payload) => setCodeModalData({ isOpen: true, ...payload }));
     const unbindDeleteCode = eventBus.on('modal:request-delete-code-block', (payload) => setConfirmDeleteCodeBlock(payload));
+    const unbindEmbed = eventBus.on('modal:edit-embed', (payload) =>
+      setEmbedModalData({
+        isOpen: true,
+        initialUrl: payload.url,
+        initialHeight: payload.height,
+        from: payload.from,
+        to: payload.to,
+      })
+    );
+    const unbindDeleteEmbed = eventBus.on('modal:request-delete-embed', (payload) => setConfirmDeleteEmbed(payload));
     const unbindShowLink = eventBus.on('preview:show-link', (payload) => {
       if (linkHideTimerRef.current) {
         clearTimeout(linkHideTimerRef.current);
@@ -236,6 +257,8 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
       unbindDeleteMermaid();
       unbindCode();
       unbindDeleteCode();
+      unbindEmbed();
+      unbindDeleteEmbed();
       unbindShowLink();
       unbindHideLink();
       unbindWebFullscreen();
@@ -289,6 +312,49 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
     editorRef.current.dispatch({ changes: { from: line.from, to: endPos, insert: '' } });
     setConfirmDeleteCodeBlock(null);
   }, [confirmDeleteCodeBlock, editorRef]);
+
+  const handleConfirmDeleteEmbedAction = useCallback(() => {
+    if (!confirmDeleteEmbed || !editorRef.current) return;
+    const { from, to } = confirmDeleteEmbed;
+    const doc = editorRef.current.state.doc;
+    const line = doc.lineAt(from);
+    let endPos = to;
+    if (doc.lines >= line.number && endPos < doc.length && doc.sliceString(endPos, endPos + 1) === '\n') {
+      endPos += 1;
+    }
+    clearLivePreviewCaches();
+    editorRef.current.dispatch({ changes: { from: line.from, to: endPos, insert: '' } });
+    setConfirmDeleteEmbed(null);
+  }, [confirmDeleteEmbed, editorRef]);
+
+  const handleSaveEmbed = useCallback((payload: EmbedSavePayload) => {
+    if (!editorRef.current) return;
+    const view = editorRef.current;
+    clearLivePreviewCaches();
+
+    const heightParam = payload.height ? `|height=${payload.height}` : '';
+    if (payload.from !== undefined && payload.to !== undefined) {
+      let insertText = `\`\`\`embed${heightParam}\n${payload.url}\n\`\`\``;
+      const doc = view.state.doc;
+      const line = doc.lineAt(payload.from);
+      let toPos = payload.to;
+      if (toPos < doc.length && doc.sliceString(toPos, toPos + 1) === '\n') {
+        toPos += 1;
+        insertText += '\n';
+      }
+      view.dispatch({ changes: { from: line.from, to: toPos, insert: insertText } });
+    } else {
+      const head = view.state.selection.main.head;
+      const docText = view.state.doc.toString();
+      const rawSnippet = `\`\`\`embed${heightParam}\n${payload.url}\n\`\`\``;
+      const { safeFrom, safeInsertText } = prepareSafeDocumentInsertion(docText, head, rawSnippet);
+      view.dispatch({
+        changes: { from: safeFrom, insert: safeInsertText },
+        selection: { anchor: safeFrom + safeInsertText.length },
+      });
+    }
+    setEmbedModalData({ isOpen: false });
+  }, [editorRef]);
 
   const handleSaveMermaid = useCallback((payload: MermaidSavePayload) => {
     if (!editorRef.current) return;
@@ -430,6 +496,24 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
         cancelLabel={t('cancel', 'İptal')}
         onConfirm={handleConfirmDeleteCodeBlockAction}
         onClose={() => setConfirmDeleteCodeBlock(null)}
+      />
+      <EmbedInputModal
+        isOpen={embedModalData.isOpen}
+        initialUrl={embedModalData.initialUrl}
+        initialHeight={embedModalData.initialHeight}
+        from={embedModalData.from}
+        to={embedModalData.to}
+        onClose={() => setEmbedModalData({ isOpen: false })}
+        onSave={handleSaveEmbed}
+      />
+      <ConfirmModal
+        isOpen={!!confirmDeleteEmbed}
+        title={t('confirmDeleteEmbedTitle', 'Gömülü Bloğu Sil')}
+        message={t('confirmDeleteEmbedMessage', 'Bu gömülü web bağlantısını nottan kaldırmak istediğinize emin misiniz?')}
+        confirmLabel={t('delete', 'Sil')}
+        cancelLabel={t('cancel', 'İptal')}
+        onConfirm={handleConfirmDeleteEmbedAction}
+        onClose={() => setConfirmDeleteEmbed(null)}
       />
 
       {/* Fullscreen Media & Popovers */}

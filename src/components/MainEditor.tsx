@@ -488,6 +488,7 @@ export const MainEditor: React.FC = () => {
                 onOpenCodeModal={(lang) =>
                   eventBus.emit('modal:edit-code-block', { code: '', lang: lang || 'typescript' })
                 }
+                onOpenEmbedModal={() => eventBus.emit('modal:edit-embed', { url: '', height: 480 })}
                 onOpenInlineAi={(top, lineFrom) => setInlineAiState({ isOpen: true, top, lineFrom })}
               />
             ) : (

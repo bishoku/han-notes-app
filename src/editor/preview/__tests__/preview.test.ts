@@ -156,6 +156,32 @@ describe('preview/blockDeco', () => {
     assert.ok(widgetDec);
     assert.equal((widgetDec.dec.spec?.widget as any)?.width, 513);
   });
+
+  it('should recognize embed blocks with |height=500 and default heights', () => {
+    const docText = [
+      '```embed|height=500',
+      'https://bishoku.github.io/yada/#ref=3Xn6XqqY',
+      '```',
+    ].join('\n');
+    const doc = Text.of(docText.split('\n'));
+    const fencedRanges = [{ from: 0, to: docText.length }];
+    const items: DecItem[] = [];
+
+    const nextLine = processFencedCodeLine(
+      doc,
+      1,
+      { from: 0, to: 19, text: '```embed|height=500' },
+      fencedRanges,
+      (item) => items.push(item)
+    );
+
+    assert.equal(nextLine, 4);
+    assert.ok(items.length > 0);
+    const widgetDec = items.find((i) => i.dec.spec?.widget);
+    assert.ok(widgetDec);
+    assert.equal((widgetDec.dec.spec?.widget as any)?.height, 500);
+    assert.equal((widgetDec.dec.spec?.widget as any)?.url, 'https://bishoku.github.io/yada/#ref=3Xn6XqqY');
+  });
 });
 
 describe('preview/cache', () => {

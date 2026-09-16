@@ -53,6 +53,7 @@ interface LivePreviewEditorProps {
   onOpenDecisionModal: (btnData: any) => void;
   onOpenMermaidModal: () => void;
   onOpenCodeModal: (lang?: string) => void;
+  onOpenEmbedModal: () => void;
   onOpenInlineAi: (top: number, lineFrom?: number) => void;
 }
 
@@ -72,6 +73,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
   onOpenDecisionModal,
   onOpenMermaidModal,
   onOpenCodeModal,
+  onOpenEmbedModal,
   onOpenInlineAi,
 }) => {
   const { t } = useTranslation();
@@ -189,6 +191,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
         () => setEmojiPickerOpen(true),
         onOpenMermaidModal,
         onOpenCodeModal,
+        onOpenEmbedModal,
         t
       ),
     [
@@ -199,6 +202,7 @@ export const LivePreviewEditor: React.FC<LivePreviewEditorProps> = ({
       onOpenExcalidrawEditor,
       onOpenMermaidModal,
       onOpenCodeModal,
+      onOpenEmbedModal,
       slashStateRef,
       t,
     ]

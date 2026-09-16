@@ -29,6 +29,7 @@ import {
   Smile,
   GitFork,
   FileText,
+  Globe,
 } from 'lucide-react';
 import type { SlashCommand } from '@/components/SlashCommandMenu';
 import type { TFunction } from 'i18next';
@@ -51,7 +52,7 @@ interface SlashCommandDef {
   /** Where to place the cursor relative to the insert start. Defaults to end of snippet. */
   cursorOffset?: number;
   /** Special action type for non-insert commands */
-  action?: 'openTagModal' | 'openImagePicker' | 'openPdfPicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker' | 'openMermaidEditor' | 'openCodeEditor';
+  action?: 'openTagModal' | 'openImagePicker' | 'openPdfPicker' | 'openDiagramEditor' | 'openExcalidrawEditor' | 'openEmojiPicker' | 'openMermaidEditor' | 'openCodeEditor' | 'openEmbedModal';
   /** Sub-commands for nested menus (e.g., language selection for code blocks) */
   subCommands?: { id: string; lang: string; label: string; abbr: string }[];
 }
@@ -185,6 +186,17 @@ const SLASH_COMMAND_DEFS: SlashCommandDef[] = [
     action: 'openPdfPicker',
   },
   {
+    id: 'embed',
+    labelKey: 'slashEmbed',
+    command: '/embed',
+    descriptionKey: 'slashEmbedDesc',
+    category: 'Medya',
+    colorClass: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    icon: React.createElement(Globe, { size: 14 }),
+    snippet: '',
+    action: 'openEmbedModal',
+  },
+  {
     id: 'diagram',
     labelKey: 'slashDiagram',
     command: '/diagram',
@@ -276,6 +288,7 @@ export function buildSlashCommands(
   openEmojiPicker: () => void,
   openMermaidEditor: () => void,
   openCodeEditor: (lang?: string) => void,
+  openEmbedModal: () => void,
   t: TFunction,
 ): SlashCommand[] {
   return SLASH_COMMAND_DEFS.map((def) => {
@@ -329,6 +342,9 @@ export function buildSlashCommands(
         } else if (def.action === 'openCodeEditor') {
           executeSlashCommand('');
           openCodeEditor();
+        } else if (def.action === 'openEmbedModal') {
+          executeSlashCommand('');
+          openEmbedModal();
         } else {
           executeSlashCommand(def.snippet, def.cursorOffset ? { cursorOffset: def.cursorOffset } : undefined);
         }

@@ -16,6 +16,8 @@ export interface AppEvents {
   'modal:request-delete-image': { from: number; to: number; isDiagram: boolean; relPath: string };
   'modal:edit-mermaid': { code: string; width?: number | null; from?: number; to?: number };
   'modal:request-delete-mermaid': { from: number; to: number };
+  'modal:edit-embed': { url: string; height?: number | null; from?: number; to?: number };
+  'modal:request-delete-embed': { from: number; to: number };
   'modal:edit-code-block': { code: string; lang?: string; from?: number; to?: number };
   'modal:request-delete-code-block': { from: number; to: number };
   'preview:show-link': LinkPreviewData;

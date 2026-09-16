@@ -6,6 +6,7 @@ import { getCachedWidget } from "./cache";
 import { CALLOUT_ICONS, calloutLineDecs, IconWidget } from "./calloutDeco";
 import { TableWidget, parseMarkdownTable } from "../widgets/TableWidget";
 import { MermaidWidget } from "../widgets/MermaidWidget";
+import { EmbedWidget } from "../widgets/EmbedWidget";
 import { CodeBlockWidget } from "../widgets/CodeBlockWidget";
 
 // Hoisted line decorations
@@ -279,6 +280,7 @@ export function processFencedCodeLine(
   if (isOpeningFence && targetRange) {
     const langText = text.replace(/^```/, '').trim();
     const mermaidMatch = langText.match(/^mermaid(?:\|(?:width=)?(\d+)|\s+(?:width=)?(\d+))?$/i);
+    const embedMatch = langText.match(/^embed(?:\|(?:height=)?(\d+)|\s+(?:height=)?(\d+))?$/i);
 
     const openingLineNum = doc.lineAt(targetRange.from).number;
     const closingLineNum = doc.lineAt(targetRange.to).number;
@@ -301,6 +303,33 @@ export function processFencedCodeLine(
           widget: getCachedWidget(
             `mermaid:${targetRange.from}:${targetRange.to}:${customWidth}:${codeContent}`,
             () => new MermaidWidget(codeContent, customWidth, targetRange.from, targetRange.to)
+          ),
+        }),
+      });
+
+      for (let hideL = openingLineNum + 1; hideL <= closingLineNum; hideL++) {
+        const hLine = doc.line(hideL);
+        collect({ from: hLine.from, to: hLine.from, dec: lineDecHiddenTable });
+        if (hLine.from < hLine.to) {
+          collect({ from: hLine.from, to: hLine.to, dec: hiddenMark });
+        }
+      }
+
+      return closingLineNum + 1;
+    }
+
+    // ─── Special Render for Notion-style Embed Blocks ───
+    if (embedMatch) {
+      const heightStr = embedMatch[1] || embedMatch[2];
+      const customHeight = heightStr ? parseInt(heightStr, 10) : 480;
+
+      collect({
+        from: line.from,
+        to: line.to,
+        dec: Decoration.replace({
+          widget: getCachedWidget(
+            `embed:${targetRange.from}:${targetRange.to}:${customHeight}:${codeContent.trim()}`,
+            () => new EmbedWidget(codeContent.trim(), customHeight, targetRange.from, targetRange.to)
           ),
         }),
       });
