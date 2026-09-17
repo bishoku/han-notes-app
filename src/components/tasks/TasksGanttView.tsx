@@ -28,6 +28,7 @@ interface TasksGanttViewProps {
       assignees?: string[];
       progress?: number | null;
       tags?: string[];
+      relatedNotes?: string[];
     }
   ) => Promise<void>;
 }
@@ -190,6 +191,7 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
           assignees: task.assignees,
           progress: newProgress,
           tags: task.tags,
+          relatedNotes: task.related_notes,
         }
       );
     }

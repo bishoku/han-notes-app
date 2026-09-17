@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { storage } from '@/services/storage';
 import type { TaskInfo, TaskRegistry } from '@/services/storage';
 import { useNoteStore } from '@/store/noteStore';
+import { useGraphStore } from '@/store/graphStore';
 
 // Re-export types for backward compatibility
 export type { TaskInfo, TaskRegistry };
@@ -88,6 +89,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         metadata.relatedNotes || [],
       );
       await get().loadTasks();
+
+      // Update graph store with the new content of the note
+      try {
+        const updatedContent = await storage.readNote(noteId);
+        useGraphStore.getState().updateNoteContent(noteId, updatedContent);
+      } catch (e) {
+        console.error("Failed to update graph content for note:", e);
+      }
 
       // Refresh editor content if updated note is currently open
       await useNoteStore.getState().refreshCurrentNote();

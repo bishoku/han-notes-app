@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { storage } from '@/services/storage';
 import type { DecisionInfo, DecisionRegistry } from '@/services/storage';
 import { useNoteStore } from '@/store/noteStore';
+import { useGraphStore } from '@/store/graphStore';
 
 // Re-export types for backward compatibility
 export type { DecisionInfo, DecisionRegistry };
@@ -67,6 +68,14 @@ export const useDecisionStore = create<DecisionState>((set, get) => ({
         metadata.relatedNotes || [],
       );
       await get().loadDecisions();
+
+      // Update graph store with the new content of the note
+      try {
+        const updatedContent = await storage.readNote(noteId);
+        useGraphStore.getState().updateNoteContent(noteId, updatedContent);
+      } catch (e) {
+        console.error("Failed to update graph content for note:", e);
+      }
 
       // Refresh editor content if updated note is currently open
       await useNoteStore.getState().refreshCurrentNote();

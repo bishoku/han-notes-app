@@ -280,6 +280,7 @@ export const TasksSidebarList: React.FC<TasksSidebarListProps> = ({
                   assignees: task.assignees,
                   progress: task.progress,
                   tags: task.tags,
+                  relatedNotes: task.related_notes,
                 })}
                 className={cn(
                   "flex flex-col gap-1.5 p-2.5 rounded-xl bg-white dark:bg-zinc-900 border transition-all shadow-2xs hover:shadow-sm cursor-pointer hover:border-mac-accent/50",

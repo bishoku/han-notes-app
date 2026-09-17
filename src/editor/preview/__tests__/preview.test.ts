@@ -1,30 +1,5 @@
-const mockStorage = {
-  getItem: () => null,
-  setItem: () => {},
-  removeItem: () => {},
-  clear: () => {},
-  length: 0,
-  key: () => null,
-};
-try {
-  Object.defineProperty(globalThis, 'localStorage', {
-    value: mockStorage,
-    configurable: true,
-    writable: true,
-  });
-} catch {
-  // Ignore
-}
-if (typeof (globalThis as any).window === 'undefined') {
-  (globalThis as any).window = {
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  };
-}
-
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it } from 'vitest';
+import { strict as assert } from 'node:assert';
 import { Text } from '@codemirror/state';
 import type { DecItem } from '../types.ts';
 import { applyInlineDecorations } from '../inlineDeco.ts';

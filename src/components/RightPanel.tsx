@@ -437,6 +437,7 @@ export const RightPanel: React.FC = () => {
                                 assignees: task.assignees,
                                 progress: task.progress,
                                 tags: task.tags,
+                                relatedNotes: task.related_notes,
                               })
                             }
                             className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-400 hover:text-mac-accent transition-colors shrink-0 cursor-pointer"
@@ -519,6 +520,7 @@ export const RightPanel: React.FC = () => {
                 assignees: updated.assignees,
                 progress: updated.progress,
                 tags: updated.tags,
+                relatedNotes: updated.relatedNotes,
               }
             );
             if (currentNoteId) {

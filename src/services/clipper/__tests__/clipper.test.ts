@@ -1,15 +1,5 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-
-// Set up minimal browser environment if running in node/vite-node
-if (typeof (globalThis as any).window === 'undefined') {
-  (globalThis as any).window = {
-    location: {
-      origin: 'http://localhost:5173',
-      pathname: '/',
-    },
-  };
-}
+import { describe, it } from 'vitest';
+import { strict as assert } from 'node:assert';
 
 // Polyfill DOMParser using Readability's bundled lightweight parser or fallback if not in browser
 if (typeof (globalThis as any).DOMParser === 'undefined') {

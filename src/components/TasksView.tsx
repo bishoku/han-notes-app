@@ -62,6 +62,7 @@ export const TasksView: React.FC = () => {
         assignees: updated.assignees,
         progress: updated.progress,
         tags: updated.tags,
+        relatedNotes: updated.relatedNotes,
       }
     );
   };

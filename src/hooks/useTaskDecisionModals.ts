@@ -35,6 +35,7 @@ export function useTaskDecisionModals(currentNoteId: string | null) {
         assignees: parsed.assignees,
         progress: parsed.progress,
         tags: parsed.tags,
+        relatedNotes: parsed.relatedNotes,
       });
     }
   }, [currentNoteId]);
@@ -53,6 +54,7 @@ export function useTaskDecisionModals(currentNoteId: string | null) {
         assignees: updated.assignees,
         progress: updated.progress,
         tags: updated.tags,
+        relatedNotes: updated.relatedNotes,
       }
     );
     if (currentNoteId) {
@@ -75,6 +77,7 @@ export function useTaskDecisionModals(currentNoteId: string | null) {
         participants: parsed.participants,
         approvedBy: parsed.approvedBy,
         tags: parsed.tags,
+        relatedNotes: parsed.relatedNotes,
       });
     }
   }, [currentNoteId]);
@@ -91,6 +94,7 @@ export function useTaskDecisionModals(currentNoteId: string | null) {
         participants: updated.participants,
         approvedBy: updated.approvedBy,
         tags: updated.tags,
+        relatedNotes: updated.relatedNotes,
       }
     );
     if (currentNoteId) {

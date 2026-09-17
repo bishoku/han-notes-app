@@ -1,5 +1,5 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it } from 'vitest';
+import { strict as assert } from 'node:assert';
 import { isTaskOverdue, getTaskAssignees, getTaskTags } from '../useTaskFilters.ts';
 import type { TaskInfo } from '@/services/storage';
 

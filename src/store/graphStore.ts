@@ -173,8 +173,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       for (const note of notes) {
         const content = cache.get(note.id) || '';
         const rawLinks = extractWikilinks(content);
-        const taskMatches = [...content.matchAll(/<!--\s*task:\s*({[^}]+})\s*-->/gi)];
-        const decisionMatches = [...content.matchAll(/<!--\s*decision:\s*({[^}]+})\s*-->/gi)];
+        const taskMatches = [...content.matchAll(/<!--\s*task:(.*?)-->/gis)];
+        const decisionMatches = [...content.matchAll(/<!--\s*decision:(.*?)-->/gis)];
 
         const processTarget = (raw: string, edgeType: EdgeType) => {
           const resolvedId = resolveTargetNoteId(raw, notes);
@@ -240,24 +240,30 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
         for (const match of taskMatches) {
           try {
-            const meta = JSON.parse(match[1]);
-            if (meta.related_notes && Array.isArray(meta.related_notes)) {
-              for (const rn of meta.related_notes) {
-                processTarget(rn, 'task-ref');
+            const meta = JSON.parse(match[1].trim());
+            const relNotes = meta.related_notes || meta.relatedNotes;
+            if (Array.isArray(relNotes)) {
+              for (const rn of relNotes) {
+                if (typeof rn === 'string' && rn.trim()) {
+                  processTarget(rn.trim(), 'task-ref');
+                }
               }
             }
-          } catch (e) {}
+          } catch {}
         }
 
         for (const match of decisionMatches) {
           try {
-            const meta = JSON.parse(match[1]);
-            if (meta.related_notes && Array.isArray(meta.related_notes)) {
-              for (const rn of meta.related_notes) {
-                processTarget(rn, 'decision-ref');
+            const meta = JSON.parse(match[1].trim());
+            const relNotes = meta.related_notes || meta.relatedNotes;
+            if (Array.isArray(relNotes)) {
+              for (const rn of relNotes) {
+                if (typeof rn === 'string' && rn.trim()) {
+                  processTarget(rn.trim(), 'decision-ref');
+                }
               }
             }
-          } catch (e) {}
+          } catch {}
         }
       }
 
@@ -327,8 +333,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
 
     const rawOutgoing = extractWikilinks(content);
-    const taskMatches = [...content.matchAll(/<!--\s*task:\s*({[^}]+})\s*-->/gi)];
-    const decisionMatches = [...content.matchAll(/<!--\s*decision:\s*({[^}]+})\s*-->/gi)];
+    const taskMatches = [...content.matchAll(/<!--\s*task:(.*?)-->/gis)];
+    const decisionMatches = [...content.matchAll(/<!--\s*decision:(.*?)-->/gis)];
 
     const resolvedOutgoingSet = new Set<string>();
     const resolvedTasksSet = new Set<string>();
@@ -343,30 +349,36 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     for (const match of taskMatches) {
       try {
-        const meta = JSON.parse(match[1]);
-        if (meta.related_notes && Array.isArray(meta.related_notes)) {
-          for (const rn of meta.related_notes) {
-            const resolvedId = resolveTargetNoteId(rn, currentNodes);
-            if (resolvedId && resolvedId !== cleanId) {
-              resolvedTasksSet.add(resolvedId);
+        const meta = JSON.parse(match[1].trim());
+        const relNotes = meta.related_notes || meta.relatedNotes;
+        if (Array.isArray(relNotes)) {
+          for (const rn of relNotes) {
+            if (typeof rn === 'string' && rn.trim()) {
+              const resolvedId = resolveTargetNoteId(rn.trim(), currentNodes);
+              if (resolvedId && resolvedId !== cleanId) {
+                resolvedTasksSet.add(resolvedId);
+              }
             }
           }
         }
-      } catch (e) {}
+      } catch {}
     }
 
     for (const match of decisionMatches) {
       try {
-        const meta = JSON.parse(match[1]);
-        if (meta.related_notes && Array.isArray(meta.related_notes)) {
-          for (const rn of meta.related_notes) {
-            const resolvedId = resolveTargetNoteId(rn, currentNodes);
-            if (resolvedId && resolvedId !== cleanId) {
-              resolvedDecisionsSet.add(resolvedId);
+        const meta = JSON.parse(match[1].trim());
+        const relNotes = meta.related_notes || meta.relatedNotes;
+        if (Array.isArray(relNotes)) {
+          for (const rn of relNotes) {
+            if (typeof rn === 'string' && rn.trim()) {
+              const resolvedId = resolveTargetNoteId(rn.trim(), currentNodes);
+              if (resolvedId && resolvedId !== cleanId) {
+                resolvedDecisionsSet.add(resolvedId);
+              }
             }
           }
         }
-      } catch (e) {}
+      } catch {}
     }
 
     // Filter out previous outgoing edges from this source
@@ -398,6 +410,30 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         target: targetId,
         type: 'decision-ref',
       });
+    }
+
+    // Ensure referenced target notes exist in node list (as ghost nodes if not created yet)
+    const allReferencedTargets = new Set([
+      ...resolvedOutgoingSet,
+      ...resolvedTasksSet,
+      ...resolvedDecisionsSet,
+    ]);
+
+    for (const targetId of allReferencedTargets) {
+      if (!currentNodes.some((n) => n.id === targetId)) {
+        currentNodes.push({
+          id: targetId,
+          title: extractTitleFromId(targetId),
+          path: targetId,
+          folder: 'Oluşturulmamış',
+          tags: ['ghost'],
+          outgoingLinks: [],
+          incomingLinks: [],
+          connectionCount: 0,
+          isOrphan: false,
+          isGhost: true,
+        });
+      }
     }
 
     // High-performance $O(E + N)$ adjacency rebuild using Map lookups instead of $O(N \cdot E)$

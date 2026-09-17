@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert';
 import { syncStorageAdapter } from '../syncStorageAdapter';
 import { computeBinaryHash, bytesToBase64, base64ToBytes } from '../crypto';

@@ -44,6 +44,7 @@ export interface ParsedTask {
   assignees: string[];
   progress: number;
   tags: string[];
+  relatedNotes?: string[];
 }
 
 /**
@@ -61,6 +62,10 @@ export function parseTaskLineText(lineText: string): ParsedTask | null {
     ? metadata.assignees
     : (metadata.assignee ? [metadata.assignee] : []);
 
+  const relatedNotes = Array.isArray(metadata.related_notes)
+    ? metadata.related_notes
+    : (Array.isArray(metadata.relatedNotes) ? metadata.relatedNotes : []);
+
   return {
     completed,
     content,
@@ -72,6 +77,7 @@ export function parseTaskLineText(lineText: string): ParsedTask | null {
     assignees,
     progress: metadata.progress ?? (completed ? 100 : 0),
     tags: metadata.tags || [],
+    relatedNotes,
   };
 }
 
@@ -85,6 +91,7 @@ export interface ParsedDecision {
   participants: string[];
   approvedBy: string[];
   tags: string[];
+  relatedNotes?: string[];
 }
 
 /**
@@ -102,6 +109,10 @@ export function parseDecisionLineText(lineText: string): ParsedDecision {
 
   const { metadata, content } = extractCommentMetadata(rawText, 'decision');
 
+  const relatedNotes = Array.isArray(metadata.related_notes)
+    ? metadata.related_notes
+    : (Array.isArray(metadata.relatedNotes) ? metadata.relatedNotes : []);
+
   return {
     content,
     description: metadata.description || null,
@@ -110,6 +121,7 @@ export function parseDecisionLineText(lineText: string): ParsedDecision {
     participants: metadata.participants || [],
     approvedBy: metadata.approved_by || [],
     tags: metadata.tags || [],
+    relatedNotes,
   };
 }
 

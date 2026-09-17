@@ -8,7 +8,8 @@
     "build:wasm": "wasm-pack build ./han-core --target web --out-dir ../src/wasm/han-core",
     "build": "npm run build:wasm && tsc -b && vite build",
     "lint": "oxlint",
-    "test": "NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/editor/preview/__tests__/preview.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/utils/__tests__/pngMetadata.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/services/clipper/__tests__/clipper.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/services/sync/__tests__/syncCrypto.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/services/sync/__tests__/syncAdapter.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/services/sync/__tests__/syncAttachment.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/services/sync/__tests__/syncChunking.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/services/workspace/__tests__/workspace.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/services/workspace/__tests__/workspaceTransfer.test.ts && NODE_OPTIONS=\"--localstorage-file=/tmp/test.db\" npx vite-node src/components/tasks/__tests__/taskFilters.test.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -70,6 +71,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "^5.0.1"
   }
 }

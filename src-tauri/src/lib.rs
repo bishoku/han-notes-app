@@ -552,6 +552,7 @@ fn update_task_metadata(
     assignees: Vec<String>,
     progress: Option<u8>,
     tags: Vec<String>,
+    related_notes: Option<Vec<String>>,
 ) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
     let note_path = resolve_note_path(&vault_dir, &note_id);
@@ -586,6 +587,7 @@ fn update_task_metadata(
             assignees: final_assignees,
             progress,
             tags,
+            related_notes: related_notes.unwrap_or_default(),
         };
 
         let has_meta = meta.description.is_some()
@@ -594,7 +596,8 @@ fn update_task_metadata(
             || meta.priority.is_some()
             || !meta.assignees.is_empty()
             || meta.progress.is_some()
-            || !meta.tags.is_empty();
+            || !meta.tags.is_empty()
+            || !meta.related_notes.is_empty();
 
         let new_line = if has_meta {
             let json_meta = serde_json::to_string(&meta).unwrap_or_default();
@@ -925,9 +928,11 @@ fn update_decision_metadata(
     description: Option<String>,
     date: Option<String>,
     status: Option<String>,
+    supersedes: Option<String>,
     participants: Vec<String>,
     approved_by: Vec<String>,
     tags: Vec<String>,
+    related_notes: Option<Vec<String>>,
 ) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
     let note_path = resolve_note_path(&vault_dir, &note_id);
@@ -949,9 +954,11 @@ fn update_decision_metadata(
             description: if description.as_ref().map_or(true, |s| s.trim().is_empty()) { None } else { description },
             date,
             status,
+            supersedes,
             participants,
             approved_by,
             tags,
+            related_notes: related_notes.unwrap_or_default(),
         };
 
         let json_meta = serde_json::to_string(&meta).unwrap_or_default();

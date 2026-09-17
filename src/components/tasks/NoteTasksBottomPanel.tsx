@@ -44,6 +44,7 @@ interface NoteTasksBottomPanelProps {
       assignees?: string[];
       progress?: number | null;
       tags?: string[];
+      relatedNotes?: string[];
     }
   ) => Promise<void>;
   onScrollToTask?: (lineNumber: number) => void;
@@ -203,6 +204,7 @@ export const NoteTasksBottomPanel: React.FC<NoteTasksBottomPanelProps> = ({
         assignees: task.assignees,
         progress: newProgress,
         tags: task.tags,
+        relatedNotes: task.related_notes,
       }
     );
   };
@@ -223,6 +225,7 @@ export const NoteTasksBottomPanel: React.FC<NoteTasksBottomPanelProps> = ({
         assignees: task.assignees,
         progress: task.progress,
         tags: task.tags,
+        relatedNotes: task.related_notes,
       }
     );
   };
@@ -640,6 +643,7 @@ export const NoteTasksBottomPanel: React.FC<NoteTasksBottomPanelProps> = ({
                               assignees: uTask.assignees,
                               progress: uTask.progress,
                               tags: uTask.tags,
+                              relatedNotes: uTask.related_notes,
                             })}
                             className="p-1 rounded text-gray-400 hover:text-mac-accent hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                             title={t('setDate', 'Tarih Belirle')}
@@ -769,6 +773,7 @@ export const NoteTasksBottomPanel: React.FC<NoteTasksBottomPanelProps> = ({
                             assignees: task.assignees,
                             progress: task.progress,
                             tags: task.tags,
+                            relatedNotes: task.related_notes,
                           })}
                           className="p-1 rounded-md text-gray-400 hover:text-mac-accent hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                           title={t('editTaskProperties', 'Görev Özelliklerini Düzenle')}

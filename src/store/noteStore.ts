@@ -273,6 +273,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         })
       );
       get().loadBacklinks(currentNoteId);
+      useGraphStore.getState().updateNoteContent(currentNoteId, content);
     } catch (e) {
       console.error('Failed to refresh current note:', e);
     }
