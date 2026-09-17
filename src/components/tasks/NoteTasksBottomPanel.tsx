@@ -20,6 +20,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import type { TaskInfo, TaskRegistry } from '@/services/storage';
 import type { TaskEditData } from '@/components/TaskEditModal';
 import { useTaskFilters, isTaskOverdue, getTaskAssignees, getTaskTags, type TaskStatusType } from './useTaskFilters';
@@ -57,6 +58,7 @@ export const NoteTasksBottomPanel: React.FC<NoteTasksBottomPanelProps> = ({
   onScrollToTask,
 }) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   // Default is CLOSED as requested by user
   const [isOpen, setIsOpen] = useState(false);
   const [panelViewMode, setPanelViewMode] = useState<'gantt' | 'list'>('gantt');
@@ -287,8 +289,12 @@ export const NoteTasksBottomPanel: React.FC<NoteTasksBottomPanelProps> = ({
   const isStatusActive = (status: TaskStatusType) => selectedStatuses.includes(status);
   const isAllStatusActive = selectedStatuses.length === 0;
 
+  if (isMobile) {
+    return null;
+  }
+
   return (
-    <div className="shrink-0 w-full border-t border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md transition-all select-none z-20 shadow-lg print:hidden">
+    <div className="hidden md:block shrink-0 w-full border-t border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md transition-all select-none z-20 shadow-lg print:hidden">
       {/* ── Collapsible Header Bar (Default closed, click to toggle) ── */}
       <div
         onClick={() => setIsOpen(!isOpen)}

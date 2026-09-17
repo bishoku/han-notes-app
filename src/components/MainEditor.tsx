@@ -502,19 +502,21 @@ export const MainEditor: React.FC = () => {
             )}
           </div>
 
-          {/* Note Tasks Bottom Collapsible Panel (Only shown if note has tasks) */}
+          {/* Note Tasks Bottom Collapsible Panel (Only shown on desktop if note has tasks) */}
           {noteTasks.length > 0 && (
-            <NoteTasksBottomPanel
-              tasks={noteTasks}
-              registry={taskRegistry}
-              onToggleTask={toggleTask}
-              onEditTask={handleEditTaskDirect}
-              onUpdateTask={updateTaskMetadata}
-              onScrollToTask={(lineNumber) => {
-                eventBus.emit('editor:scroll-to-heading', { line: lineNumber });
-                window.dispatchEvent(new CustomEvent('scroll-to-heading', { detail: { line: lineNumber } }));
-              }}
-            />
+            <div className="hidden md:block">
+              <NoteTasksBottomPanel
+                tasks={noteTasks}
+                registry={taskRegistry}
+                onToggleTask={toggleTask}
+                onEditTask={handleEditTaskDirect}
+                onUpdateTask={updateTaskMetadata}
+                onScrollToTask={(lineNumber) => {
+                  eventBus.emit('editor:scroll-to-heading', { line: lineNumber });
+                  window.dispatchEvent(new CustomEvent('scroll-to-heading', { detail: { line: lineNumber } }));
+                }}
+              />
+            </div>
           )}
         </div>
       </div>
