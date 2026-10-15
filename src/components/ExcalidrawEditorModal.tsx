@@ -31,6 +31,7 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const { theme, language } = useUiStore();
+  const isDarkTheme = theme !== 'light';
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const isUpdatingRef = useRef(false);
@@ -46,7 +47,7 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
           elements: initialData.elements || [],
           appState: {
             ...(initialData.appState || {}),
-            theme: theme === 'dark' ? 'dark' : 'light',
+            theme: isDarkTheme ? 'dark' : 'light',
           },
         });
         if (initialData.files && Object.keys(initialData.files).length > 0) {
@@ -58,7 +59,7 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
         isUpdatingRef.current = false;
       }
     }
-  }, [isOpen, excalidrawAPI, initialData, theme]);
+  }, [isOpen, excalidrawAPI, initialData, isDarkTheme]);
 
   if (!isOpen) return null;
 
@@ -90,7 +91,7 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
         elements,
         appState: {
           ...appState,
-          exportWithDarkMode: theme === 'dark',
+          exportWithDarkMode: isDarkTheme,
           exportBackground: false,
         },
         files,
@@ -114,7 +115,11 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-150"
+    >
       <div className="relative w-full h-full md:w-[96vw] md:h-[96vh] bg-white dark:bg-zinc-900 md:rounded-2xl overflow-hidden shadow-2xl md:border border-gray-200 dark:border-zinc-800 flex flex-col pt-safe pb-safe">
         {/* Header */}
         <div className="flex items-center justify-between px-3 md:px-5 py-2 md:py-2.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-gray-200 dark:border-zinc-800 shrink-0 select-none">
@@ -165,11 +170,11 @@ export const ExcalidrawEditorModal: React.FC<ExcalidrawEditorModalProps> = ({
                   elements: initialData.elements || [],
                   appState: {
                     ...(initialData.appState || {}),
-                    theme: theme === 'dark' ? 'dark' : 'light',
+                    theme: isDarkTheme ? 'dark' : 'light',
                   },
                   files: initialData.files || {},
                 } : undefined}
-                theme={theme === 'dark' ? 'dark' : 'light'}
+                theme={isDarkTheme ? 'dark' : 'light'}
                 langCode={language === 'tr' ? 'tr-TR' : 'en-US'}
                 UIOptions={{
                   canvasActions: {

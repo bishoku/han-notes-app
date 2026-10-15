@@ -8,6 +8,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { useDecisionStore } from '@/store/decisionStore';
 import { vectorStore } from '@/services/ai/vectorStore';
 import { embeddingService } from '@/services/ai/embeddingService';
+import { eventBus } from '@/lib/eventBus';
 
 export type SearchFilterType = 'all' | 'semantic' | 'notes' | 'tasks' | 'decisions' | 'tags';
 
@@ -32,6 +33,10 @@ export interface SearchMatchItem {
 const queryCache = new Map<string, { results: SearchMatchItem[]; isSemanticDone: boolean }>();
 const MAX_CACHE_ENTRIES = 40;
 
+// Invalidate queryCache whenever notes are reloaded or saved
+eventBus.on('note:reloaded', () => queryCache.clear());
+eventBus.on('note:flush-save', () => queryCache.clear());
+
 export class HybridSearchService {
   /**
    * Fast, synchronous-like in-memory keyword & title match (0ms latency).
@@ -43,7 +48,7 @@ export class HybridSearchService {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const { notes } = useNoteStore.getState();
+    const { notes, currentNoteId, currentNoteContent } = useNoteStore.getState();
     const { tasks } = useTaskStore.getState();
     const { decisions } = useDecisionStore.getState();
     const queryLower = trimmed.toLowerCase();
@@ -112,6 +117,61 @@ export class HybridSearchService {
                 matchedKeywords: [tag],
                 tags: noteTags,
                 score: 75,
+              });
+            }
+          }
+        }
+      }
+
+      // Body content keyword match (active note + indexed vector chunks)
+      if (filter === 'all' || filter === 'notes') {
+        if (currentNoteId && currentNoteContent) {
+          const bodyLower = currentNoteContent.toLowerCase();
+          const matchIdx = bodyLower.indexOf(queryLower);
+          if (matchIdx !== -1 || tokens.every((t) => bodyLower.includes(t))) {
+            const key = `content_${currentNoteId}`;
+            if (!seenKeys.has(key) && !seenKeys.has(`title_${currentNoteId}`)) {
+              seenKeys.add(key);
+              const foundNote = notes.find((n) => n.id === currentNoteId);
+              const idx = matchIdx !== -1 ? matchIdx : bodyLower.indexOf(tokens[0]);
+              const start = Math.max(0, idx - 40);
+              const snippet = currentNoteContent.slice(start, start + 180).replace(/\n+/g, ' ');
+              matches.push({
+                id: key,
+                noteId: currentNoteId,
+                title: foundNote?.title || currentNoteId.split('/').pop() || currentNoteId,
+                path: currentNoteId,
+                snippet: (start > 0 ? '...' : '') + snippet + (start + 180 < currentNoteContent.length ? '...' : ''),
+                matchType: 'content',
+                matchedKeywords: tokens.filter((t) => bodyLower.includes(t)),
+                tags: foundNote?.tags || [],
+                score: 78,
+              });
+            }
+          }
+        }
+
+        const cachedChunks = vectorStore.getCachedChunksSync();
+        for (const chunk of cachedChunks) {
+          const chunkLower = (chunk.content || '').toLowerCase();
+          if (chunkLower.includes(queryLower) || tokens.every((t) => chunkLower.includes(t))) {
+            const key = `content_${chunk.id}`;
+            if (!seenKeys.has(key) && !seenKeys.has(`content_${chunk.noteId}`)) {
+              const foundNote = notes.find((n) => n.id === chunk.noteId);
+              if (!foundNote) continue;
+              seenKeys.add(key);
+              seenKeys.add(`content_${chunk.noteId}`);
+              matches.push({
+                id: key,
+                noteId: chunk.noteId,
+                title: foundNote.title || chunk.title || chunk.noteId.split('/').pop() || chunk.noteId,
+                path: chunk.noteId,
+                heading: chunk.heading,
+                snippet: chunk.content.slice(0, 180) + (chunk.content.length > 180 ? '...' : ''),
+                matchType: chunk.heading ? 'heading' : 'content',
+                matchedKeywords: tokens.filter((t) => chunkLower.includes(t)),
+                tags: foundNote.tags || [],
+                score: 76,
               });
             }
           }
@@ -195,6 +255,9 @@ export class HybridSearchService {
     if (queryCache.has(cacheKey)) {
       return queryCache.get(cacheKey)!;
     }
+
+    // Ensure chunk cache is populated for body keyword matching
+    await vectorStore.getAllChunks().catch(() => {});
 
     // 1. Instant keyword matches first
     const matches = this.searchKeywordOnly(trimmed, filter);

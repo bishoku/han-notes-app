@@ -7,6 +7,7 @@
  * Ephemeral signaling: WebSocket is terminated the moment DataChannel is open.
  */
 import { useNoteStore } from '@/store/noteStore';
+import { eventBus } from '@/lib/eventBus';
 import { clearFileTextCache } from '@/services/storage/browser/fileOps';
 import { clearImageCache } from '@/services/storage/browser/assetManager';
 import { encryptPayload, decryptPayload, bytesToBase64, base64ToBytes } from './crypto';
@@ -358,6 +359,9 @@ export class WebRtcSyncService {
       transferredAttachments: 0,
       direction: 'bidirectional',
     });
+
+    eventBus.emit('note:flush-save');
+    await new Promise((r) => setTimeout(r, 50));
 
     let remoteManifest: SyncManifest;
     let localManifest: SyncManifest;

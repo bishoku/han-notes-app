@@ -68,7 +68,12 @@ export const NoteHistoryDrawer: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('gitHistoryTitle')}
+    >
       <div
         className="w-full max-w-4xl h-full bg-white dark:bg-zinc-900 border-l border-gray-200 dark:border-zinc-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-250 select-text"
         onClick={(e) => e.stopPropagation()}
@@ -101,12 +106,12 @@ export const NoteHistoryDrawer: React.FC = () => {
           </button>
         </div>
 
-        {/* Content Body: 2 Columns (Timeline List + Diff View) */}
-        <div className="flex-1 flex min-h-0 overflow-hidden divide-x divide-gray-200 dark:divide-zinc-800">
+        {/* Content Body: 2 Columns on desktop, stacked on mobile (Timeline List + Diff View) */}
+        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-zinc-800">
           {/* Left Column: Commits Timeline */}
           <div
             onScroll={handleTimelineScroll}
-            className="w-80 flex flex-col bg-gray-50/30 dark:bg-zinc-950/20 overflow-y-auto"
+            className="w-full md:w-80 max-h-56 md:max-h-none shrink-0 flex flex-col bg-gray-50/30 dark:bg-zinc-950/20 overflow-y-auto"
           >
             <div className="px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-zinc-800/60 sticky top-0 bg-gray-50/90 dark:bg-zinc-950/90 backdrop-blur-xs z-10">
               {t('decisionTimelineView')}

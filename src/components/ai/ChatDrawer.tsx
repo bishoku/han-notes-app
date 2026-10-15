@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useAiStore } from '@/store/aiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
+import { eventBus } from '@/lib/eventBus';
+import { storage } from '@/services/storage';
 import {
   Bot,
   Send,
@@ -559,10 +561,15 @@ export const ChatDrawer: React.FC = () => {
                       {currentNoteId && (
                         <button
                           onClick={async () => {
+                            eventBus.emit('note:flush-save');
+                            await new Promise((r) => setTimeout(r, 30));
                             const noteStore = useNoteStore.getState();
-                            const currentContent = noteStore.currentNoteContent || '';
+                            const diskContent = await storage.readNote(currentNoteId).catch(() => noteStore.currentNoteContent || '');
+                            const currentContent = diskContent || noteStore.currentNoteContent || '';
                             const updated = (currentContent ? currentContent + '\n\n' : '') + msg.content;
-                            await noteStore.updateNote(updated);
+                            await noteStore.updateNote(updated, currentNoteId);
+                            useNoteStore.setState({ currentNoteContent: updated });
+                            eventBus.emit('note:reloaded', { noteId: currentNoteId, content: updated });
                           }}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-black/5 dark:bg-white/5 hover:bg-mac-accent hover:text-white text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
                           title={t('aiInsertIntoNote', 'Nota Ekle')}

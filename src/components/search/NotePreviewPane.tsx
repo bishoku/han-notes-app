@@ -7,6 +7,9 @@ import { useTranslation } from 'react-i18next';
 import { marked, Renderer } from 'marked';
 import { FileText, ArrowRight, Loader2 } from 'lucide-react';
 import { storage } from '@/services/storage';
+import { sanitizeHtml, escapeHtml } from '@/utils/sanitize';
+import { eventBus } from '@/lib/eventBus';
+import { useNoteStore } from '@/store/noteStore';
 
 interface NotePreviewPaneProps {
   noteId: string | null;
@@ -22,6 +25,15 @@ interface NotePreviewPaneProps {
 // In-memory cache for loaded note content and parsed HTML to guarantee 0ms instant preview switches
 const previewContentCache = new Map<string, string>();
 const parsedHtmlCache = new Map<string, string>();
+const MAX_PREVIEW_CACHE = 50;
+
+eventBus.on('note:reloaded', ({ noteId }) => {
+  if (noteId) previewContentCache.delete(noteId);
+  else previewContentCache.clear();
+});
+eventBus.on('note:flush-save', () => {
+  previewContentCache.clear();
+});
 
 const customPreviewRenderer = new Renderer();
 customPreviewRenderer.table = function (token: any) {
@@ -32,7 +44,7 @@ customPreviewRenderer.table = function (token: any) {
     headerHtml = `<thead><tr>${token.header
       .map(
         (cell: any) =>
-          `<th class="px-3 py-2 text-left text-[11px] font-bold text-gray-900 dark:text-gray-100 bg-black/5 dark:bg-white/5 border-b border-gray-200 dark:border-zinc-700 whitespace-nowrap">${cell.text}</th>`
+          `<th class="px-3 py-2 text-left text-[11px] font-bold text-gray-900 dark:text-gray-100 bg-black/5 dark:bg-white/5 border-b border-gray-200 dark:border-zinc-700 whitespace-nowrap">${escapeHtml(cell.text || '')}</th>`
       )
       .join('')}</tr></thead>`;
 
@@ -42,7 +54,7 @@ customPreviewRenderer.table = function (token: any) {
           `<tr class="border-b border-gray-100 dark:border-zinc-800/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">${row
             .map(
               (cell: any) =>
-                `<td class="px-3 py-2 text-left text-[11px] text-gray-800 dark:text-gray-200 whitespace-normal min-w-[90px] max-w-[200px] break-words">${cell.text}</td>`
+                `<td class="px-3 py-2 text-left text-[11px] text-gray-800 dark:text-gray-200 whitespace-normal min-w-[90px] max-w-[200px] break-words">${escapeHtml(cell.text || '')}</td>`
             )
             .join('')}</tr>`
       )
@@ -83,6 +95,14 @@ export const NotePreviewPane: React.FC<NotePreviewPaneProps> = memo(({
       return;
     }
 
+    const { currentNoteId, currentNoteContent } = useNoteStore.getState();
+    if (currentNoteId === noteId && currentNoteContent) {
+      previewContentCache.set(noteId, currentNoteContent);
+      setContent(currentNoteContent);
+      setIsLoading(false);
+      return;
+    }
+
     if (previewContentCache.has(noteId)) {
       setContent(previewContentCache.get(noteId)!);
       setIsLoading(false);
@@ -95,6 +115,10 @@ export const NotePreviewPane: React.FC<NotePreviewPaneProps> = memo(({
     storage
       .readNote(noteId)
       .then((raw) => {
+        if (previewContentCache.size >= MAX_PREVIEW_CACHE) {
+          const oldest = previewContentCache.keys().next().value;
+          if (oldest) previewContentCache.delete(oldest);
+        }
         previewContentCache.set(noteId, raw);
         if (isCurrent) {
           setContent(raw);
@@ -119,15 +143,17 @@ export const NotePreviewPane: React.FC<NotePreviewPaneProps> = memo(({
       return parsedHtmlCache.get(content)!;
     }
     try {
-      const parsed = marked.parse(content, {
-        renderer: customPreviewRenderer,
-        gfm: true,
-        breaks: true,
-      }) as string;
+      const parsed = sanitizeHtml(
+        marked.parse(content, {
+          renderer: customPreviewRenderer,
+          gfm: true,
+          breaks: true,
+        }) as string
+      );
       parsedHtmlCache.set(content, parsed);
       return parsed;
     } catch {
-      return content;
+      return escapeHtml(content);
     }
   }, [content]);
 

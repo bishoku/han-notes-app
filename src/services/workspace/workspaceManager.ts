@@ -187,13 +187,25 @@ export class WorkspaceManager {
   async migrateExistingDataIfNeeded(defaultStorageType: WorkspaceStorageType): Promise<Workspace[]> {
     const existing = await this.listWorkspaces();
     if (existing.length > 0) {
+      // Self-heal: if a previous version created the 'default' workspace with storageType='browser'
+      // without any FileSystemDirectoryHandle saved, convert it to 'indexeddb' so it works out of the box.
+      const defaultWs = existing.find((w) => w.id === 'default' && w.storageType === 'browser');
+      if (defaultWs) {
+        const handle = await this.getDirectoryHandle('default');
+        if (!handle) {
+          defaultWs.storageType = 'indexeddb';
+          defaultWs.icon = 'Book';
+          await this.saveWorkspace(defaultWs);
+          return await this.listWorkspaces();
+        }
+      }
       return existing;
     }
 
     console.log('[WorkspaceManager] No workspaces found. Running initial bootstrap migration...');
 
     // 1. Check if legacy File System Access handle exists ('vaultDir')
-    if (defaultStorageType === 'browser') {
+    if (defaultStorageType === 'browser' || (typeof window !== 'undefined' && 'showDirectoryPicker' in window)) {
       try {
         const legacyHandle = await loadLegacyHandle();
         if (legacyHandle) {
@@ -218,13 +230,17 @@ export class WorkspaceManager {
       }
     }
 
-    // 2. Default Workspace fallback (IndexedDB or freshly started)
+    // 2. Default Workspace fallback: always use 'indexeddb' on Web/PWA (or 'tauri' on Tauri desktop)
+    // so first-time users can immediately use the app without selecting a local folder first.
+    const fallbackStorageType: WorkspaceStorageType =
+      defaultStorageType === 'tauri' ? 'tauri' : 'indexeddb';
+
     const defaultWs: Workspace = {
       id: 'default',
       name: 'Varsayılan',
-      storageType: defaultStorageType,
+      storageType: fallbackStorageType,
       color: '#6366f1',
-      icon: defaultStorageType === 'browser' ? 'Folder' : 'Book',
+      icon: fallbackStorageType === 'tauri' ? 'Folder' : 'Book',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       isDefault: true,

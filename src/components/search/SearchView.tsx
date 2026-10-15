@@ -383,7 +383,12 @@ export const SearchView: React.FC = () => {
               return (
                 <div
                   key={item.id}
-                  onClick={() => setSelectedResultId(item.id)}
+                  onClick={() => {
+                    setSelectedResultId(item.id);
+                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                      handleOpenNote(item.noteId);
+                    }
+                  }}
                   onDoubleClick={() => handleOpenNote(item.noteId)}
                   className={`p-3.5 rounded-2xl transition-all cursor-pointer flex flex-col gap-1.5 border ${
                     isSelected

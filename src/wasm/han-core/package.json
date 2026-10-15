@@ -1,0 +1,21 @@
+{
+  "name": "han-core",
+  "type": "module",
+  "description": "Shared Rust/WASM core parser for H.A.N. (Hierarchical Adaptive Notebook)",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bishoku/han-notes-app"
+  },
+  "files": [
+    "han_core_bg.wasm",
+    "han_core.js",
+    "han_core.d.ts"
+  ],
+  "main": "han_core.js",
+  "types": "han_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

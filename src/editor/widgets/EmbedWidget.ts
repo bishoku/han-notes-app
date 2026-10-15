@@ -11,6 +11,7 @@
 import { WidgetType, EditorView } from "@codemirror/view";
 import { clearLivePreviewCaches } from "@/editor/LivePreviewPlugin";
 import { eventBus } from "@/lib/eventBus";
+import { escapeHtml } from "@/utils/sanitize";
 
 /**
  * Normalizes input URLs to ensure optimal iframe embed experience.
@@ -20,8 +21,23 @@ export function normalizeEmbedUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
 
+  // Reject dangerous URI schemes before parsing
+  // eslint-disable-next-line no-control-regex
+  const compact = trimmed.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+  if (
+    compact.startsWith('javascript:') ||
+    compact.startsWith('data:') ||
+    compact.startsWith('vbscript:') ||
+    compact.startsWith('file:')
+  ) {
+    return '';
+  }
+
   try {
     const url = new URL(trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return '';
+    }
 
     // 1. YADA Diagrams (ensure ?embed=true is present)
     if (url.hostname.includes('bishoku.github.io') && url.pathname.includes('/yada')) {
@@ -40,7 +56,7 @@ export function normalizeEmbedUrl(rawUrl: string): string {
         videoId = url.searchParams.get('v') || '';
       }
       if (videoId) {
-        return `https://www.youtube-nocookie.com/embed/${videoId}`;
+        return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}`;
       }
     }
 
@@ -54,7 +70,7 @@ export function normalizeEmbedUrl(rawUrl: string): string {
 
     return url.toString();
   } catch {
-    return trimmed;
+    return '';
   }
 }
 
@@ -131,18 +147,21 @@ export class EmbedWidget extends WidgetType {
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <span class="truncate max-w-[280px]">${this.url || 'Yükleniyor...'}</span>
+        <span class="truncate max-w-[280px]">${escapeHtml(this.url || 'Yükleniyor...')}</span>
       </div>
     `;
     card.appendChild(skeleton);
 
     // Main iframe
     const iframe = document.createElement("iframe");
-    iframe.src = embedUrl;
+    if (embedUrl) {
+      iframe.src = embedUrl;
+    }
     iframe.className = "w-full h-full border-0 relative z-10 opacity-0 transition-opacity duration-300";
     iframe.style.width = "100%";
     iframe.style.height = "100%";
     iframe.allow = "autoplay; fullscreen; clipboard-read; clipboard-write";
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-popups allow-forms");
     iframe.loading = "lazy";
     iframe.referrerPolicy = "no-referrer-when-downgrade";
 
@@ -158,7 +177,7 @@ export class EmbedWidget extends WidgetType {
       skeleton.innerHTML = `
         <div class="flex flex-col items-center gap-2 p-4 text-center">
           <span class="text-xs text-amber-600 dark:text-amber-400 font-medium">Bu bağlantı doğrudan sayfaya gömülmeye izin vermiyor olabilir.</span>
-          <a href="${embedUrl}" target="_blank" rel="noopener noreferrer" class="text-xs text-indigo-600 dark:text-indigo-400 underline hover:no-underline">
+          <a href="${escapeHtml(embedUrl || '#')}" target="_blank" rel="noopener noreferrer" class="text-xs text-indigo-600 dark:text-indigo-400 underline hover:no-underline">
             Yeni sekmede aç
           </a>
         </div>

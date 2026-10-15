@@ -3,6 +3,7 @@
  */
 import { create } from 'zustand';
 import { gitService, type GitStatusInfo, type GitCommitInfo, type GitDiffResult, type GitSyncSettings } from '@/services/git';
+import { eventBus } from '@/lib/eventBus';
 import { useNoteStore } from './noteStore';
 
 const SETTINGS_KEY = 'han_git_sync_settings';
@@ -144,7 +145,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       }
 
       // 1. Flush any pending editor changes to storage before creating snapshot
-      window.dispatchEvent(new CustomEvent('han-flush-note-save'));
+      eventBus.emit('note:flush-save');
       // Small tick for store update
       await new Promise((r) => setTimeout(r, 50));
 
@@ -164,6 +165,8 @@ export const useGitStore = create<GitState>((set, get) => ({
 
     try {
       set({ isSyncing: true, syncError: null });
+      eventBus.emit('note:flush-save');
+      await new Promise((r) => setTimeout(r, 50));
       const result = await gitService.sync(`Sync: ${new Date().toLocaleTimeString()}`);
       if (result.success) {
         set({

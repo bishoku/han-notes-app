@@ -139,6 +139,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   setLanguage: (language) => {
     localStorage.setItem(SAVED_LANG_KEY, language);
     i18n.changeLanguage(language);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
+    }
     set({ language });
   },
 
@@ -149,5 +152,8 @@ export const useUiStore = create<UiState>((set, get) => ({
     const { theme, language } = get();
     applyAppTheme(theme);
     i18n.changeLanguage(language);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
+    }
   },
 }));

@@ -124,6 +124,13 @@
   html {
     @apply font-sans;
   }
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [role="treeitem"]:focus-visible {
+    outline: 2px solid var(--color-mac-accent, #6366f1);
+    outline-offset: 2px;
+  }
 }
 
 /* Custom CodeMirror Theme Overrides */

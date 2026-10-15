@@ -9,6 +9,7 @@ import { ThinkingBlock } from './ThinkingBlock';
 import { stripReasoning } from '@/services/ai/reasoningParser';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
+import { sanitizeHtml, escapeHtml } from '@/utils/sanitize';
 import type { Citation } from '@/services/ai/types';
 
 interface MarkdownMessageProps {
@@ -32,7 +33,7 @@ customRenderer.table = function (token: any) {
     headerHtml = `<thead><tr>${token.header
       .map(
         (cell: any) =>
-          `<th class="px-3 py-2 text-left text-[11px] font-bold text-gray-900 dark:text-gray-100 bg-black/5 dark:bg-white/5 border-b border-gray-200 dark:border-zinc-700 whitespace-nowrap">${cell.text}</th>`
+          `<th class="px-3 py-2 text-left text-[11px] font-bold text-gray-900 dark:text-gray-100 bg-black/5 dark:bg-white/5 border-b border-gray-200 dark:border-zinc-700 whitespace-nowrap">${escapeHtml(cell.text || '')}</th>`
       )
       .join('')}</tr></thead>`;
 
@@ -42,7 +43,7 @@ customRenderer.table = function (token: any) {
           `<tr class="border-b border-gray-100 dark:border-zinc-800/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">${row
             .map(
               (cell: any) =>
-                `<td class="px-3 py-2 text-left text-[11px] text-gray-800 dark:text-gray-200 whitespace-normal min-w-[90px] max-w-[200px] break-words">${cell.text}</td>`
+                `<td class="px-3 py-2 text-left text-[11px] text-gray-800 dark:text-gray-200 whitespace-normal min-w-[90px] max-w-[200px] break-words">${escapeHtml(cell.text || '')}</td>`
             )
             .join('')}</tr>`
       )
@@ -60,15 +61,6 @@ marked.use({
   gfm: true,
   breaks: true,
 });
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
   content,
@@ -89,22 +81,22 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
     if (!cleanContent) return '';
     let text = cleanContent;
 
-    // 1. Convert [[1]], [[2]] or [[Kaynak 1]] to citation buttons
+    // 1. Convert [[1]], [[2]] or [[Kaynak 1]] to citation badges
     text = text.replace(/\[\[(?:Kaynak|Source)?\s*(\d+)\]\]/gi, (_match, p1) => {
       const idx = parseInt(p1, 10);
       const citation = citations && citations[idx - 1];
       const noteId = citation ? citation.noteId : '';
       const tooltip = citation ? `${citation.title}${citation.heading ? ` > ${citation.heading}` : ''}` : `Kaynak ${idx}`;
-      return `<button type="button" class="ai-citation-pill" data-citation-idx="${idx}" data-note-id="${escapeHtml(noteId)}" title="${escapeHtml(tooltip)}">[${idx}]</button>`;
+      return `<span role="button" tabindex="0" class="ai-citation-pill cursor-pointer" data-citation-idx="${idx}" data-note-id="${escapeHtml(noteId)}" title="${escapeHtml(tooltip)}">[${idx}]</span>`;
     });
 
-    // 2. Convert [1], [2], [Kaynak 1], [Source 1] (not followed by '(') to citation buttons
+    // 2. Convert [1], [2], [Kaynak 1], [Source 1] (not followed by '(') to citation badges
     text = text.replace(/\[(?:Kaynak|Source)?\s*(\d+)\](?!\()/gi, (_match, p1) => {
       const idx = parseInt(p1, 10);
       const citation = citations && citations[idx - 1];
       const noteId = citation ? citation.noteId : '';
       const tooltip = citation ? `${citation.title}${citation.heading ? ` > ${citation.heading}` : ''}` : `Kaynak ${idx}`;
-      return `<button type="button" class="ai-citation-pill" data-citation-idx="${idx}" data-note-id="${escapeHtml(noteId)}" title="${escapeHtml(tooltip)}">[${idx}]</button>`;
+      return `<span role="button" tabindex="0" class="ai-citation-pill cursor-pointer" data-citation-idx="${idx}" data-note-id="${escapeHtml(noteId)}" title="${escapeHtml(tooltip)}">[${idx}]</span>`;
     });
 
     // 3. Convert [[Note Title]] or [[Note Title|Display]] to interactive wikilinks
@@ -120,9 +112,9 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({
   const html = useMemo(() => {
     if (!processedMarkdown) return '';
     try {
-      return marked.parse(processedMarkdown) as string;
+      return sanitizeHtml(marked.parse(processedMarkdown) as string);
     } catch {
-      return processedMarkdown;
+      return escapeHtml(processedMarkdown);
     }
   }, [processedMarkdown]);
 

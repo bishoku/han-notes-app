@@ -78,7 +78,7 @@ interface NoteState {
   updateNoteMetadata: (id: string, metadata: { note_type?: string; description?: string }) => void;
   selectNote: (id: string, force?: boolean) => Promise<void>;
   setActiveFolder: (path: string | null) => void;
-  updateNote: (content: string) => Promise<void>;
+  updateNote: (content: string, targetNoteId?: string) => Promise<void>;
   createNote: (title: string, parentPath?: string) => Promise<string>;
   createFolder: (folderName: string, parentPath?: string) => Promise<void>;
   moveNode: (srcRelPath: string, destDirRelPath: string) => Promise<void>;
@@ -201,11 +201,6 @@ export const useNoteStore = create<NoteState>((set, get) => ({
           }
           set({ currentNoteContent: diskContent });
           eventBus.emit('note:reloaded', { noteId: cleanId, content: diskContent });
-          window.dispatchEvent(
-            new CustomEvent('han-note-content-reloaded', {
-              detail: { noteId: cleanId, content: diskContent },
-            })
-          );
           get().loadBacklinks(cleanId);
         } catch {}
         return;
@@ -213,17 +208,17 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
       activeLoadingNoteId = cleanId;
 
+      // 0. Flush any pending save on the previous note BEFORE mutating currentNoteId
+      if (prevId && prevId !== cleanId) {
+        eventBus.emit('note:flush-save');
+      }
+
       // 1. Read note and update UI state immediately
       const content = await storage.readNote(cleanId);
       const parentDir = extractFolderFromId(cleanId);
 
       set({ currentNoteId: cleanId, currentNoteContent: content, activeFolderPath: parentDir });
       eventBus.emit('note:reloaded', { noteId: cleanId, content });
-      window.dispatchEvent(
-        new CustomEvent('han-note-content-reloaded', {
-          detail: { noteId: cleanId, content },
-        })
-      );
       get().loadBacklinks(cleanId);
 
       // 2. Synchronize note-scoped AI chat session
@@ -232,8 +227,6 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       // 3. Non-blocking snapshot of previous note in background
       if (prevId && prevId !== cleanId) {
         useUiStore.getState().closePdfSplitReader();
-        eventBus.emit('note:flush-save');
-        window.dispatchEvent(new CustomEvent('han-flush-note-save'));
         const prevNote = get().notes.find((n) => n.id === prevId);
         const prevTitle = prevNote?.title || extractTitleFromId(prevId);
         setTimeout(async () => {
@@ -267,11 +260,6 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       const content = await storage.readNote(currentNoteId);
       set({ currentNoteContent: content });
       eventBus.emit('note:reloaded', { noteId: currentNoteId, content });
-      window.dispatchEvent(
-        new CustomEvent('han-note-content-reloaded', {
-          detail: { noteId: currentNoteId, content },
-        })
-      );
       get().loadBacklinks(currentNoteId);
       useGraphStore.getState().updateNoteContent(currentNoteId, content);
     } catch (e) {
@@ -337,32 +325,34 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     set({ notes });
   },
 
-  updateNote: async (content: string) => {
-    const { currentNoteId } = get();
-    if (!currentNoteId) return;
+  updateNote: async (content: string, targetNoteId?: string) => {
+    const noteId = targetNoteId || get().currentNoteId;
+    if (!noteId) return;
 
     try {
-      await storage.writeNote(currentNoteId, content);
+      await storage.writeNote(noteId, content);
 
-      // Debounced store state sync (2s) — keeps currentNoteContent fresh for
-      // imperative consumers (ChatDrawer, aiStore) without triggering reactive
-      // subscribers on every 400ms save cycle
-      if (debounceTimers.storeContent) clearTimeout(debounceTimers.storeContent);
-      debounceTimers.storeContent = setTimeout(() => {
-        if (get().currentNoteId === currentNoteId) {
-          set({ currentNoteContent: content });
-        }
-        debounceTimers.storeContent = null;
-      }, 2000);
+      if (get().currentNoteId === noteId) {
+        // Debounced store state sync (2s) — keeps currentNoteContent fresh for
+        // imperative consumers (ChatDrawer, aiStore) without triggering reactive
+        // subscribers on every 400ms save cycle
+        if (debounceTimers.storeContent) clearTimeout(debounceTimers.storeContent);
+        debounceTimers.storeContent = setTimeout(() => {
+          if (get().currentNoteId === noteId) {
+            set({ currentNoteContent: content });
+          }
+          debounceTimers.storeContent = null;
+        }, 2000);
 
-      // Debounced backlink refresh (2s)
-      if (debounceTimers.backlink) clearTimeout(debounceTimers.backlink);
-      debounceTimers.backlink = setTimeout(() => {
-        if (get().currentNoteId === currentNoteId) {
-          get().loadBacklinks(currentNoteId);
-        }
-        debounceTimers.backlink = null;
-      }, 2000);
+        // Debounced backlink refresh (2s)
+        if (debounceTimers.backlink) clearTimeout(debounceTimers.backlink);
+        debounceTimers.backlink = setTimeout(() => {
+          if (get().currentNoteId === noteId) {
+            get().loadBacklinks(noteId);
+          }
+          debounceTimers.backlink = null;
+        }, 2000);
+      }
 
       // Debounced Git Status refresh (600ms)
       if (debounceTimers.gitStatus) clearTimeout(debounceTimers.gitStatus);
@@ -372,13 +362,13 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }, 600);
 
       // Non-blocking graph index update
-      useGraphStore.getState().updateNoteContent(currentNoteId, content);
+      useGraphStore.getState().updateNoteContent(noteId, content);
 
       // Non-blocking AI vector indexing queue
       if (useAiStore.getState().settings.enabled) {
-        const note = get().notes.find((n) => n.id === currentNoteId);
-        const title = note?.title || extractTitleFromId(currentNoteId);
-        indexingCoordinator.queueNoteUpdate(currentNoteId, title, content);
+        const note = get().notes.find((n) => n.id === noteId);
+        const title = note?.title || extractTitleFromId(noteId);
+        indexingCoordinator.queueNoteUpdate(noteId, title, content);
       }
     } catch (e) {
       console.error('Failed to write note:', e);

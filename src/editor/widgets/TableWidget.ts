@@ -5,6 +5,7 @@ import { storage } from "@/services/storage";
 import { useNoteStore } from "@/store/noteStore";
 import { useUiStore } from "@/store/uiStore";
 import { eventBus } from "@/lib/eventBus";
+import { sanitizeHtml, escapeHtml } from "@/utils/sanitize";
 
 export interface ParsedTable {
   headers: string[];
@@ -111,13 +112,13 @@ function renderCellMarkdown(md: string): string {
   // Handle wikilinks [[Target|Display]] or [[Target]]
   const withWikilinks = md.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, target, alias) => {
     const display = alias || target;
-    return `<span class="cm-wikilink text-mac-accent font-medium hover:underline cursor-pointer" data-target="${target}">${display}</span>`;
+    return `<span class="cm-wikilink text-mac-accent font-medium hover:underline cursor-pointer" data-target="${escapeHtml(target)}">${escapeHtml(display)}</span>`;
   });
 
   try {
-    return marked.parseInline(withWikilinks) as string;
+    return sanitizeHtml(marked.parseInline(withWikilinks) as string);
   } catch {
-    return withWikilinks;
+    return escapeHtml(md);
   }
 }
 

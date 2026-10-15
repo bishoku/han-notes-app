@@ -182,28 +182,30 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </div>
         
         {/* Desktop Note Tags Badges & Popover Trigger */}
-        <div className="flex max-md:invisible max-md:w-0 max-md:overflow-hidden relative items-center gap-1.5 border-l border-gray-200 dark:border-zinc-800 pl-2 shrink-0">
-          <div className="hidden lg:flex items-center gap-1 max-w-[200px] overflow-hidden truncate">
-            {currentTags.map((tag: string) => (
-              <span 
-                key={tag} 
-                className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center gap-1 shrink-0"
-              >
-                #{tag}
-              </span>
-            ))}
+        <div className="relative flex items-center shrink-0">
+          <div className="hidden md:flex items-center gap-1.5 border-l border-gray-200 dark:border-zinc-800 pl-2 shrink-0">
+            <div className="hidden lg:flex items-center gap-1 max-w-[200px] overflow-hidden truncate">
+              {currentTags.map((tag: string) => (
+                <span 
+                  key={tag} 
+                  className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center gap-1 shrink-0"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+
+            <button
+              onClick={onToggleTagPopover}
+              className="px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:bg-purple-500/15 hover:text-purple-600 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+              title={t('editNoteTags')}
+            >
+              <Tag size={11} />
+              <span className="hidden sm:inline">{currentTags.length === 0 ? t('addTag') : `${currentTags.length} ${t('noteTags')}`}</span>
+            </button>
           </div>
 
-          <button
-            onClick={onToggleTagPopover}
-            className="px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:bg-purple-500/15 hover:text-purple-600 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
-            title={t('editNoteTags')}
-          >
-            <Tag size={11} />
-            <span className="hidden sm:inline">{currentTags.length === 0 ? t('addTag') : `${currentTags.length} ${t('noteTags')}`}</span>
-          </button>
-
-          {/* Tag Manager Popover */}
+          {/* Tag Manager Popover (Desktop & Mobile) */}
           {showTagPopover && (
             <>
               {/* Invisible backdrop to dismiss popover on click outside */}
@@ -211,7 +213,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 className="fixed inset-0 z-40 cursor-default"
                 onClick={onCloseTagPopover}
               />
-              <div className="absolute top-9 left-0 z-50 w-72 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 animate-in fade-in zoom-in-95">
+              <div className="fixed right-3 top-14 md:absolute md:top-9 md:left-0 md:right-auto z-50 w-72 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 animate-in fade-in zoom-in-95">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1">
                     <Tag size={12} className="text-purple-500" /> {t('noteTags')}
@@ -239,10 +241,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </div>
 
         {/* Note Properties Popover */}
-        <div className="flex max-md:invisible max-md:w-0 max-md:overflow-hidden relative items-center shrink-0">
+        <div className="relative flex items-center shrink-0">
           <button
             onClick={() => setShowMetaPopover(!showMetaPopover)}
-            className="px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:bg-blue-500/15 hover:text-blue-600 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+            className="hidden md:flex px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:bg-blue-500/15 hover:text-blue-600 transition-colors items-center gap-1 cursor-pointer shrink-0"
             title={t('noteProperties')}
           >
             <FileText size={11} />
@@ -259,7 +261,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 className="fixed inset-0 z-40 cursor-default"
                 onClick={() => setShowMetaPopover(false)}
               />
-              <div className="absolute top-9 left-0 z-50 w-80 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 animate-in fade-in zoom-in-95">
+              <div className="fixed right-3 top-14 md:absolute md:top-9 md:left-0 md:right-auto z-50 w-80 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 animate-in fade-in zoom-in-95">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1">
                     <FileText size={12} className="text-blue-500" /> {t('noteProperties')}
@@ -459,7 +461,38 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 className="fixed inset-0 z-40"
                 onClick={() => setMobileMenuOpen(false)}
               />
-              <div className="absolute right-0 top-9 z-50 w-60 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 text-xs animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 top-9 z-50 w-64 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 text-xs animate-in fade-in zoom-in-95">
+                {/* Editor Mode Switcher */}
+                <div className="flex items-center justify-between px-2.5 py-2 rounded-xl bg-gray-50 dark:bg-zinc-800/50">
+                  <span className="text-gray-500 font-medium">{t('editorMode', 'Mod')}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditorMode('preview')}
+                      className={cn(
+                        "px-2 py-1 rounded-md flex items-center gap-1 font-medium text-[11px] cursor-pointer transition-all",
+                        editorMode === 'preview'
+                          ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-xs font-semibold"
+                          : "text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                      )}
+                    >
+                      <Eye size={12} />
+                      <span>{t('modePreview')}</span>
+                    </button>
+                    <button
+                      onClick={() => setEditorMode('raw')}
+                      className={cn(
+                        "px-2 py-1 rounded-md flex items-center gap-1 font-medium text-[11px] cursor-pointer transition-all",
+                        editorMode === 'raw'
+                          ? "bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-400 shadow-xs font-semibold"
+                          : "text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                      )}
+                    >
+                      <FileCode size={12} />
+                      <span>{t('modeRaw')}</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Note Tags */}
                 <button
                   onClick={() => {
@@ -470,6 +503,18 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                 >
                   <Tag size={15} className="text-purple-500 shrink-0" />
                   <span>{currentTags.length === 0 ? t('addTag') : `${currentTags.length} ${t('noteTags')}`}</span>
+                </button>
+
+                {/* Note Properties */}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowMetaPopover(true);
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors text-left"
+                >
+                  <FileText size={15} className="text-blue-500 shrink-0" />
+                  <span>{t('noteProperties')}</span>
                 </button>
 
                 {/* Font Size Selector */}
@@ -504,6 +549,20 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
                   <List size={15} className="text-blue-500 shrink-0" />
                   <span>{t('outline', 'Başlıklar')} & {t('backlinks', 'Bağlantılar')}</span>
                 </button>
+
+                {/* Version History */}
+                {currentNoteId && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      useGitStore.getState().openHistoryDrawer(currentNoteId);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors text-left"
+                  >
+                    <History size={15} className="text-purple-500 shrink-0" />
+                    <span>{t('versionHistoryAndDiff')}</span>
+                  </button>
+                )}
 
                 {/* Export PDF */}
                 <button

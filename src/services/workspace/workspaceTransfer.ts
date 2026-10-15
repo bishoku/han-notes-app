@@ -62,14 +62,14 @@ export async function getStorageForWorkspace(workspaceId: string): Promise<IStor
 }
 
 /**
- * Extracts and copies any local assets (_assets/...) referenced in note markdown content.
+ * Extracts and copies any local assets (_assets/... or .attachments/...) referenced in note markdown content.
  */
 async function transferReferencedAssets(
   content: string,
   targetStorage: IStorageService
 ): Promise<void> {
   if (!content) return;
-  const assetRegex = /_assets\/([^")\s]+)/g;
+  const assetRegex = /(?:[A-Za-z0-9_\-\/]+\/)?(?:_assets|\.attachments)\/([^")\s]+)/g;
   const matches = Array.from(content.matchAll(assetRegex));
   if (matches.length === 0) return;
 
@@ -78,8 +78,12 @@ async function transferReferencedAssets(
     try {
       const bytes = await storage.getImageBytes(assetRelPath);
       if (bytes && bytes.length > 0) {
-        const fileName = assetRelPath.split('/').pop() || 'asset.png';
-        await targetStorage.saveImageBytes('', fileName, bytes);
+        if (typeof targetStorage.saveAttachment === 'function') {
+          await targetStorage.saveAttachment(assetRelPath, bytes);
+        } else {
+          const fileName = assetRelPath.split('/').pop() || 'asset.png';
+          await targetStorage.saveImageBytes('', fileName, bytes);
+        }
       }
     } catch (err) {
       // Non-fatal if an asset is missing or unreadable

@@ -64,9 +64,26 @@ export class VectorStore {
     }
   }
 
+  public closeConnection(workspaceId?: string): void {
+    if (!workspaceId || this.currentWorkspaceId === workspaceId) {
+      if (this.db) {
+        this.db.close();
+        this.db = null;
+      }
+      this.cachedChunks = null;
+    }
+  }
+
   private async getDb(): Promise<IDBDatabase> {
     if (this.db) return this.db;
-    this.db = await openVectorDb(this.getDbName());
+    const db = await openVectorDb(this.getDbName());
+    db.onversionchange = () => {
+      db.close();
+      if (this.db === db) {
+        this.db = null;
+      }
+    };
+    this.db = db;
     return this.db;
   }
 
@@ -74,11 +91,22 @@ export class VectorStore {
    * Deletes a workspace's vector database when workspace is deleted.
    */
   public static async deleteWorkspaceDatabase(workspaceId: string): Promise<void> {
+    vectorStore.closeConnection(workspaceId);
     const dbName = workspaceId === 'default' ? 'han_vector_store_v1' : `han_vector_store_${workspaceId}`;
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.deleteDatabase(dbName);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.deleteDatabase(dbName);
+        const timer = setTimeout(() => resolve(), 1500);
+        const done = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        req.onsuccess = done;
+        req.onerror = done;
+        req.onblocked = done;
+      } catch {
+        resolve();
+      }
     });
   }
 
@@ -172,6 +200,14 @@ export class VectorStore {
         (c) => c.noteId !== prefix && !c.noteId.startsWith(prefix + '/')
       );
     }
+  }
+
+  public getCachedChunksSync(): VectorChunk[] {
+    if (!this.cachedChunks) {
+      this.getAllChunks().catch(() => {});
+      return [];
+    }
+    return this.cachedChunks;
   }
 
   public async getAllChunks(): Promise<VectorChunk[]> {

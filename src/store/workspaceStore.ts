@@ -14,12 +14,16 @@ import type { Workspace, WorkspaceCreationOptions, WorkspaceStorageType } from '
 import { workspaceManager } from '@/services/workspace';
 import {
   bindWorkspaceStorage,
+  getOrCreateIndexedDbStorage,
   IndexedDBStorage,
   isFileSystemAccessSupported,
   isTauriEnvironment,
+  isWorkspaceStorageReady,
 } from '@/services/storage';
 import { vectorStore, VectorStore } from '@/services/ai/vectorStore';
 import { indexingCoordinator } from '@/services/ai/indexingCoordinator';
+import { syncStorageAdapter } from '@/services/sync/syncStorageAdapter';
+import { eventBus } from '@/lib/eventBus';
 import { useAiStore } from './aiStore';
 import { useNoteStore } from './noteStore';
 import { useTaskStore } from './taskStore';
@@ -70,8 +74,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
       const defaultStorageType: WorkspaceStorageType = isTauriEnvironment()
         ? 'tauri'
-        : isFileSystemAccessSupported()
-        ? 'browser'
         : 'indexeddb';
 
       // 1. Run bootstrap migration if this is first launch or legacy installation
@@ -91,6 +93,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       if (target) {
         try {
           await bindWorkspaceStorage(target);
+          syncStorageAdapter.resetCache();
         } catch (err) {
           console.warn('[WorkspaceStore] bindWorkspaceStorage on init warning:', err);
         }
@@ -112,19 +115,28 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   switchWorkspace: async (workspaceId: string) => {
-    if (workspaceId === get().activeWorkspaceId && !get().isSwitching) {
+    const target = get().workspaces.find((w) => w.id === workspaceId);
+    if (!target) return;
+
+    if (
+      workspaceId === get().activeWorkspaceId &&
+      !get().isSwitching &&
+      isWorkspaceStorageReady(target)
+    ) {
       set({ isWorkspaceModalOpen: false });
       return;
     }
 
-    const target = get().workspaces.find((w) => w.id === workspaceId);
-    if (!target) return;
-
     set({ isSwitching: true });
 
     try {
-      // 1. Bind and activate the storage provider for this workspace
+      // 0. Flush any pending note save in the outgoing workspace before rebinding storage
+      eventBus.emit('note:flush-save');
+      await new Promise((r) => setTimeout(r, 30));
+
+      // 1. Bind and activate the storage provider for this workspace & reset sync metadata cache
       await bindWorkspaceStorage(target);
+      syncStorageAdapter.resetCache();
 
       // 2. Switch isolated vector database
       await vectorStore.setWorkspace(workspaceId);
@@ -196,8 +208,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
     const defaultStorageType: WorkspaceStorageType = isTauriEnvironment()
       ? 'tauri'
-      : isFileSystemAccessSupported()
-      ? 'browser'
       : 'indexeddb';
 
     const newWs: Workspace = {
@@ -259,28 +269,42 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const target = list.find((w) => w.id === workspaceId);
     if (!target) return;
 
-    // Drop underlying data
+    const wasActive = get().activeWorkspaceId === workspaceId;
+    const wasModalOpen = get().isWorkspaceModalOpen;
+
+    // 1. Stop background indexing and close any open IDBDatabase connections so deleteDatabase won't be blocked
+    indexingCoordinator.cancelPendingUpdates();
+    getOrCreateIndexedDbStorage().closeConnection(workspaceId);
+    vectorStore.closeConnection(workspaceId);
+
+    // 2. Remove workspace record & directory handle from metadata DB first
+    await workspaceManager.deleteWorkspace(workspaceId);
+
+    const remaining = await workspaceManager.listWorkspaces();
+    set({ workspaces: remaining });
+
+    // 3. Drop underlying IndexedDB databases (connections are closed and onblocked has a fallback)
     if (target.storageType === 'indexeddb') {
       await IndexedDBStorage.deleteWorkspaceDatabase(workspaceId);
     }
     await VectorStore.deleteWorkspaceDatabase(workspaceId);
 
-    if (target.storageType === 'browser') {
-      await workspaceManager.deleteDirectoryHandle(workspaceId);
-    }
-
-    await workspaceManager.deleteWorkspace(workspaceId);
-
-    const remaining = await workspaceManager.listWorkspaces();
-
-    if (get().activeWorkspaceId === workspaceId) {
+    // 4. If the deleted workspace was active, switch to the next remaining workspace
+    if (wasActive && remaining.length > 0) {
       const nextWs = remaining[0];
-      set({ workspaces: remaining });
-      if (nextWs) {
+      try {
         await get().switchWorkspace(nextWs.id);
+        if (wasModalOpen) {
+          set({ isWorkspaceModalOpen: true });
+        }
+      } catch (err) {
+        console.warn('[WorkspaceStore] Could not auto-activate next workspace after delete:', err);
+        set({
+          activeWorkspaceId: nextWs.id,
+          isSwitching: false,
+          isWorkspaceModalOpen: wasModalOpen,
+        });
       }
-    } else {
-      set({ workspaces: remaining });
     }
   },
 

@@ -2,7 +2,7 @@
  * EditorModalCoordinator.tsx — Centralized Modal & Popover Coordinator for Note Editor.
  * Decouples modal state, event subscriptions, and delete confirmation flows from MainEditor.
  */
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { eventBus } from '@/lib/eventBus';
 import { clearLivePreviewCaches } from '@/editor/LivePreviewPlugin';
@@ -12,18 +12,33 @@ import type { NoteInfo } from '@/store/noteStore';
 // Modals
 import { TaskEditModal, type TaskEditData } from '@/components/TaskEditModal';
 import { DecisionEditModal, type DecisionEditData } from '@/components/DecisionEditModal';
-import { YadaEditorModal } from 'yada-preview';
 import { useUiStore } from '@/store/uiStore';
-import { ExcalidrawEditorModal } from '@/components/ExcalidrawEditorModal';
-import { MermaidEditorModal, type MermaidSavePayload } from '@/components/MermaidEditorModal';
-import { CodeEditorModal, type CodeSavePayload } from '@/components/CodeEditorModal';
+import type { MermaidSavePayload } from '@/components/MermaidEditorModal';
+import type { CodeSavePayload } from '@/components/CodeEditorModal';
 import { EmbedInputModal, type EmbedSavePayload } from '@/components/EmbedInputModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { MediaFullscreenModal, type FullscreenMediaData } from '@/components/ui/MediaFullscreenModal';
 import { LinkPreviewPopover, type LinkPreviewData } from '@/components/ui/LinkPreviewPopover';
 import { WebLinkFullscreenModal, type WebLinkFullscreenData } from '@/components/ui/WebLinkFullscreenModal';
 import { InlineAiComposer } from '@/components/ai/InlineAiComposer';
-import { PdfImportModal } from '@/components/pdf/PdfImportModal';
+
+const YadaEditorModal = React.lazy(async () => {
+  await import('yada-preview/style.css');
+  const mod = await import('yada-preview');
+  return { default: mod.YadaEditorModal };
+});
+const ExcalidrawEditorModal = React.lazy(() =>
+  import('@/components/ExcalidrawEditorModal').then((m) => ({ default: m.ExcalidrawEditorModal }))
+);
+const MermaidEditorModal = React.lazy(() =>
+  import('@/components/MermaidEditorModal').then((m) => ({ default: m.MermaidEditorModal }))
+);
+const CodeEditorModal = React.lazy(() =>
+  import('@/components/CodeEditorModal').then((m) => ({ default: m.CodeEditorModal }))
+);
+const PdfImportModal = React.lazy(() =>
+  import('@/components/pdf/PdfImportModal').then((m) => ({ default: m.PdfImportModal }))
+);
 
 interface EditorModalCoordinatorProps {
   editorRef: React.RefObject<any>;
@@ -429,45 +444,62 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
       )}
 
       {/* Diagrams & Sketches Modals */}
-      <YadaEditorModal
-        isOpen={diagramModalOpen}
-        onClose={() => setDiagramModalOpen(false)}
-        onSave={(payload) => {
-          handleSaveDiagram(payload);
-          setDiagramModalOpen(false);
-        }}
-        initialMetadata={diagramInitialMetadata}
-        theme={theme === 'light' || theme === 'retro' ? 'light' : 'dark'}
-        lang={language}
-        yadaUrl={(import.meta as any).env?.VITE_YADA_URL || undefined}
-      />
-      <ExcalidrawEditorModal
-        isOpen={excalidrawModalOpen}
-        onClose={() => setExcalidrawModalOpen(false)}
-        onSave={handleSaveSketch}
-        initialData={sketchInitialData}
-      />
-
-      {/* Mermaid & Code Block Modals */}
-      <MermaidEditorModal
-        isOpen={mermaidModalData.isOpen}
-        initialCode={mermaidModalData.initialCode}
-        code={mermaidModalData.code}
-        width={mermaidModalData.width}
-        from={mermaidModalData.from}
-        to={mermaidModalData.to}
-        onClose={() => setMermaidModalData({ isOpen: false })}
-        onSave={handleSaveMermaid}
-      />
-      <CodeEditorModal
-        isOpen={codeModalData.isOpen}
-        initialCode={codeModalData.initialCode}
-        initialLang={codeModalData.initialLang}
-        from={codeModalData.from}
-        to={codeModalData.to}
-        onClose={() => setCodeModalData({ isOpen: false })}
-        onSave={handleSaveCode}
-      />
+      <Suspense fallback={null}>
+        {diagramModalOpen && (
+          <YadaEditorModal
+            isOpen={diagramModalOpen}
+            onClose={() => setDiagramModalOpen(false)}
+            onSave={(payload) => {
+              handleSaveDiagram(payload);
+              setDiagramModalOpen(false);
+            }}
+            initialMetadata={diagramInitialMetadata}
+            theme={theme === 'light' ? 'light' : 'dark'}
+            lang={language}
+            yadaUrl={(import.meta as any).env?.VITE_YADA_URL || undefined}
+          />
+        )}
+        {excalidrawModalOpen && (
+          <ExcalidrawEditorModal
+            isOpen={excalidrawModalOpen}
+            onClose={() => setExcalidrawModalOpen(false)}
+            onSave={handleSaveSketch}
+            initialData={sketchInitialData}
+          />
+        )}
+        {mermaidModalData.isOpen && (
+          <MermaidEditorModal
+            isOpen={mermaidModalData.isOpen}
+            initialCode={mermaidModalData.initialCode}
+            code={mermaidModalData.code}
+            width={mermaidModalData.width}
+            from={mermaidModalData.from}
+            to={mermaidModalData.to}
+            onClose={() => setMermaidModalData({ isOpen: false })}
+            onSave={handleSaveMermaid}
+          />
+        )}
+        {codeModalData.isOpen && (
+          <CodeEditorModal
+            isOpen={codeModalData.isOpen}
+            initialCode={codeModalData.initialCode}
+            initialLang={codeModalData.initialLang}
+            from={codeModalData.from}
+            to={codeModalData.to}
+            onClose={() => setCodeModalData({ isOpen: false })}
+            onSave={handleSaveCode}
+          />
+        )}
+        {pdfImportData && (
+          <PdfImportModal
+            isOpen={!!pdfImportData}
+            fileData={pdfImportData}
+            onClose={() => setPdfImportData(null)}
+            onNoteCreated={() => setPdfImportData(null)}
+            currentNoteId={currentNoteId}
+          />
+        )}
+      </Suspense>
 
       {/* Confirm Deletions */}
       <ConfirmModal
@@ -550,15 +582,6 @@ export const EditorModalCoordinator: React.FC<EditorModalCoordinatorProps> = ({
         onClose={() => setInlineAiState((prev) => ({ ...prev, isOpen: false }))}
         onInsertMarkdown={handleInsertInlineAiMarkdown}
         surroundingContext={inlineAiContext}
-      />
-
-      {/* Smart PDF Import Wizard Modal */}
-      <PdfImportModal
-        isOpen={!!pdfImportData}
-        fileData={pdfImportData}
-        onClose={() => setPdfImportData(null)}
-        onNoteCreated={() => setPdfImportData(null)}
-        currentNoteId={currentNoteId}
       />
     </>
   );

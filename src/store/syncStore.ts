@@ -92,7 +92,11 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
 
     try {
       // 1. Generate ephemeral session ID and 256-bit AES-GCM key
-      const sessionId = `han_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+      const randomPart =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+          : Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('');
+      const sessionId = `han_${randomPart}_${Date.now().toString(36)}`;
       const { key, keyBase64 } = await generatePairingKey();
 
       // 2. Build zero-knowledge pairing URL with hash fragment

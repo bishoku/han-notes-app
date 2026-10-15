@@ -15,22 +15,40 @@ import type { CanonicalNote, NoteSummary, AttachmentSummary, SyncManifest, Vault
 
 const SYNC_METADATA_FILE = '.han_sync_metadata.json';
 
+function generateSecureShortId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  }
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${prefix}_${hex}`;
+}
+
 function getOrCreateDeviceId(): string {
   const KEY = 'han_sync_device_id';
   if (typeof localStorage !== 'undefined') {
     let id = localStorage.getItem(KEY);
     if (!id) {
-      id = `dev_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+      id = `${generateSecureShortId('dev')}_${Date.now().toString(36)}`;
       localStorage.setItem(KEY, id);
     }
     return id;
   }
-  return `dev_${Math.random().toString(36).slice(2, 10)}`;
+  return generateSecureShortId('dev');
 }
 
 export class SyncStorageAdapter {
   private deviceId: string = getOrCreateDeviceId();
   private metadataCache: VaultSyncMetadata | null = null;
+
+  /**
+   * Resets the in-memory metadata cache when switching workspaces so tombstones
+   * and note hashes never bleed across isolated vaults.
+   */
+  resetCache(): void {
+    this.metadataCache = null;
+  }
 
   /**
    * Loads sync metadata (.han_sync_metadata.json) from vault.
@@ -408,22 +426,17 @@ export class SyncStorageAdapter {
       }
 
       await storage.writeNote(cleanId, incoming.content);
+      const persistedContent = (await storage.readNote(cleanId).catch(() => incoming.content)) || incoming.content;
+      const persistedHash = await computeContentHash(persistedContent);
 
       meta.notes[cleanId] = {
         updatedAt: incoming.updatedAt,
-        hash: incoming.hash || (await computeContentHash(incoming.content)),
+        hash: persistedHash,
       };
       delete meta.tombstones[cleanId];
       await this.saveMetadata();
 
-      eventBus.emit('note:reloaded', { noteId: cleanId, content: incoming.content });
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('han-note-content-reloaded', {
-            detail: { noteId: cleanId, content: incoming.content },
-          })
-        );
-      }
+      eventBus.emit('note:reloaded', { noteId: cleanId, content: persistedContent });
 
       return { status: 'created' };
     }
@@ -442,22 +455,17 @@ export class SyncStorageAdapter {
     // If incoming note is strictly newer -> Overwrite local
     if (incoming.updatedAt > localUpdatedAt) {
       await storage.writeNote(cleanId, incoming.content);
+      const persistedContent = (await storage.readNote(cleanId).catch(() => incoming.content)) || incoming.content;
+      const persistedHash = await computeContentHash(persistedContent);
 
       meta.notes[cleanId] = {
         updatedAt: incoming.updatedAt,
-        hash: incomingHash,
+        hash: persistedHash,
       };
       delete meta.tombstones[cleanId];
       await this.saveMetadata();
 
-      eventBus.emit('note:reloaded', { noteId: cleanId, content: incoming.content });
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('han-note-content-reloaded', {
-            detail: { noteId: cleanId, content: incoming.content },
-          })
-        );
-      }
+      eventBus.emit('note:reloaded', { noteId: cleanId, content: persistedContent });
 
       return { status: 'updated' };
     }
@@ -471,7 +479,7 @@ export class SyncStorageAdapter {
     const dateStr = new Date().toISOString().slice(0, 10);
     const title = extractTitleFromId(cleanId);
     const parentFolder = extractFolderFromId(cleanId);
-    const conflictTitle = `${title} (Conflict ${dateStr} ${Math.random().toString(36).slice(2, 6)})`;
+    const conflictTitle = `${title} (${generateSecureShortId(`Conflict_${dateStr}`)})`;
     const conflictId = parentFolder ? `${parentFolder}/${conflictTitle}` : conflictTitle;
 
     await storage.writeNote(conflictId, incoming.content);

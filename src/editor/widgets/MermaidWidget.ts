@@ -11,6 +11,7 @@ import { WidgetType, EditorView } from "@codemirror/view";
 import { renderMermaidSvg } from "@/editor/mermaid/mermaidService";
 import { clearLivePreviewCaches } from "@/editor/LivePreviewPlugin";
 import { useUiStore } from "@/store/uiStore";
+import { escapeHtml } from "@/utils/sanitize";
 
 export class MermaidWidget extends WidgetType {
   code: string;
@@ -314,7 +315,7 @@ export class MermaidWidget extends WidgetType {
     wrap.appendChild(handle);
 
     // Perform async SVG rendering
-    const isDark = ["dark", "dracula", "synthwave"].includes(useUiStore.getState().theme);
+    const isDark = ["dark", "dracula", "synthwave", "nord", "retro"].includes(useUiStore.getState().theme);
     renderMermaidSvg(`w-${this.from}`, this.code, isDark).then((res) => {
       if (res.error) {
         renderArea.innerHTML = `
@@ -323,7 +324,7 @@ export class MermaidWidget extends WidgetType {
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
               <span>Mermaid Sözdizimi Hatası</span>
             </div>
-            <p class="text-[11px] text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">${res.error}</p>
+            <p class="text-[11px] text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">${escapeHtml(res.error)}</p>
             <button type="button" class="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors cursor-pointer shadow-xs">
               Diyagramı Düzenle
             </button>

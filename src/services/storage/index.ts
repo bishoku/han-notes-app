@@ -49,15 +49,14 @@ export function isFileSystemAccessSupported(): boolean {
 
 /**
  * Create the initial fallback storage provider based on runtime environment:
+ * Tauri desktop uses native TauriStorage; all Web/PWA environments default to IndexedDBStorage
+ * out of the box unless the user explicitly switches to a local folder ('browser') workspace.
  */
 function createDefaultStorage(): IStorageService {
   if (isTauriEnvironment()) {
     return new TauriStorage();
-  } else if (isFileSystemAccessSupported()) {
-    return new BrowserStorage();
-  } else {
-    return new IndexedDBStorage();
   }
+  return new IndexedDBStorage();
 }
 
 // ── Storage Provider Registry & Cache ──
@@ -102,6 +101,29 @@ export function getActiveStorageProvider(): IStorageService {
 }
 
 /**
+ * Checks whether the active storage provider is actually bound and initialized for the given workspace.
+ */
+export function isWorkspaceStorageReady(workspace: { id: string; storageType: string }): boolean {
+  if (workspace.storageType === 'browser') {
+    return (
+      activeStorageProvider instanceof BrowserStorage &&
+      activeStorageProvider.getDirectoryHandle() !== null &&
+      activeStorageProvider.getActiveWorkspaceId() === workspace.id
+    );
+  }
+  if (workspace.storageType === 'indexeddb') {
+    return (
+      activeStorageProvider instanceof IndexedDBStorage &&
+      activeStorageProvider.getWorkspaceId() === workspace.id
+    );
+  }
+  if (workspace.storageType === 'tauri') {
+    return activeStorageProvider instanceof TauriStorage;
+  }
+  return false;
+}
+
+/**
  * Dynamically switches and binds the appropriate storage provider for the given workspace.
  * 
  * - 'browser': Switches to BrowserStorage, retrieves and verifies the FileSystemDirectoryHandle.
@@ -119,16 +141,12 @@ export async function bindWorkspaceStorage(
       throw new Error(`Directory handle for workspace "${workspace.name}" not found.`);
     }
 
-    try {
-      const perm = await (dirHandle as any).queryPermission({ mode: 'readwrite' });
-      if (perm !== 'granted') {
-        const req = await (dirHandle as any).requestPermission({ mode: 'readwrite' });
-        if (req !== 'granted') {
-          throw new Error(`Permission denied for workspace "${workspace.name}".`);
-        }
+    const perm = await (dirHandle as any).queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      const req = await (dirHandle as any).requestPermission({ mode: 'readwrite' });
+      if (req !== 'granted') {
+        throw new Error(`Permission denied for workspace "${workspace.name}".`);
       }
-    } catch (err: any) {
-      console.warn('[Storage] Directory permission check failed:', err);
     }
 
     await bs.setWorkspace(workspace.id, dirHandle);

@@ -4,9 +4,10 @@
  * Active on ALL screens (including Welcome / Folder selection).
  * Listens for focus & visibility changes for immediate update detection.
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { PwaUpdateToast } from './PwaUpdateToast';
+import { eventBus } from '@/lib/eventBus';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -14,6 +15,7 @@ function isTauri(): boolean {
 
 export const PwaUpdateBanner: React.FC = () => {
   const inTauri = isTauri();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -21,8 +23,11 @@ export const PwaUpdateBanner: React.FC = () => {
   } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
       if (!inTauri && registration) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
         // Poll for updates every 15 minutes
-        setInterval(() => {
+        intervalRef.current = setInterval(() => {
           registration.update().catch(() => {});
         }, 15 * 60 * 1000);
       }
@@ -33,6 +38,15 @@ export const PwaUpdateBanner: React.FC = () => {
       }
     },
   });
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Active check on window focus & tab visibility change
   useEffect(() => {
@@ -65,7 +79,12 @@ export const PwaUpdateBanner: React.FC = () => {
   return (
     <PwaUpdateToast
       show={needRefresh}
-      onAccept={() => updateServiceWorker(true)}
+      onAccept={() => {
+        eventBus.emit('note:flush-save');
+        setTimeout(() => {
+          updateServiceWorker(true);
+        }, 50);
+      }}
       onDismiss={() => setNeedRefresh(false)}
     />
   );

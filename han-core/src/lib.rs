@@ -235,7 +235,8 @@ pub fn collect_comma_separated<'a, I: IntoIterator<Item = &'a str>>(sources: I) 
 }
 
 pub fn parse_task_line(line: &str) -> Option<(bool, String, TaskMeta)> {
-    let re = Regex::new(r"^\s*[-*+]\s*\[([ xX])\]\s*(.*)").ok()?;
+    static TASK_RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = TASK_RE.get_or_init(|| Regex::new(r"^\s*[-*+]\s*\[([ xX])\]\s*(.*)").expect("valid task regex"));
     let caps = re.captures(line)?;
     let completed = &caps[1] != " ";
     let raw_text = caps[2].to_string();
@@ -551,7 +552,6 @@ pub struct WasmPdfTextItem {
 #[derive(Clone, Debug)]
 struct FormattedLine {
     text: String,
-    font_size: f64,
     is_heading: bool,
     heading_level: usize,
 }
@@ -647,7 +647,6 @@ pub fn wasm_process_pdf_page_layout(
                         let (is_heading, level) = classify_heading(trimmed, current_font_size, body_font_size);
                         lines.push(FormattedLine {
                             text: trimmed.to_string(),
-                            font_size: current_font_size,
                             is_heading,
                             heading_level: level,
                         });
@@ -665,7 +664,6 @@ pub fn wasm_process_pdf_page_layout(
         let (is_heading, level) = classify_heading(final_trimmed, current_font_size, body_font_size);
         lines.push(FormattedLine {
             text: final_trimmed.to_string(),
-            font_size: current_font_size,
             is_heading,
             heading_level: level,
         });
@@ -777,6 +775,36 @@ mod tests {
         assert_eq!(res.has_reasoning, false);
         assert_eq!(res.reasoning, "");
         assert_eq!(res.content, "Regular markdown response without thinking.");
+    }
+
+    #[test]
+    fn test_parse_yaml_frontmatter() {
+        let doc = "---\ntitle: My Note\ntype: meeting\ntags: [work, urgent]\n---\n\n# Heading\nBody text";
+        let (meta, body) = parse_yaml_frontmatter(doc);
+        assert_eq!(meta.note_type.as_deref(), Some("meeting"));
+        assert_eq!(meta.tags, vec!["work", "urgent"]);
+        assert_eq!(body, "# Heading\nBody text");
+    }
+
+    #[test]
+    fn test_parse_task_line() {
+        let line = "- [x] Ship release <!-- task:{\"priority\":\"high\",\"tags\":[\"v1\"],\"related_notes\":[\"roadmap\"]} -->";
+        let (completed, text, meta) = parse_task_line(line).expect("should parse task");
+        assert!(completed);
+        assert_eq!(text, "Ship release");
+        assert_eq!(meta.priority.as_deref(), Some("high"));
+        assert_eq!(meta.tags, vec!["v1"]);
+        assert_eq!(meta.related_notes, vec!["roadmap"]);
+    }
+
+    #[test]
+    fn test_parse_decision_line() {
+        let line = "- [D] Adopt Rust WASM <!-- decision:{\"status\":\"approved\",\"supersedes\":\"dec-1\",\"related_notes\":[\"arch\"]} -->";
+        let (text, meta) = parse_decision_line(line).expect("should parse decision");
+        assert_eq!(text, "Adopt Rust WASM");
+        assert_eq!(meta.status.as_deref(), Some("approved"));
+        assert_eq!(meta.supersedes.as_deref(), Some("dec-1"));
+        assert_eq!(meta.related_notes, vec!["arch"]);
     }
 }
 

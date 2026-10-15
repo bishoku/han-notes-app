@@ -138,8 +138,10 @@ export const MainEditor: React.FC = () => {
   const toggleTask = useTaskStore((s) => s.toggleTask);
   const updateTaskMetadata = useTaskStore((s) => s.updateTaskMetadata);
 
+  const hasLoadedTasksRef = useRef(false);
   useEffect(() => {
-    if (currentNoteId) {
+    if (currentNoteId && !hasLoadedTasksRef.current) {
+      hasLoadedTasksRef.current = true;
       loadTasks();
     }
   }, [currentNoteId, loadTasks]);
@@ -341,13 +343,22 @@ export const MainEditor: React.FC = () => {
 
           <div className="flex flex-col items-center gap-3">
             <p>{t('selectNotePrompt')}</p>
-            <button
-              onClick={() => pdfInputRef.current?.click()}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 hover:border-purple-500/50 bg-white dark:bg-zinc-900 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors shadow-xs cursor-pointer"
-            >
-              <span>📄</span>
-              <span>{t('importPdf')}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => useNoteStore.getState().createNote(t('newNoteDefaultName', 'Untitled'))}
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white transition-colors shadow-xs cursor-pointer"
+              >
+                <span>＋</span>
+                <span>{t('newNote', 'New Note')}</span>
+              </button>
+              <button
+                onClick={() => pdfInputRef.current?.click()}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-800 hover:border-purple-500/50 bg-white dark:bg-zinc-900 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors shadow-xs cursor-pointer"
+              >
+                <span>📄</span>
+                <span>{t('importPdf')}</span>
+              </button>
+            </div>
           </div>
         </div>
 

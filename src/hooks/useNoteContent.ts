@@ -67,11 +67,12 @@ export function useNoteContent() {
   useEffect(() => {
     if (currentNoteId !== loadedNoteIdRef.current) {
       // Flush previous note if switching notes
-      if (loadedNoteIdRef.current && saveTimerRef.current) {
+      const prevNoteId = loadedNoteIdRef.current;
+      if (prevNoteId && saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
         if (localContentRef.current !== undefined) {
-          updateNote(localContentRef.current);
+          updateNote(localContentRef.current, prevNoteId);
         }
       }
 
@@ -92,6 +93,15 @@ export function useNoteContent() {
 
   // Listen for explicit note content reloads and flush requests
   useEffect(() => {
+    const flushPendingSave = () => {
+      const targetId = loadedNoteIdRef.current || currentNoteId;
+      if (saveTimerRef.current && targetId && localContentRef.current !== undefined) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        updateNote(localContentRef.current, targetId);
+      }
+    };
+
     const unbindReload = eventBus.on('note:reloaded', (payload) => {
       if (isNoteIdMatch(payload.noteId, currentNoteId)) {
         if (saveTimerRef.current) {
@@ -107,46 +117,24 @@ export function useNoteContent() {
       }
     });
 
-    const unbindFlush = eventBus.on('note:flush-save', () => {
-      if (saveTimerRef.current && localContentRef.current !== undefined) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-        updateNote(localContentRef.current);
-      }
-    });
+    const unbindFlush = eventBus.on('note:flush-save', flushPendingSave);
 
-    // Window event listeners for backward compatibility
-    const handleWinReload = (e: CustomEvent<{ noteId: string; content: string }>) => {
-      if (isNoteIdMatch(e.detail?.noteId, currentNoteId)) {
-        if (saveTimerRef.current) {
-          clearTimeout(saveTimerRef.current);
-          saveTimerRef.current = null;
-        }
-        const newContent = e.detail?.content || '';
-        if (localContentRef.current !== newContent) {
-          clearLivePreviewCaches();
-          setLocalContent(newContent);
-          localContentRef.current = newContent;
-        }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingSave();
       }
     };
 
-    const handleWinFlush = () => {
-      if (saveTimerRef.current && localContentRef.current !== undefined) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-        updateNote(localContentRef.current);
-      }
-    };
-
-    window.addEventListener('han-note-content-reloaded' as any, handleWinReload);
-    window.addEventListener('han-flush-note-save' as any, handleWinFlush);
+    window.addEventListener('han-flush-note-save' as any, flushPendingSave);
+    window.addEventListener('beforeunload', flushPendingSave);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       unbindReload();
       unbindFlush();
-      window.removeEventListener('han-note-content-reloaded' as any, handleWinReload);
-      window.removeEventListener('han-flush-note-save' as any, handleWinFlush);
+      window.removeEventListener('han-flush-note-save' as any, flushPendingSave);
+      window.removeEventListener('beforeunload', flushPendingSave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [currentNoteId, updateNote]);
 
@@ -155,10 +143,13 @@ export function useNoteContent() {
     (val: string) => {
       setLocalContent(val);
       localContentRef.current = val;
+      const targetId = loadedNoteIdRef.current || currentNoteId;
 
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        updateNote(val);
+        if (targetId) {
+          updateNote(val, targetId);
+        }
         saveTimerRef.current = null;
       }, 400);
 
@@ -170,7 +161,7 @@ export function useNoteContent() {
         outlineTimerRef.current = null;
       }, 1500);
     },
-    [updateNote]
+    [currentNoteId, updateNote]
   );
 
   // Cleanup timers & flush pending save on unmount
@@ -180,7 +171,7 @@ export function useNoteContent() {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
         if (loadedNoteIdRef.current && localContentRef.current !== undefined) {
-          updateNote(localContentRef.current);
+          updateNote(localContentRef.current, loadedNoteIdRef.current);
         }
       }
       if (tagParseTimerRef.current) {
@@ -203,8 +194,9 @@ export function useNoteContent() {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
         // Flush current editor content to disk first
-        if (localContentRef.current !== undefined) {
-          await updateNote(localContentRef.current);
+        const targetId = loadedNoteIdRef.current || id;
+        if (localContentRef.current !== undefined && targetId) {
+          await updateNote(localContentRef.current, targetId);
         }
       }
 

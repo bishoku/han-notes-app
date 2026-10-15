@@ -51,22 +51,44 @@ fn get_vault_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(vault_dir)
 }
 
-/// Resolve a note ID (with or without .md extension) to a full filesystem path.
-#[inline]
-fn resolve_note_path(vault_dir: &Path, id: &str) -> PathBuf {
-    if id.ends_with(".md") {
-        vault_dir.join(id)
-    } else {
-        vault_dir.join(format!("{}.md", id))
+/// Safely resolve a user-supplied relative path within `vault_dir`, rejecting `..`, root, or prefix components.
+fn resolve_safe_vault_path(vault_dir: &Path, rel_path: &str) -> Result<PathBuf, String> {
+    let trimmed = rel_path.trim().trim_start_matches('/').trim_start_matches('\\');
+    if trimmed.is_empty() {
+        return Ok(vault_dir.to_path_buf());
     }
+    let candidate = Path::new(trimmed);
+    let mut clean = PathBuf::from(vault_dir);
+    for comp in candidate.components() {
+        match comp {
+            std::path::Component::Normal(part) => clean.push(part),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => {
+                return Err(format!("Invalid path traversal attempt: {}", rel_path));
+            }
+        }
+    }
+    Ok(clean)
 }
 
-
+/// Resolve a note ID (with or without .md extension) to a safe full filesystem path inside `vault_dir`.
+#[inline]
+fn resolve_note_path(vault_dir: &Path, id: &str) -> Result<PathBuf, String> {
+    let rel = if id.ends_with(".md") {
+        id.to_string()
+    } else {
+        format!("{}.md", id)
+    };
+    resolve_safe_vault_path(vault_dir, &rel)
+}
 
 fn find_file_in_vault(vault_dir: &Path, rel_path: &str) -> Option<PathBuf> {
-    let direct = vault_dir.join(rel_path);
-    if direct.exists() {
-        return Some(direct);
+    if let Ok(direct) = resolve_safe_vault_path(vault_dir, rel_path) {
+        if direct.exists() {
+            return Some(direct);
+        }
     }
 
     let file_name = Path::new(rel_path).file_name()?.to_str()?;
@@ -231,7 +253,7 @@ fn get_vault_files(app: AppHandle) -> Result<Vec<NoteInfo>, String> {
 #[tauri::command]
 fn read_note(app: AppHandle, id: String) -> Result<String, String> {
     let vault_dir = get_vault_path(&app)?;
-    let note_path = resolve_note_path(&vault_dir, &id);
+    let note_path = resolve_note_path(&vault_dir, &id)?;
     
     if note_path.exists() {
         fs::read_to_string(note_path).map_err(|e| e.to_string())
@@ -243,7 +265,7 @@ fn read_note(app: AppHandle, id: String) -> Result<String, String> {
 #[tauri::command]
 fn write_note(app: AppHandle, id: String, content: String) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let note_path = resolve_note_path(&vault_dir, &id);
+    let note_path = resolve_note_path(&vault_dir, &id)?;
     
     if let Some(parent) = note_path.parent() {
         if !parent.exists() {
@@ -256,11 +278,12 @@ fn write_note(app: AppHandle, id: String, content: String) -> Result<(), String>
 #[tauri::command]
 fn create_folder(app: AppHandle, parent_path: String, folder_name: String) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let target_dir = if parent_path.is_empty() {
-        vault_dir.join(&folder_name)
+    let rel = if parent_path.is_empty() {
+        folder_name
     } else {
-        vault_dir.join(&parent_path).join(&folder_name)
+        format!("{}/{}", parent_path, folder_name)
     };
+    let target_dir = resolve_safe_vault_path(&vault_dir, &rel)?;
     fs::create_dir_all(target_dir).map_err(|e| e.to_string())
 }
 
@@ -268,11 +291,12 @@ fn create_folder(app: AppHandle, parent_path: String, folder_name: String) -> Re
 fn create_note_in_folder(app: AppHandle, parent_path: String, title: String) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
     let filename = if title.ends_with(".md") { title.clone() } else { format!("{}.md", title) };
-    let target_path = if parent_path.is_empty() {
-        vault_dir.join(&filename)
+    let rel = if parent_path.is_empty() {
+        filename
     } else {
-        vault_dir.join(&parent_path).join(&filename)
+        format!("{}/{}", parent_path, filename)
     };
+    let target_path = resolve_safe_vault_path(&vault_dir, &rel)?;
     
     if let Some(parent) = target_path.parent() {
         if !parent.exists() {
@@ -288,14 +312,15 @@ fn create_note_in_folder(app: AppHandle, parent_path: String, title: String) -> 
 #[tauri::command]
 fn move_node(app: AppHandle, src_rel_path: String, dest_dir_rel_path: String) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let src_path = vault_dir.join(&src_rel_path);
+    let src_path = resolve_safe_vault_path(&vault_dir, &src_rel_path)?;
     
-    let file_name = src_path.file_name().ok_or("Invalid source path")?;
-    let dest_path = if dest_dir_rel_path.is_empty() {
-        vault_dir.join(file_name)
+    let file_name = src_path.file_name().ok_or("Invalid source path")?.to_string_lossy();
+    let dest_rel = if dest_dir_rel_path.is_empty() {
+        file_name.to_string()
     } else {
-        vault_dir.join(&dest_dir_rel_path).join(file_name)
+        format!("{}/{}", dest_dir_rel_path, file_name)
     };
+    let dest_path = resolve_safe_vault_path(&vault_dir, &dest_rel)?;
 
     if src_path == dest_path {
         return Ok(());
@@ -307,7 +332,13 @@ fn move_node(app: AppHandle, src_rel_path: String, dest_dir_rel_path: String) ->
 #[tauri::command]
 fn delete_node(app: AppHandle, relative_path: String) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let target_path = vault_dir.join(&relative_path);
+    if relative_path.trim().is_empty() {
+        return Err("Cannot delete root vault directory".to_string());
+    }
+    let target_path = resolve_safe_vault_path(&vault_dir, &relative_path)?;
+    if target_path == vault_dir {
+        return Err("Cannot delete root vault directory".to_string());
+    }
 
     if target_path.is_dir() {
         fs::remove_dir_all(target_path).map_err(|e| e.to_string())
@@ -319,7 +350,10 @@ fn delete_node(app: AppHandle, relative_path: String) -> Result<(), String> {
 #[tauri::command]
 fn rename_node(app: AppHandle, relative_path: String, new_name: String) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let src_path = vault_dir.join(&relative_path);
+    let src_path = resolve_safe_vault_path(&vault_dir, &relative_path)?;
+    if new_name.contains('/') || new_name.contains('\\') || new_name.contains("..") {
+        return Err("Invalid new name".to_string());
+    }
     
     let parent = src_path.parent().ok_or("Invalid path")?;
     let dest_name = if !src_path.is_dir() && !new_name.ends_with(".md") {
@@ -342,24 +376,19 @@ fn save_image_bytes(app: AppHandle, relative_note_id: String, file_name: String,
         String::new()
     };
 
-    let target_dir = if parent_dir.is_empty() {
-        vault_dir.join(".attachments")
-    } else {
-        vault_dir.join(&parent_dir).join(".attachments")
-    };
-
-    if !target_dir.exists() {
-        fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
-    }
-
-    let target_path = target_dir.join(&file_name);
-    fs::write(&target_path, &bytes).map_err(|e| e.to_string())?;
-
     let rel_path = if parent_dir.is_empty() {
         format!(".attachments/{}", file_name)
     } else {
         format!("{}/.attachments/{}", parent_dir, file_name)
     };
+    let target_path = resolve_safe_vault_path(&vault_dir, &rel_path)?;
+    if let Some(target_dir) = target_path.parent() {
+        if !target_dir.exists() {
+            fs::create_dir_all(target_dir).map_err(|e| e.to_string())?;
+        }
+    }
+
+    fs::write(&target_path, &bytes).map_err(|e| e.to_string())?;
 
     Ok(rel_path)
 }
@@ -367,6 +396,17 @@ fn save_image_bytes(app: AppHandle, relative_note_id: String, file_name: String,
 #[tauri::command]
 fn save_text_asset(app: AppHandle, relative_note_id: String, file_name: String, content: String) -> Result<String, String> {
     let vault_dir = get_vault_path(&app)?;
+    if relative_note_id.is_empty() && (file_name.starts_with('.') || file_name.contains('/')) {
+        let target_path = resolve_safe_vault_path(&vault_dir, &file_name)?;
+        if let Some(parent) = target_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+        }
+        fs::write(&target_path, content).map_err(|e| e.to_string())?;
+        return Ok(file_name);
+    }
+
     let parent_dir = if relative_note_id.contains('/') {
         let parts: Vec<&str> = relative_note_id.split('/').collect();
         parts[..parts.len() - 1].join("/")
@@ -374,24 +414,19 @@ fn save_text_asset(app: AppHandle, relative_note_id: String, file_name: String, 
         String::new()
     };
 
-    let target_dir = if parent_dir.is_empty() {
-        vault_dir.join(".attachments")
-    } else {
-        vault_dir.join(&parent_dir).join(".attachments")
-    };
-
-    if !target_dir.exists() {
-        fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
-    }
-
-    let target_path = target_dir.join(&file_name);
-    fs::write(&target_path, content).map_err(|e| e.to_string())?;
-
     let relative_asset_path = if parent_dir.is_empty() {
         format!(".attachments/{}", file_name)
     } else {
         format!("{}/.attachments/{}", parent_dir, file_name)
     };
+    let target_path = resolve_safe_vault_path(&vault_dir, &relative_asset_path)?;
+    if let Some(target_dir) = target_path.parent() {
+        if !target_dir.exists() {
+            fs::create_dir_all(target_dir).map_err(|e| e.to_string())?;
+        }
+    }
+
+    fs::write(&target_path, content).map_err(|e| e.to_string())?;
 
     Ok(relative_asset_path)
 }
@@ -429,8 +464,10 @@ fn get_image_data_url(app: AppHandle, relative_path: String) -> Result<String, S
 #[tauri::command]
 fn resolve_asset_path(app: AppHandle, relative_path: String) -> Result<String, String> {
     let vault_dir = get_vault_path(&app)?;
-    let full_path = find_file_in_vault(&vault_dir, &relative_path)
-        .unwrap_or_else(|| vault_dir.join(&relative_path));
+    let full_path = match find_file_in_vault(&vault_dir, &relative_path) {
+        Some(p) => p,
+        None => resolve_safe_vault_path(&vault_dir, &relative_path)?,
+    };
     Ok(full_path.to_string_lossy().to_string())
 }
 
@@ -468,6 +505,7 @@ fn scan_tasks_recursive(dir: &Path, base_vault: &Path, tasks: &mut Vec<TaskInfo>
                                 assignees: meta.assignees,
                                 progress: meta.progress,
                                 tags: meta.tags,
+                                related_notes: meta.related_notes,
                                 raw_line: line.to_string(),
                             });
                         }
@@ -512,7 +550,7 @@ fn get_task_registry(app: AppHandle) -> Result<TaskRegistry, String> {
 #[tauri::command]
 fn toggle_task(app: AppHandle, note_id: String, line_number: usize, completed: bool) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let note_path = resolve_note_path(&vault_dir, &note_id);
+    let note_path = resolve_note_path(&vault_dir, &note_id)?;
     
     if !note_path.exists() {
         return Err("Note not found".to_string());
@@ -555,7 +593,7 @@ fn update_task_metadata(
     related_notes: Option<Vec<String>>,
 ) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let note_path = resolve_note_path(&vault_dir, &note_id);
+    let note_path = resolve_note_path(&vault_dir, &note_id)?;
 
     if !note_path.exists() {
         return Err("Note not found".to_string());
@@ -806,7 +844,7 @@ fn get_vault_tags(app: AppHandle) -> Result<Vec<TagCount>, String> {
 #[tauri::command]
 fn update_note_tags(app: AppHandle, id: String, tags: Vec<String>) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let note_path = resolve_note_path(&vault_dir, &id);
+    let note_path = resolve_note_path(&vault_dir, &id)?;
 
     if !note_path.exists() {
         return Err("Note not found".to_string());
@@ -878,9 +916,11 @@ fn scan_decisions_recursive(dir: &Path, base_vault: &Path, decisions: &mut Vec<D
                                 description: meta.description,
                                 date: meta.date,
                                 status: meta.status,
+                                supersedes: meta.supersedes,
                                 participants: meta.participants,
                                 approved_by: meta.approved_by,
                                 tags: meta.tags,
+                                related_notes: meta.related_notes,
                                 raw_line: line.to_string(),
                             });
                         }
@@ -935,7 +975,7 @@ fn update_decision_metadata(
     related_notes: Option<Vec<String>>,
 ) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
-    let note_path = resolve_note_path(&vault_dir, &note_id);
+    let note_path = resolve_note_path(&vault_dir, &note_id)?;
 
     if !note_path.exists() {
         return Err("Note not found".to_string());
@@ -1018,6 +1058,17 @@ pub struct GitSyncResultDto {
     #[serde(rename = "updatedFiles")]
     pub updated_files: Option<Vec<String>>,
     pub conflict: Option<bool>,
+}
+
+fn validate_git_commit_ref(commit_hash: &str) -> Result<&str, String> {
+    let trimmed = commit_hash.trim();
+    if trimmed.is_empty()
+        || trimmed.starts_with('-')
+        || !trimmed.chars().all(|c| c.is_ascii_hexdigit() || c == 'H' || c == 'E' || c == 'A' || c == 'D' || c == '~' || c == '^')
+    {
+        return Err("Invalid git commit reference".to_string());
+    }
+    Ok(trimmed)
 }
 
 fn run_git(vault_dir: &Path, args: &[&str]) -> Result<String, String> {
@@ -1163,6 +1214,7 @@ fn git_log(app: AppHandle, file_path: Option<String>, limit: Option<usize>) -> R
 
     let target_path;
     if let Some(ref fp) = file_path {
+        let _ = resolve_note_path(&vault_dir, fp)?;
         target_path = if fp.ends_with(".md") { fp.clone() } else { format!("{}.md", fp) };
         args.push("--");
         args.push(&target_path);
@@ -1192,6 +1244,7 @@ fn git_log(app: AppHandle, file_path: Option<String>, limit: Option<usize>) -> R
 #[tauri::command]
 fn git_diff(app: AppHandle, file_path: String) -> Result<String, String> {
     let vault_dir = get_vault_path(&app)?;
+    let _ = resolve_note_path(&vault_dir, &file_path)?;
     let target_path = if file_path.ends_with(".md") { file_path } else { format!("{}.md", file_path) };
     run_git(&vault_dir, &["diff", "HEAD", "--", &target_path])
 }
@@ -1199,17 +1252,21 @@ fn git_diff(app: AppHandle, file_path: String) -> Result<String, String> {
 #[tauri::command]
 fn git_show(app: AppHandle, file_path: String, commit_hash: String) -> Result<String, String> {
     let vault_dir = get_vault_path(&app)?;
+    let valid_hash = validate_git_commit_ref(&commit_hash)?;
+    let _ = resolve_note_path(&vault_dir, &file_path)?;
     let target_path = if file_path.ends_with(".md") { file_path } else { format!("{}.md", file_path) };
-    let spec = format!("{}:{}", commit_hash, target_path);
-    run_git(&vault_dir, &["show", &spec])
+    let spec = format!("{}:{}", valid_hash, target_path);
+    run_git(&vault_dir, &["show", "--end-of-options", &spec])
 }
 
 #[tauri::command]
 fn git_revert_file(app: AppHandle, file_path: String, commit_hash: String) -> Result<(), String> {
     let vault_dir = get_vault_path(&app)?;
+    let valid_hash = validate_git_commit_ref(&commit_hash)?;
+    let _ = resolve_note_path(&vault_dir, &file_path)?;
     let target_path = if file_path.ends_with(".md") { file_path.clone() } else { format!("{}.md", file_path) };
-    run_git(&vault_dir, &["checkout", &commit_hash, "--", &target_path])?;
-    let short_hash = if commit_hash.len() > 7 { &commit_hash[..7] } else { &commit_hash };
+    run_git(&vault_dir, &["checkout", valid_hash, "--", &target_path])?;
+    let short_hash = if valid_hash.len() > 7 { &valid_hash[..7] } else { valid_hash };
     let _ = run_git(&vault_dir, &["commit", "-m", &format!("Geri yüklendi ({}): {}", short_hash, target_path)]);
     Ok(())
 }
@@ -1276,3 +1333,28 @@ fn git_push(app: AppHandle) -> Result<GitSyncResultDto, String> {
         }),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_safe_vault_path_blocks_traversal() {
+        let vault = Path::new("/tmp/han_vault");
+        assert!(resolve_safe_vault_path(vault, "../etc/passwd").is_err());
+        assert!(resolve_safe_vault_path(vault, "folder/../../outside.md").is_err());
+        assert_eq!(
+            resolve_safe_vault_path(vault, "folder/note.md").unwrap(),
+            PathBuf::from("/tmp/han_vault/folder/note.md")
+        );
+    }
+
+    #[test]
+    fn test_validate_git_commit_ref() {
+        assert!(validate_git_commit_ref("--upload-pack=evil").is_err());
+        assert!(validate_git_commit_ref("-f").is_err());
+        assert_eq!(validate_git_commit_ref("a1b2c3d4").unwrap(), "a1b2c3d4");
+        assert_eq!(validate_git_commit_ref("HEAD~1").unwrap(), "HEAD~1");
+    }
+}
+

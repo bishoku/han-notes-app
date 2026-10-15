@@ -38,9 +38,7 @@ export const WorkspaceModal: React.FC = () => {
   const [newWsName, setNewWsName] = useState('');
   const [newWsColor, setNewWsColor] = useState(WORKSPACE_COLORS[0]);
   const [newWsIcon, setNewWsIcon] = useState('Folder');
-  const [newWsStorageType, setNewWsStorageType] = useState<'indexeddb' | 'browser'>(
-    isFileSystemAccessSupported() ? 'browser' : 'indexeddb'
-  );
+  const [newWsStorageType, setNewWsStorageType] = useState<'indexeddb' | 'browser'>('indexeddb');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 

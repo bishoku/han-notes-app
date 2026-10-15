@@ -1,27 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sidebar } from '@/components/Sidebar';
 import { RightPanel } from '@/components/RightPanel';
 import { AppStatusBar } from '@/components/statusbar/AppStatusBar';
-import { ChatDrawer } from '@/components/ai/ChatDrawer';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
 import { useAiStore } from '@/store/aiStore';
 import { isFileSystemAccessSupported } from '@/services/storage';
-import { QuickSearchModal } from '@/components/search/QuickSearchModal';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { workspaceManager } from '@/services/workspace';
-import { WorkspaceModal, WorkspaceHubScreen, MoveItemModal } from '@/components/workspace';
-
+import { WorkspaceHubScreen } from '@/components/workspace/WorkspaceHubScreen';
 import { useGitStore } from '@/store/gitStore';
-import { SettingsModal } from '@/components/SettingsModal';
-import { NoteHistoryDrawer } from '@/components/git/NoteHistoryDrawer';
-import { WebClipperModal } from '@/components/clipper/WebClipperModal';
-import { P2PSyncModal } from '@/components/sync/P2PSyncModal';
 import { useSyncStore } from '@/store/syncStore';
 import { eventBus } from '@/lib/eventBus';
 import { applyAppTheme } from '@/utils/theme';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+
+const ChatDrawer = React.lazy(() =>
+  import('@/components/ai/ChatDrawer').then((m) => ({ default: m.ChatDrawer }))
+);
+const QuickSearchModal = React.lazy(() =>
+  import('@/components/search/QuickSearchModal').then((m) => ({ default: m.QuickSearchModal }))
+);
+const SettingsModal = React.lazy(() =>
+  import('@/components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
+const NoteHistoryDrawer = React.lazy(() =>
+  import('@/components/git/NoteHistoryDrawer').then((m) => ({ default: m.NoteHistoryDrawer }))
+);
+const WebClipperModal = React.lazy(() =>
+  import('@/components/clipper/WebClipperModal').then((m) => ({ default: m.WebClipperModal }))
+);
+const P2PSyncModal = React.lazy(() =>
+  import('@/components/sync/P2PSyncModal').then((m) => ({ default: m.P2PSyncModal }))
+);
+const WorkspaceModal = React.lazy(() =>
+  import('@/components/workspace/WorkspaceModal').then((m) => ({ default: m.WorkspaceModal }))
+);
+const MoveItemModal = React.lazy(() =>
+  import('@/components/workspace/MoveItemModal').then((m) => ({ default: m.MoveItemModal }))
+);
 
 /**
  * Detect if we're running inside a Tauri desktop app.
@@ -175,11 +194,6 @@ export const MainLayout: React.FC = () => {
       }
     };
     init();
-
-    // Prevent default native WebKit right-click context menu globally
-    const disableContextMenu = (e: MouseEvent) => { e.preventDefault(); };
-    window.addEventListener('contextmenu', disableContextMenu);
-    return () => window.removeEventListener('contextmenu', disableContextMenu);
   }, [loadVault]);
 
   // ── Directory / Workspace Picker Hub Screen (Browser only, first visit or permission needed) ──
@@ -214,26 +228,34 @@ export const MainLayout: React.FC = () => {
       <div className="flex-1 flex min-h-0 w-full overflow-hidden print:h-auto print:overflow-visible print:block">
         <Sidebar />
         <div className="flex-1 flex min-w-0 h-full overflow-hidden relative print:h-auto print:overflow-visible print:static print:block">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </div>
         {isNotesRoute && rightPanelOpen && <RightPanel />}
-        <ChatDrawer />
+        <Suspense fallback={null}>
+          <ChatDrawer />
+        </Suspense>
       </div>
 
       {/* Global Bottom Status Bar (VS Code style) */}
       <AppStatusBar />
 
       {/* Global Overlays & Modals */}
-      <QuickSearchModal />
-      <SettingsModal />
-      <NoteHistoryDrawer />
-      <WebClipperModal
-        isOpen={clipperModalOpen}
-        onClose={() => setClipperModalOpen(false)}
-      />
-      <P2PSyncModal />
-      <WorkspaceModal />
-      <MoveItemModal />
+      <Suspense fallback={null}>
+        <QuickSearchModal />
+        <SettingsModal />
+        <NoteHistoryDrawer />
+        {clipperModalOpen && (
+          <WebClipperModal
+            isOpen={clipperModalOpen}
+            onClose={() => setClipperModalOpen(false)}
+          />
+        )}
+        <P2PSyncModal />
+        <WorkspaceModal />
+        <MoveItemModal />
+      </Suspense>
     </div>
   );
 };

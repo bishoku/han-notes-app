@@ -12,6 +12,7 @@ import {
 import { eventBus } from '@/lib/eventBus';
 import { cn } from '@/lib/utils';
 import { normalizeNoteId, isNoteIdMatch } from '@/utils/pathUtils';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 /** Returns the appropriate lucide icon component for a given OKF note type */
 function getNoteTypeIcon(noteType: string | undefined) {
@@ -43,13 +44,12 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
   const [isOpen, setIsOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const isLongPressTriggeredRef = useRef(false);
 
-  const currentNoteId = useNoteStore(state => state.currentNoteId);
-  const activeFolderPath = useNoteStore(state => state.activeFolderPath);
   const selectNote = useNoteStore(state => state.selectNote);
   const setActiveFolder = useNoteStore(state => state.setActiveFolder);
   const createNote = useNoteStore(state => state.createNote);
@@ -61,15 +61,31 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
 
   const cleanRelPath = node.relative_path.replace(/\.md$/, '');
   const cleanName = node.name.replace(/\.md$/, '');
-  const isSelected = !node.is_dir && (currentNoteId === cleanRelPath || currentNoteId === node.relative_path || currentNoteId === cleanName);
-  const isFolderActive = node.is_dir && activeFolderPath === node.relative_path;
+
+  // Boolean selectors prevent O(N) re-renders across all tree nodes when switching notes
+  const isSelected = useNoteStore(
+    useCallback(
+      (state) =>
+        !node.is_dir &&
+        (state.currentNoteId === cleanRelPath ||
+          state.currentNoteId === node.relative_path ||
+          state.currentNoteId === cleanName),
+      [node.is_dir, cleanRelPath, node.relative_path, cleanName]
+    )
+  );
+  const isFolderActive = useNoteStore(
+    useCallback(
+      (state) => node.is_dir && state.activeFolderPath === node.relative_path,
+      [node.is_dir, node.relative_path]
+    )
+  );
 
   // O(1)-amortized: Zustand only triggers re-render if the returned string changes
   const normalizedRelPath = normalizeNoteId(node.relative_path);
   const noteType = useNoteStore(
     useCallback((s) => {
       if (node.is_dir) return undefined;
-      return s.notes.find(n => isNoteIdMatch(n.id, normalizedRelPath))?.note_type;
+      return s.notes.find(n => n.id === normalizedRelPath || isNoteIdMatch(n.id, normalizedRelPath))?.note_type;
     }, [node.is_dir, normalizedRelPath])
   );
   const NoteIcon = getNoteTypeIcon(noteType);
@@ -229,8 +245,12 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     closeContextMenu();
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     await deleteNode(node.relative_path);
   };
 
@@ -243,9 +263,27 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
     });
   };
 
+  const activateNode = () => {
+    if (node.is_dir) {
+      setIsOpen(!isOpen);
+      setActiveFolder(node.relative_path);
+    } else {
+      selectNote(cleanRelPath);
+      setViewMode('notes');
+      navigate(`/notes/${encodeURIComponent(cleanRelPath)}`);
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        useUiStore.getState().setSidebarOpen(false);
+      }
+    }
+  };
+
   return (
     <div className="relative">
       <div
+        role="treeitem"
+        tabIndex={0}
+        aria-expanded={node.is_dir ? isOpen : undefined}
+        aria-selected={isSelected}
         draggable
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
@@ -256,27 +294,29 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activateNode();
+          } else if (node.is_dir && e.key === 'ArrowRight' && !isOpen) {
+            e.preventDefault();
+            setIsOpen(true);
+          } else if (node.is_dir && e.key === 'ArrowLeft' && isOpen) {
+            e.preventDefault();
+            setIsOpen(false);
+          }
+        }}
         onClick={(e) => {
           if (isLongPressTriggeredRef.current) {
             isLongPressTriggeredRef.current = false;
             e.preventDefault();
             return;
           }
-          if (node.is_dir) {
-            setIsOpen(!isOpen);
-            setActiveFolder(node.relative_path);
-          } else {
-            selectNote(cleanRelPath);
-            setViewMode('notes');
-            navigate(`/notes/${encodeURIComponent(cleanRelPath)}`);
-            if (typeof window !== 'undefined' && window.innerWidth < 768) {
-              useUiStore.getState().setSidebarOpen(false);
-            }
-          }
+          activateNode();
         }}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         className={cn(
-          "flex items-center gap-2 py-2 md:py-1.5 px-2.5 md:px-2 rounded-lg md:rounded-md text-xs cursor-pointer select-none transition-colors group min-h-[38px] md:min-h-0",
+          "flex items-center gap-2 py-2 md:py-1.5 px-2.5 md:px-2 rounded-lg md:rounded-md text-xs cursor-pointer select-none transition-colors group min-h-[38px] md:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mac-accent",
           isSelected && "bg-mac-accent text-white font-medium",
           isFolderActive && !isSelected && "bg-mac-accent/15 text-mac-accent font-semibold",
           !isSelected && !isFolderActive && "hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300",
@@ -298,7 +338,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
           </>
         )}
 
-        {/* 3-dots action button: always visible on mobile, hover on desktop */}
+        {/* 3-dots action button: always visible on mobile, hover/focus on desktop */}
         <button
           type="button"
           onClick={(e) => {
@@ -312,9 +352,10 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
           className={cn(
             "p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-opacity ml-auto shrink-0",
             isSelected ? "text-white/80 hover:text-white hover:bg-white/20" : "",
-            "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+            "opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100"
           )}
           title={t('moreActions')}
+          aria-label={t('moreActions', 'More actions')}
         >
           <MoreVertical size={13} />
         </button>
@@ -345,6 +386,7 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
             <button onClick={handleMove} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-mac-accent hover:text-white rounded transition-colors text-left cursor-pointer">
               <FolderInput size={12} /> {t('move', 'Taşı...')}
             </button>
+            <div className="my-1 border-t border-gray-100 dark:border-zinc-800" />
             <button onClick={handleDelete} className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-red-500 hover:text-white rounded text-red-500 transition-colors text-left cursor-pointer">
               <Trash2 size={12} /> {t('delete')}
             </button>
@@ -352,9 +394,24 @@ export const FileTreeNode: React.FC<FileTreeNodeProps> = React.memo(({ node, lev
         </>
       )}
 
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        title={t('confirmDeleteTitle', 'Silmeyi Onayla')}
+        message={
+          node.is_dir
+            ? t('confirmDeleteFolderMessage', `"${node.name}" klasörünü ve içindeki tüm notları kalıcı olarak silmek istediğinize emin misiniz?`)
+            : t('confirmDeleteNoteMessage', `"${node.name}" notunu kalıcı olarak silmek istediğinize emin misiniz?`)
+        }
+        confirmLabel={t('delete', 'Sil')}
+        cancelLabel={t('cancel', 'Vazgeç')}
+        isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+      />
+
       {/* Render Children Recursively */}
       {node.is_dir && isOpen && node.children && (
-        <div className="flex flex-col gap-0.5 mt-0.5">
+        <div role="group" className="flex flex-col gap-0.5 mt-0.5">
           {node.children.map((childNode) => (
             <FileTreeNode key={childNode.relative_path} node={childNode} level={level + 1} openInputDialog={openInputDialog} />
           ))}

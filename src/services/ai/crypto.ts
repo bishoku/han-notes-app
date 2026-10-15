@@ -88,7 +88,7 @@ export async function encryptSecret(secret: string): Promise<string> {
     return btoa(binary);
   } catch (err) {
     console.error('Failed to encrypt secret:', err);
-    return secret; // fallback
+    throw new Error('Failed to encrypt API secret');
   }
 }
 

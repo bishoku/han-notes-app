@@ -1,11 +1,21 @@
 {
   "name": "han-notes-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "H.A.N. (Hierarchical Adaptive Notebook) — Local-first, privacy-focused Markdown notebook for Web, PWA, and Desktop (Tauri).",
+  "license": "MIT",
+  "homepage": "https://bishoku.github.io/han-notes-app/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bishoku/han-notes-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bishoku/han-notes-app/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:wasm": "wasm-pack build ./han-core --target web --out-dir ../src/wasm/han-core",
+    "build:wasm": "wasm-pack build ./han-core --target web --out-dir ../src/wasm/han-core && rm -f src/wasm/han-core/.gitignore",
     "build": "npm run build:wasm && tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",

@@ -99,6 +99,26 @@ export class IndexedDBStorage implements IStorageService {
         this.db.close();
         this.db = null;
       }
+      for (const url of this.assetUrlCache.values()) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {}
+      }
+      this.assetUrlCache.clear();
+    }
+  }
+
+  public closeConnection(workspaceId?: string): void {
+    if (!workspaceId || this.currentWorkspaceId === workspaceId) {
+      if (this.db) {
+        this.db.close();
+        this.db = null;
+      }
+      for (const url of this.assetUrlCache.values()) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {}
+      }
       this.assetUrlCache.clear();
     }
   }
@@ -118,10 +138,20 @@ export class IndexedDBStorage implements IStorageService {
    */
   public static async deleteWorkspaceDatabase(workspaceId: string): Promise<void> {
     const dbName = workspaceId === 'default' ? DB_NAME : `${DB_NAME}_${workspaceId}`;
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.deleteDatabase(dbName);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.deleteDatabase(dbName);
+        const timer = setTimeout(() => resolve(), 1500);
+        const done = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        req.onsuccess = done;
+        req.onerror = done;
+        req.onblocked = done;
+      } catch {
+        resolve();
+      }
     });
   }
 
@@ -162,7 +192,14 @@ export class IndexedDBStorage implements IStorageService {
       };
 
       request.onsuccess = async () => {
-        this.db = request.result;
+        const db = request.result;
+        db.onversionchange = () => {
+          db.close();
+          if (this.db === db) {
+            this.db = null;
+          }
+        };
+        this.db = db;
         await this.seedWelcomeNoteIfEmpty();
         resolve(this.db);
       };
@@ -262,41 +299,61 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
 
   // ── Vault / File Tree ──
 
+  private frontmatterMetaCache = new Map<
+    string,
+    { updatedAt: number; tags: string[]; note_type: string }
+  >();
+
   async getVaultFiles(): Promise<NoteInfo[]> {
     await ensureWasmLoaded();
     const records = await this.getAllActiveNotes();
 
     return records.map((r) => {
+      const cached = this.frontmatterMetaCache.get(r.id);
+      if (cached && cached.updatedAt === r.updatedAt) {
+        return {
+          id: r.id,
+          title: r.title || extractTitleFromId(r.id),
+          path: r.path,
+          tags: r.tags?.length ? r.tags : cached.tags,
+          note_type: cached.note_type,
+        };
+      }
+
       let tags = r.tags || [];
-      if (!tags.length && r.content) {
+      let note_type = '';
+
+      if (r.content) {
         try {
           const parsed = wasm_parse_yaml_frontmatter(r.content);
-          if (parsed?.[0]?.tags && Array.isArray(parsed[0].tags)) {
-            tags = parsed[0].tags;
+          const fm = parsed?.[0];
+          if (fm) {
+            if (!tags.length && Array.isArray(fm.tags)) {
+              tags = fm.tags;
+            }
+            note_type = fm.type || fm.note_type || '';
           }
         } catch {
-          // Fallback tag regex
-          const match = r.content.match(/^---\n([\s\S]*?)\n---/);
-          if (match) {
-            const tagLine = match[1].match(/tags:\s*\[(.*?)\]/);
-            if (tagLine) {
-              tags = tagLine[1].split(',').map((t) => t.trim().replace(/^['"]|['"]$/g, ''));
+          if (!tags.length) {
+            const match = r.content.match(/^---\n([\s\S]*?)\n---/);
+            if (match) {
+              const tagLine = match[1].match(/tags:\s*\[(.*?)\]/);
+              if (tagLine) {
+                tags = tagLine[1]
+                  .split(',')
+                  .map((t) => t.trim().replace(/^['"]|['"]$/g, ''))
+                  .filter(Boolean);
+              }
             }
           }
         }
       }
 
-      let note_type = '';
-      if (r.content) {
-        try {
-          const parsed = wasm_parse_yaml_frontmatter(r.content);
-          if (parsed?.[0]) {
-            note_type = parsed[0].type || parsed[0].note_type || '';
-          }
-        } catch {
-          // Ignored
-        }
-      }
+      this.frontmatterMetaCache.set(r.id, {
+        updatedAt: r.updatedAt,
+        tags,
+        note_type,
+      });
 
       return {
         id: r.id,
@@ -520,61 +577,68 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
 
     if (cleanSrc === destPath) return;
 
-    const isNote = cleanSrc.endsWith('.md');
+    const oldId = normalizeNoteId(cleanSrc);
+    const existingNote = await this.getNoteRecord(oldId);
+    const isNote = cleanSrc.endsWith('.md') || !!existingNote;
     const db = await this.getDb();
 
     if (isNote) {
-      const oldId = normalizeNoteId(cleanSrc);
       const newId = normalizeNoteId(destPath);
-      const note = await this.getNoteRecord(oldId);
-      if (note) {
+      if (existingNote) {
         await this.deleteNode(cleanSrc);
-        await this.writeNote(newId, note.content);
+        await this.writeNote(newId, existingNote.content);
       }
     } else {
       // Folder move
-      const tx = db.transaction([STORE_NOTES, STORE_FOLDERS], 'readwrite');
-      const noteStore = tx.objectStore(STORE_NOTES);
-      const folderStore = tx.objectStore(STORE_FOLDERS);
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NOTES, STORE_FOLDERS], 'readwrite');
+        const noteStore = tx.objectStore(STORE_NOTES);
+        const folderStore = tx.objectStore(STORE_FOLDERS);
 
-      // Move notes with prefix
-      const noteReq = noteStore.getAll();
-      noteReq.onsuccess = () => {
-        const notes = (noteReq.result as DbNoteRecord[]) || [];
-        for (const n of notes) {
-          if (n.path === cleanSrc || n.path.startsWith(`${cleanSrc}/`)) {
-            const subPath = n.path.slice(cleanSrc.length);
-            const newPath = `${destPath}${subPath}`;
-            const newId = normalizeNoteId(newPath);
-            noteStore.delete(n.id);
-            noteStore.put({
-              ...n,
-              id: newId,
-              path: newPath,
-              title: extractTitleFromId(newId),
-              updatedAt: Date.now(),
-            });
+        // Move notes with prefix
+        const noteReq = noteStore.getAll();
+        noteReq.onsuccess = () => {
+          const notes = (noteReq.result as DbNoteRecord[]) || [];
+          for (const n of notes) {
+            if (n.path === cleanSrc || n.path.startsWith(`${cleanSrc}/`) || n.id.startsWith(`${cleanSrc}/`)) {
+              const subPath = n.path.startsWith(cleanSrc)
+                ? n.path.slice(cleanSrc.length)
+                : n.id.slice(cleanSrc.length) + '.md';
+              const newPath = `${destPath}${subPath}`;
+              const newId = normalizeNoteId(newPath);
+              noteStore.delete(n.id);
+              noteStore.put({
+                ...n,
+                id: newId,
+                path: newPath,
+                title: extractTitleFromId(newId),
+                updatedAt: Date.now(),
+              });
+            }
           }
-        }
-      };
+        };
 
-      // Move folder records
-      const folderReq = folderStore.getAll();
-      folderReq.onsuccess = () => {
-        const folders = (folderReq.result as DbFolderRecord[]) || [];
-        for (const f of folders) {
-          if (f.path === cleanSrc || f.path.startsWith(`${cleanSrc}/`)) {
-            const sub = f.path.slice(cleanSrc.length);
-            const newFPath = `${destPath}${sub}`;
-            folderStore.delete(f.path);
-            folderStore.put({
-              path: newFPath,
-              name: newFPath.split('/').pop() || f.name,
-              createdAt: f.createdAt,
-            });
+        // Move folder records
+        const folderReq = folderStore.getAll();
+        folderReq.onsuccess = () => {
+          const folders = (folderReq.result as DbFolderRecord[]) || [];
+          for (const f of folders) {
+            if (f.path === cleanSrc || f.path.startsWith(`${cleanSrc}/`)) {
+              const sub = f.path.slice(cleanSrc.length);
+              const newFPath = `${destPath}${sub}`;
+              folderStore.delete(f.path);
+              folderStore.put({
+                path: newFPath,
+                name: newFPath.split('/').pop() || f.name,
+                createdAt: f.createdAt,
+              });
+            }
           }
-        }
-      };
+        };
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
     }
   }
 
@@ -637,8 +701,11 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
 
   async renameNode(relativePath: string, newName: string): Promise<void> {
     const cleanPath = relativePath.replace(/^\/+|\/+$/g, '');
-    const isNote = cleanPath.endsWith('.md');
-    const parts = cleanPath.split('/');
+    const oldId = normalizeNoteId(cleanPath);
+    const existingNote = await this.getNoteRecord(oldId);
+    const isNote = cleanPath.endsWith('.md') || !!existingNote;
+
+    const parts = cleanPath.split('/').filter(Boolean);
     parts.pop();
 
     const finalName = isNote
@@ -646,10 +713,67 @@ Yerel öncelikli, uçtan uca şifreli ve doğrudan eşler arası (P2P) senkroniz
       : newName.replace(/\.md$/, '').trim();
     const newPath = parts.length > 0 ? `${parts.join('/')}/${finalName}` : finalName;
 
-    await this.moveNode(cleanPath, parts.join('/'));
-    if (newPath !== cleanPath) {
-      await this.moveNode(cleanPath, parts.join('/'));
+    if (newPath === cleanPath) return;
+
+    if (isNote) {
+      const newId = normalizeNoteId(newPath);
+      if (oldId === newId) return;
+      if (existingNote) {
+        await this.writeNote(newId, existingNote.content);
+        await this.deleteNode(cleanPath.endsWith('.md') ? cleanPath : `${cleanPath}.md`);
+      }
+      return;
     }
+
+    // Folder rename
+    const db = await this.getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([STORE_NOTES, STORE_FOLDERS], 'readwrite');
+      const noteStore = tx.objectStore(STORE_NOTES);
+      const folderStore = tx.objectStore(STORE_FOLDERS);
+
+      const noteReq = noteStore.getAll();
+      noteReq.onsuccess = () => {
+        const notes = (noteReq.result as DbNoteRecord[]) || [];
+        for (const n of notes) {
+          if (n.path === cleanPath || n.path.startsWith(`${cleanPath}/`) || n.id.startsWith(`${cleanPath}/`)) {
+            const subPath = n.path.startsWith(cleanPath)
+              ? n.path.slice(cleanPath.length)
+              : n.id.slice(cleanPath.length) + '.md';
+            const updatedPath = `${newPath}${subPath}`;
+            const updatedId = normalizeNoteId(updatedPath);
+            noteStore.delete(n.id);
+            noteStore.put({
+              ...n,
+              id: updatedId,
+              path: updatedPath,
+              title: extractTitleFromId(updatedId),
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      };
+
+      const folderReq = folderStore.getAll();
+      folderReq.onsuccess = () => {
+        const folders = (folderReq.result as DbFolderRecord[]) || [];
+        for (const f of folders) {
+          if (f.path === cleanPath || f.path.startsWith(`${cleanPath}/`)) {
+            const sub = f.path.slice(cleanPath.length);
+            const updatedFPath = `${newPath}${sub}`;
+            folderStore.delete(f.path);
+            folderStore.put({
+              path: updatedFPath,
+              name: updatedFPath.split('/').pop() || finalName,
+              createdAt: f.createdAt,
+            });
+          }
+        }
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   async updateNoteTags(id: string, tags: string[]): Promise<void> {

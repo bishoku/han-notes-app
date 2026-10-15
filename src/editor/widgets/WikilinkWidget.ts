@@ -6,6 +6,7 @@
 import { WidgetType, EditorView } from '@codemirror/view';
 import { useNoteStore } from '@/store/noteStore';
 import { useUiStore } from '@/store/uiStore';
+import { escapeHtml, isSafeUrl } from '@/utils/sanitize';
 import i18n from '@/i18n';
 
 export class WikilinkWidget extends WidgetType {
@@ -44,7 +45,7 @@ export class WikilinkWidget extends WidgetType {
 
     span.innerHTML = `
       ${iconSvg}
-      <span class="truncate max-w-[240px]">${this.display}</span>
+      <span class="truncate max-w-[240px]">${escapeHtml(this.display)}</span>
     `;
 
     span.onmousedown = (e) => {
@@ -120,7 +121,7 @@ export class WebLinkWidget extends WidgetType {
           <polyline points="14 2 14 8 20 8"/>
           <line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        <span class="truncate max-w-[240px]">${this.label || this.url}</span>
+        <span class="truncate max-w-[240px]">${escapeHtml(this.label || this.url)}</span>
       `;
 
       span.onmousedown = (e) => {
@@ -137,9 +138,10 @@ export class WebLinkWidget extends WidgetType {
       return span;
     }
 
+    const safeHref = isSafeUrl(this.url) ? this.url : '#';
     const a = document.createElement('a');
     a.className = 'cm-weblink inline-flex items-center gap-1 text-mac-accent hover:underline font-medium text-xs cursor-pointer select-none transition-colors align-baseline';
-    a.href = this.url;
+    a.href = safeHref;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.title = `Web Bağlantısı: ${this.url}`;
@@ -148,7 +150,7 @@ export class WebLinkWidget extends WidgetType {
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
       </svg>
-      <span>${this.label || this.url}</span>
+      <span>${escapeHtml(this.label || this.url)}</span>
     `;
 
     a.onmouseenter = () => {
@@ -183,7 +185,9 @@ export class WebLinkWidget extends WidgetType {
     a.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      window.open(this.url, '_blank', 'noopener,noreferrer');
+      if (isSafeUrl(this.url)) {
+        window.open(this.url, '_blank', 'noopener,noreferrer');
+      }
     };
 
     return a;

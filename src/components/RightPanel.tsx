@@ -58,13 +58,13 @@ export const RightPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'links' | 'outline'>('links');
   const [editingTask, setEditingTask] = useState<TaskEditData | null>(null);
 
-  // Automatically refresh tasks list when current note changes or panel is active
+  // Load tasks and decisions when the right panel is opened
   useEffect(() => {
     if (rightPanelOpen) {
       loadTasks();
       loadDecisions();
     }
-  }, [rightPanelOpen, currentNoteId, loadTasks, loadDecisions]);
+  }, [rightPanelOpen, loadTasks, loadDecisions]);
 
   // Filter tasks belonging ONLY to the currently active note
   const noteTasks = useMemo(() => {

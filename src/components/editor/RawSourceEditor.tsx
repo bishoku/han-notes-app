@@ -31,7 +31,7 @@ export const RawSourceEditor: React.FC<RawSourceEditorProps> = ({
   theme,
   fontSize = 'md',
 }) => {
-  const isDarkTheme = ['dark', 'dracula', 'synthwave'].includes(theme);
+  const isDarkTheme = ['dark', 'dracula', 'synthwave', 'nord', 'retro'].includes(theme);
 
   const extensions = useMemo(() => {
     const activeHighlightStyle = isDarkTheme ? hanHighlightStyleDark : hanHighlightStyle;

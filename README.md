@@ -25,11 +25,11 @@ Built with the philosophy that your notes should be **yours**, H.A.N. combines t
 
 ## 🖥️ Platforms
 
-| Platform | How | Status |
-|----------|-----|--------|
-| **macOS** | Native desktop app (Tauri) | ✅ Available |
-| **Chrome / Edge / Arc** | [Web app](https://bishoku.github.io/han-notes-app/) via File System Access API | ✅ Available |
-| **Safari / Firefox** | Not supported (no File System Access API) | ⛔ |
+| Platform | Storage Engine | Status |
+|----------|----------------|--------|
+| **macOS / Windows / Linux** | Native Desktop App (Tauri v2 + Rust FS) | ✅ Available |
+| **Chrome / Edge / Arc / Brave** | [Web / PWA](https://bishoku.github.io/han-notes-app/) via File System Access API or IndexedDB | ✅ Available |
+| **Safari / Firefox / iOS / Android** | [Web / PWA](https://bishoku.github.io/han-notes-app/) via Browser IndexedDB + P2P WebRTC Sync | ✅ Available |
 
 ## 🎯 Features
 
@@ -85,32 +85,32 @@ Built with the philosophy that your notes should be **yours**, H.A.N. combines t
 
 ## 🏗️ Architecture
 
-H.A.N. uses an **isomorphic architecture** that runs the same React codebase on both platforms:
+H.A.N. uses an **isomorphic architecture** that runs the same React codebase across Desktop, Web, and Mobile PWA:
 
 ```
-┌─────────────────────────────────────────────┐
-│              React UI (Stores)              │
-│         noteStore · taskStore · etc.        │
-├─────────────────────────────────────────────┤
-│           IStorageService Interface         │
-├──────────────────┬──────────────────────────┤
-│   TauriStorage   │     BrowserStorage       │
-│  (Rust Backend)  │ (File System Access API) │
-├──────────────────┤──────────────────────────┤
-│   han-core (Rust)│  han-core (WASM-ready)   │
-│  Pure logic crate│  Same logic, web target  │
-└──────────────────┴──────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                      React UI (Zustand)                      │
+│            noteStore · taskStore · syncStore · etc.          │
+├──────────────────────────────────────────────────────────────┤
+│                  IStorageService Interface                   │
+├──────────────────┬─────────────────────┬─────────────────────┤
+│   TauriStorage   │   BrowserStorage    │  IndexedDBStorage   │
+│  (Rust Backend)  │  (File System API)  │ (Safari/FF/Mobile)  │
+├──────────────────┴─────────────────────┴─────────────────────┤
+│            han-core (Rust Native & WebAssembly)              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-- **`han-core/`** — Shared Rust crate with pure logic (Markdown parsing, task extraction, etc.), compilable to both native and WASM
+- **`han-core/`** — Shared Rust crate with pure logic (Markdown parsing, task/decision extraction, academic PDF layout reconstruction), compiled to both native Rust and WebAssembly (`src/wasm/han-core`)
 - **`TauriStorage`** — Desktop: calls Rust backend via Tauri IPC
-- **`BrowserStorage`** — Web: reads/writes files via File System Access API
+- **`BrowserStorage`** — Chromium Web: reads/writes `.md` files directly on disk via File System Access API
+- **`IndexedDBStorage`** — Universal Web/Mobile PWA: stores multi-workspace vaults in IndexedDB with zero-knowledge E2EE WebRTC device sync
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) ≥ 20
-- [Rust](https://rustup.rs/) (for desktop app only)
+- [Rust](https://rustup.rs/) & [`wasm-pack`](https://rustwasm.github.io/wasm-pack/) (required when rebuilding `han-core` WASM or running the Tauri desktop app)
 
 ### Development
 
@@ -122,6 +122,9 @@ cd han-notes-app
 # Install dependencies
 npm install
 
+# (Optional) Rebuild Rust WASM core if you modify han-core/
+npm run build:wasm
+
 # Run in browser (web mode)
 npm run dev
 
@@ -129,13 +132,19 @@ npm run dev
 npm run tauri dev
 ```
 
-### Build
+### Build & Test
 
 ```bash
+# Run linter, typecheck, and unit tests
+npm run lint
+npx tsc -b
+npm test
+cargo test --workspace
+
 # Build web version (for GitHub Pages / static hosting)
 npm run build
 
-# Build macOS app (.dmg)
+# Build desktop app (.dmg / .msi / .AppImage)
 npm run tauri build
 ```
 
