@@ -48,7 +48,7 @@ export const MermaidEditorModal: React.FC<MermaidEditorModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const theme = useUiStore((s) => s.theme);
-  const isDark = ['dark', 'dracula', 'synthwave'].includes(theme);
+  const isDark = theme !== 'light';
 
   const isEditing = from !== undefined && to !== undefined;
   const rawCode = initialCode !== undefined ? initialCode : propCode;

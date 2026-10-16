@@ -651,16 +651,16 @@
   stroke: #f1f5f9 !important;
 }
 
-/* Dark Mode Overrides */
+/* Dark & Custom Themes Overrides */
 .dark ._2dZTy {
-  fill: #161616 !important;
+  fill: var(--color-mac-mainDark, #161616) !important;
 }
 .dark ._2dZTy:nth-child(even) {
-  fill: #1c1c1c !important;
+  fill: var(--color-mac-sidebarDark, #1c1c1c) !important;
 }
 .dark ._35nLX {
-  fill: #1e1e1e !important;
-  stroke: #2a2a2a !important;
+  fill: var(--color-mac-sidebarDark, #1e1e1e) !important;
+  stroke: var(--color-mac-borderDark, #2a2a2a) !important;
 }
 .dark ._9w8d5,
 .dark ._2q1Kt,
@@ -672,22 +672,22 @@
 .dark ._3rUKi,
 .dark ._RuwuK,
 .dark ._1rLuZ {
-  stroke: #262626 !important;
+  stroke: var(--color-mac-borderDark, #262626) !important;
 }
 .dark ._3_ygE,
 .dark ._3ZbQT {
-  border-color: #2a2a2a !important;
-  background-color: #161616 !important;
+  border-color: var(--color-mac-borderDark, #2a2a2a) !important;
+  background-color: var(--color-mac-mainDark, #161616) !important;
 }
 .dark ._3T42e {
-  background: #1e1e1e !important;
+  background: var(--color-mac-sidebarDark, #1e1e1e) !important;
   color: #f3f4f6 !important;
 }
 .dark ._29NTg {
   color: #9ca3af !important;
 }
 .dark ._3w_5u {
-  fill: #52525b !important;
+  fill: var(--color-mac-borderDark, #52525b) !important;
 }
 
 /* ─── 6 Themes CSS Overrides ─────────────────────────────────────────── */
@@ -705,6 +705,9 @@
   --color-zinc-900: #2e3440;
   --color-zinc-800: #3b4252;
   --color-zinc-700: #4c566a;
+  --color-slate-950: #242933;
+  --color-slate-900: #2e3440;
+  --color-slate-800: #3b4252;
 }
 
 .theme-dracula {
@@ -720,6 +723,9 @@
   --color-zinc-900: #21222c;
   --color-zinc-800: #282a36;
   --color-zinc-700: #44475a;
+  --color-slate-950: #191a21;
+  --color-slate-900: #21222c;
+  --color-slate-800: #282a36;
 }
 
 .theme-synthwave {
@@ -735,6 +741,9 @@
   --color-zinc-900: #181528;
   --color-zinc-800: #241e3a;
   --color-zinc-700: #3b2d54;
+  --color-slate-950: #120f1f;
+  --color-slate-900: #181528;
+  --color-slate-800: #241e3a;
 }
 
 .theme-retro {
@@ -750,6 +759,9 @@
   --color-zinc-900: #1a1412;
   --color-zinc-800: #261e1b;
   --color-zinc-700: #42352f;
+  --color-slate-950: #130f0d;
+  --color-slate-900: #1a1412;
+  --color-slate-800: #261e1b;
 }
 
 /* ─── Callouts & Formatting Styles ─────────────────────────────────── */

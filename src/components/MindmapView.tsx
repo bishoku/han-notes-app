@@ -180,8 +180,54 @@ export const MindmapView: React.FC = () => {
 
   // 3. Cytoscape Stylesheet based on theme
   const getCytoscapeStyle = useCallback(() => {
-    const textColor = isDark ? '#e4e4e7' : '#27272a';
-    const textBgColor = isDark ? 'rgba(24, 24, 27, 0.85)' : 'rgba(255, 255, 255, 0.9)';
+    const themePalettes: Record<string, { text: string; textBg: string; nodeBorder: string; parentBg: string; parentBorder: string }> = {
+      light: {
+        text: '#27272a',
+        textBg: 'rgba(255, 255, 255, 0.9)',
+        nodeBorder: '#ffffff',
+        parentBg: 'rgba(241, 245, 249, 0.65)',
+        parentBorder: 'rgba(148, 163, 184, 0.5)',
+      },
+      dark: {
+        text: '#e4e4e7',
+        textBg: 'rgba(24, 24, 27, 0.85)',
+        nodeBorder: '#18181b',
+        parentBg: 'rgba(39, 39, 42, 0.4)',
+        parentBorder: 'rgba(161, 161, 170, 0.3)',
+      },
+      nord: {
+        text: '#eceff4',
+        textBg: 'rgba(46, 52, 64, 0.88)',
+        nodeBorder: '#2e3440',
+        parentBg: 'rgba(46, 52, 64, 0.5)',
+        parentBorder: 'rgba(136, 192, 208, 0.35)',
+      },
+      dracula: {
+        text: '#f8f8f2',
+        textBg: 'rgba(33, 34, 44, 0.88)',
+        nodeBorder: '#21222c',
+        parentBg: 'rgba(33, 34, 44, 0.5)',
+        parentBorder: 'rgba(189, 147, 249, 0.35)',
+      },
+      synthwave: {
+        text: '#e2e8f0',
+        textBg: 'rgba(24, 21, 40, 0.88)',
+        nodeBorder: '#181528',
+        parentBg: 'rgba(24, 21, 40, 0.5)',
+        parentBorder: 'rgba(255, 121, 198, 0.35)',
+      },
+      retro: {
+        text: '#f5e6d3',
+        textBg: 'rgba(26, 20, 18, 0.88)',
+        nodeBorder: '#1a1412',
+        parentBg: 'rgba(26, 20, 18, 0.5)',
+        parentBorder: 'rgba(217, 119, 6, 0.35)',
+      },
+    };
+
+    const p = themePalettes[theme] || (isDark ? themePalettes.dark : themePalettes.light);
+    const textColor = p.text;
+    const textBgColor = p.textBg;
     const edgeColor = isDark ? 'rgba(113, 113, 122, 0.35)' : 'rgba(203, 213, 225, 0.6)';
     const edgeArrowColor = isDark ? 'rgba(161, 161, 170, 0.5)' : 'rgba(148, 163, 184, 0.7)';
 
@@ -189,11 +235,11 @@ export const MindmapView: React.FC = () => {
       {
         selector: ':parent',
         style: {
-          'background-color': isDark ? 'rgba(39, 39, 42, 0.4)' : 'rgba(241, 245, 249, 0.65)',
+          'background-color': p.parentBg,
           'background-opacity': 0.65,
           'border-width': 1.5,
           'border-style': 'dashed',
-          'border-color': isDark ? 'rgba(161, 161, 170, 0.3)' : 'rgba(148, 163, 184, 0.5)',
+          'border-color': p.parentBorder,
           'border-opacity': 0.8,
           'padding': '22px',
           'label': 'data(label)',
@@ -215,7 +261,7 @@ export const MindmapView: React.FC = () => {
           'height': 'data(size)',
           'background-color': 'data(color)',
           'border-width': 2.5,
-          'border-color': isDark ? '#18181b' : '#ffffff',
+          'border-color': p.nodeBorder,
           'border-opacity': 0.9,
           'color': textColor,
           'font-size': '11px',
@@ -316,7 +362,7 @@ export const MindmapView: React.FC = () => {
         },
       },
     ];
-  }, [isDark]);
+  }, [isDark, theme]);
 
   // 4. Initialize Cytoscape Instance
   useEffect(() => {

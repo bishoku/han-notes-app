@@ -50,7 +50,7 @@ export class CodeBlockWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement("div");
-    wrap.className = "cm-codeblock-wrap my-2.5 rounded-lg border border-gray-200/80 dark:border-zinc-800/80 bg-[#f8fafc] dark:bg-[#111215] shadow-xs overflow-hidden group/codeblock relative w-full max-w-full min-w-0 box-border transition-all";
+    wrap.className = "cm-codeblock-wrap my-2.5 rounded-lg border border-gray-200/80 dark:border-zinc-800/80 bg-[#f8fafc] dark:bg-zinc-950 shadow-xs overflow-hidden group/codeblock relative w-full max-w-full min-w-0 box-border transition-all";
     wrap.style.lineHeight = "normal";
     wrap.style.boxSizing = "border-box";
     wrap.style.maxWidth = "100%";
@@ -81,7 +81,7 @@ export class CodeBlockWidget extends WidgetType {
 
     // ─── Compact Header Bar (26px height, unselectable) ───
     const header = document.createElement("div");
-    header.className = "cm-codeblock-header flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-[#16171b]/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px] cursor-default w-full max-w-full box-border";
+    header.className = "cm-codeblock-header flex items-center justify-between px-2.5 py-1 bg-gray-100/70 dark:bg-zinc-900/90 border-b border-gray-200/70 dark:border-zinc-800/70 text-[11px] select-none leading-none min-h-[26px] cursor-default w-full max-w-full box-border";
     header.style.userSelect = "none";
     (header.style as any).WebkitUserSelect = "none";
 

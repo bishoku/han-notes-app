@@ -48,7 +48,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const theme = useUiStore((s) => s.theme);
-  const isDark = ['dark', 'dracula', 'synthwave'].includes(theme);
+  const isDark = theme !== 'light';
 
   const [code, setCode] = useState<string>(initialCode);
   const [selectedLang, setSelectedLang] = useState<string>(initialLang || 'typescript');
@@ -216,11 +216,11 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[1100px] h-full sm:h-[86vh] max-h-none sm:max-h-[860px] bg-white dark:bg-[#131418] rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-gray-200 dark:border-zinc-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-[1100px] h-full sm:h-[86vh] max-h-none sm:max-h-[860px] bg-white dark:bg-zinc-900 rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-gray-200 dark:border-zinc-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ─── Header ─── */}
-        <div className="pt-safe flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 bg-gray-50/95 dark:bg-[#18191f]/95 border-b border-gray-200 dark:border-zinc-800 shrink-0 gap-2">
+        <div className="pt-safe flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 bg-gray-50/95 dark:bg-zinc-900/95 border-b border-gray-200 dark:border-zinc-800 shrink-0 gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center border shadow-xs shrink-0"
@@ -344,7 +344,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
         </div>
 
         {/* ─── CodeMirror Workspace ─── */}
-        <div className="flex-1 overflow-y-auto font-mono text-[13px] bg-slate-50/50 dark:bg-[#0e0f12]">
+        <div className="flex-1 overflow-y-auto font-mono text-[13px] bg-slate-50/50 dark:bg-zinc-950">
           <CodeMirror
             value={code}
             onChange={(val) => setCode(val)}
@@ -370,7 +370,7 @@ export const CodeEditorModal: React.FC<CodeEditorModalProps> = ({
         </div>
 
         {/* ─── Status Bar & Footer ─── */}
-        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-gray-50 dark:bg-[#18191f] border-t border-gray-200 dark:border-zinc-800 text-xs shrink-0 select-none pb-safe gap-2">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-gray-50 dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 text-xs shrink-0 select-none pb-safe gap-2">
           {/* Status info */}
           <div className="hidden sm:flex items-center gap-4 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
             <span>
