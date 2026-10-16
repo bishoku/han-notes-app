@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
@@ -12,6 +11,8 @@ import { X, Globe, Palette, Check, Folder, FolderOpen, Loader2, Sliders, Bot, Gi
 import { cn } from '@/lib/utils';
 import { generateOkfBundle } from '@/services/export/okfExporter';
 import { downloadBundleAsJson } from '@/services/export/downloadBundle';
+import { ModalShell } from '@/components/ui/ModalShell';
+
 
 interface ThemeOption {
   id: AppTheme;
@@ -110,20 +111,6 @@ export const SettingsModal: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isSettingsModalOpen) {
-        if (clearStep !== 'none') {
-          setClearStep('none');
-        } else {
-          setSettingsModalOpen(false);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSettingsModalOpen, setSettingsModalOpen, clearStep]);
-
   const handleSwitchVault = async () => {
     setIsSwitching(true);
     try {
@@ -133,15 +120,19 @@ export const SettingsModal: React.FC = () => {
     }
   };
 
-  if (!isSettingsModalOpen) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 pt-safe pb-safe">
-      {/* Modal Container */}
-      <div 
-        className="relative w-full max-w-2xl max-h-[92dvh] sm:max-h-[85vh] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <ModalShell
+      isOpen={isSettingsModalOpen}
+      onClose={() => {
+        if (clearStep !== 'none') {
+          setClearStep('none');
+        } else {
+          setSettingsModalOpen(false);
+        }
+      }}
+      maxWidthClass="max-w-2xl"
+      className="max-h-[92dvh] sm:max-h-[85vh] flex flex-col"
+    >
         {/* Header with Tabs */}
         <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-zinc-800/80 bg-gray-50/50 dark:bg-zinc-900/50 gap-2">
           <div className="flex items-center gap-1 sm:gap-1.5 p-1 bg-gray-200/60 dark:bg-zinc-800 rounded-xl overflow-x-auto no-scrollbar touch-pan-x max-w-[calc(100%-48px)]">
@@ -576,8 +567,6 @@ export const SettingsModal: React.FC = () => {
             {t('ok')}
           </button>
         </div>
-      </div>
-    </div>,
-    document.body
+    </ModalShell>
   );
 };

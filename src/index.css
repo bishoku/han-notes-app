@@ -697,6 +697,14 @@
   --color-mac-mainDark: #3b4252;
   --color-mac-borderDark: #4c566a;
   --color-mac-accent: #88c0d0;
+  --background: #3b4252;
+  --card: #2e3440;
+  --popover: #2e3440;
+  --border: #4c566a;
+  --color-zinc-950: #242933;
+  --color-zinc-900: #2e3440;
+  --color-zinc-800: #3b4252;
+  --color-zinc-700: #4c566a;
 }
 
 .theme-dracula {
@@ -704,6 +712,14 @@
   --color-mac-mainDark: #282a36;
   --color-mac-borderDark: #44475a;
   --color-mac-accent: #bd93f9;
+  --background: #282a36;
+  --card: #21222c;
+  --popover: #21222c;
+  --border: #44475a;
+  --color-zinc-950: #191a21;
+  --color-zinc-900: #21222c;
+  --color-zinc-800: #282a36;
+  --color-zinc-700: #44475a;
 }
 
 .theme-synthwave {
@@ -711,6 +727,14 @@
   --color-mac-mainDark: #241e3a;
   --color-mac-borderDark: #3b2d54;
   --color-mac-accent: #ff79c6;
+  --background: #241e3a;
+  --card: #181528;
+  --popover: #181528;
+  --border: #3b2d54;
+  --color-zinc-950: #120f1f;
+  --color-zinc-900: #181528;
+  --color-zinc-800: #241e3a;
+  --color-zinc-700: #3b2d54;
 }
 
 .theme-retro {
@@ -718,6 +742,14 @@
   --color-mac-mainDark: #261e1b;
   --color-mac-borderDark: #42352f;
   --color-mac-accent: #d97706;
+  --background: #261e1b;
+  --card: #1a1412;
+  --popover: #1a1412;
+  --border: #42352f;
+  --color-zinc-950: #130f0d;
+  --color-zinc-900: #1a1412;
+  --color-zinc-800: #261e1b;
+  --color-zinc-700: #42352f;
 }
 
 /* ─── Callouts & Formatting Styles ─────────────────────────────────── */

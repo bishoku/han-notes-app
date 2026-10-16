@@ -490,6 +490,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         const newNoteId = normalizeNoteId(newPath);
         if (currentId === oldNoteId || currentId === relPath) {
           set({ currentNoteId: newNoteId });
+          if (typeof window !== 'undefined') {
+            window.location.hash = `#/notes/${encodeURIComponent(newNoteId)}`;
+          }
         }
         useGraphStore.getState().removeNoteFromGraph(oldNoteId);
         await get().loadVault();

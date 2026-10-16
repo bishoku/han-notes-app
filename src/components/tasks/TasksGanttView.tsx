@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import type { Task as GanttTask } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
-import { BarChart, Calendar, PanelRightClose, PanelRightOpen, Edit2 } from 'lucide-react';
+import { BarChart, Calendar, PanelRightClose, PanelRightOpen, PanelLeftOpen, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUiStore } from '@/store/uiStore';
 import type { TaskInfo } from '@/services/storage';
 import type { TaskEditData } from '@/components/TaskEditModal';
 import { isTaskOverdue, getTaskAssignees } from './useTaskFilters';
@@ -292,77 +293,91 @@ export const TasksGanttView: React.FC<TasksGanttViewProps> = ({
     );
   };
 
+  const sidebarOpen = useUiStore(s => s.sidebarOpen);
+  const setSidebarOpen = useUiStore(s => s.setSidebarOpen);
+
   return (
-    <main className="flex-1 flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 overflow-hidden select-none border-r border-gray-200 dark:border-zinc-800">
-      <div className="p-4 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-zinc-900">
-        <div className="flex items-center gap-3">
-          <BarChart size={24} className="text-mac-accent" />
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-            {t('taskChart')}
-          </h1>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex items-center bg-gray-100 dark:bg-zinc-800 p-1 rounded-lg">
-            <button
-              onClick={() => setGroupByAssignee(false)}
-              className={cn(
-                "px-3 py-1 text-xs font-semibold rounded-md transition-all",
-                !groupByAssignee ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              )}
+    <main className="flex-1 flex flex-col bg-mac-mainLight dark:bg-mac-mainDark transition-all duration-200 overflow-hidden select-none border-r border-mac-borderLight dark:border-mac-borderDark">
+      <header className="shrink-0 pt-safe bg-mac-mainLight/80 dark:bg-mac-mainDark/80 backdrop-blur-xs border-b border-mac-borderLight dark:border-mac-borderDark z-30 select-none">
+        <div className="h-11 min-h-[44px] flex items-center justify-between px-3 md:px-4 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="hidden md:inline-flex p-1 rounded-md text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 transition-colors cursor-pointer shrink-0 mr-0.5"
+                title={t('expandSidebar')}
+              >
+                <PanelLeftOpen size={16} />
+              </button>
+            )}
+            <BarChart size={16} className="text-mac-accent shrink-0" />
+            <h1 className="text-xs md:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+              {t('taskChart')}
+            </h1>
+          </div>
+          
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center bg-gray-100/90 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 select-none">
+              <button
+                onClick={() => setGroupByAssignee(false)}
+                className={cn(
+                  "px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer",
+                  !groupByAssignee ? "bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                )}
+              >
+                {t('taskBased')}
+              </button>
+              <button
+                onClick={() => setGroupByAssignee(true)}
+                className={cn(
+                  "px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer",
+                  groupByAssignee ? "bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                )}
+              >
+                {t('taskFilterAssignee')}
+              </button>
+            </div>
+
+            <div className="flex items-center bg-gray-100/90 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 select-none">
+              <button
+                onClick={() => setGanttViewMode(ViewMode.Day)}
+                className={cn(
+                  "px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer",
+                  ganttViewMode === ViewMode.Day ? "bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                )}
+              >
+                {t('taskDay')}
+              </button>
+              <button
+                onClick={() => setGanttViewMode(ViewMode.Week)}
+                className={cn(
+                  "px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer",
+                  ganttViewMode === ViewMode.Week ? "bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                )}
+              >
+                {t('taskWeek')}
+              </button>
+              <button
+                onClick={() => setGanttViewMode(ViewMode.Month)}
+                className={cn(
+                  "px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer",
+                  ganttViewMode === ViewMode.Month ? "bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                )}
+              >
+                {t('taskMonth')}
+              </button>
+            </div>
+
+            <button 
+              onClick={toggleRightPanel} 
+              className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
+              title={rightPanelOpen ? t('closeRightPanel') : t('openRightPanel')}
             >
-              {t('taskBased')}
-            </button>
-            <button
-              onClick={() => setGroupByAssignee(true)}
-              className={cn(
-                "px-3 py-1 text-xs font-semibold rounded-md transition-all",
-                groupByAssignee ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              )}
-            >
-              {t('taskFilterAssignee')}
+              {rightPanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </button>
           </div>
-
-          <div className="flex items-center bg-gray-100 dark:bg-zinc-800 p-1 rounded-lg">
-            <button
-              onClick={() => setGanttViewMode(ViewMode.Day)}
-              className={cn(
-                "px-3 py-1 text-xs font-semibold rounded-md transition-all",
-                ganttViewMode === ViewMode.Day ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              )}
-            >
-              {t('taskDay')}
-            </button>
-            <button
-              onClick={() => setGanttViewMode(ViewMode.Week)}
-              className={cn(
-                "px-3 py-1 text-xs font-semibold rounded-md transition-all",
-                ganttViewMode === ViewMode.Week ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              )}
-            >
-              {t('taskWeek')}
-            </button>
-            <button
-              onClick={() => setGanttViewMode(ViewMode.Month)}
-              className={cn(
-                "px-3 py-1 text-xs font-semibold rounded-md transition-all",
-                ganttViewMode === ViewMode.Month ? "bg-white dark:bg-zinc-700 shadow-sm text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              )}
-            >
-              {t('taskMonth')}
-            </button>
-          </div>
-
-          <button 
-            onClick={toggleRightPanel} 
-            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors border border-gray-200 dark:border-zinc-700"
-            title={rightPanelOpen ? t('closeRightPanel') : t('openRightPanel')}
-          >
-            {rightPanelOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-          </button>
         </div>
-      </div>
+      </header>
 
       <div className="flex-1 overflow-auto bg-gray-50 dark:bg-zinc-950 p-6 flex flex-col min-h-0 relative">
         <div className="flex-1 w-full relative">

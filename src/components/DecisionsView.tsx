@@ -105,29 +105,29 @@ export const DecisionsView: React.FC = () => {
           </div>
 
           {/* View Mode Toggle (Timeline vs Grid) */}
-          <div className="flex items-center bg-gray-100 dark:bg-zinc-800 p-0.5 rounded-lg shrink-0">
+          <div className="flex items-center bg-gray-100/90 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 shrink-0 select-none">
             <button
               onClick={() => setViewStyle('timeline')}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer",
+                "flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer",
                 viewStyle === 'timeline'
-                  ? "bg-white dark:bg-zinc-700 shadow-xs text-gray-900 dark:text-gray-100"
-                  : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  ? "bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold"
+                  : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
               )}
             >
-              <GitCommit size={13} />
+              <GitCommit size={12} />
               <span className="hidden sm:inline">{t('decisionTimelineView')}</span>
             </button>
             <button
               onClick={() => setViewStyle('grid')}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer",
+                "flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer",
                 viewStyle === 'grid'
-                  ? "bg-white dark:bg-zinc-700 shadow-xs text-gray-900 dark:text-gray-100"
-                  : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  ? "bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold"
+                  : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
               )}
             >
-              <LayoutGrid size={13} />
+              <LayoutGrid size={12} />
               <span className="hidden sm:inline">{t('decisionGridView')}</span>
             </button>
           </div>

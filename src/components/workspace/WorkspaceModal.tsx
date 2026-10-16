@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   X,
@@ -18,6 +17,8 @@ import { WORKSPACE_COLORS, WORKSPACE_ICONS, getWorkspaceIcon } from './workspace
 import { isFileSystemAccessSupported } from '@/services/storage';
 import { cn } from '@/lib/utils';
 import type { Workspace } from '@/services/workspace';
+import { ModalShell } from '@/components/ui/ModalShell';
+
 
 export const WorkspaceModal: React.FC = () => {
   const { t } = useTranslation();
@@ -119,15 +120,14 @@ export const WorkspaceModal: React.FC = () => {
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div
-        className={cn(
-          'w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl',
-          'bg-white/95 dark:bg-zinc-900/95 backdrop-blur-2xl border border-gray-200/80 dark:border-zinc-800/80',
-          'animate-in zoom-in-95 duration-200'
-        )}
-      >
+  return (
+    <ModalShell
+      isOpen={isWorkspaceModalOpen}
+      onClose={() => setWorkspaceModalOpen(false)}
+      maxWidthClass="max-w-2xl"
+      titleId="workspace-modal-title"
+      className="max-h-[90vh] flex flex-col"
+    >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-zinc-800/80">
           <div className="flex items-center gap-2.5">
@@ -135,7 +135,7 @@ export const WorkspaceModal: React.FC = () => {
               <Sparkles size={18} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              <h2 id="workspace-modal-title" className="text-lg font-bold text-gray-900 dark:text-gray-100">
                 {t('manageWorkspaces')}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -514,8 +514,6 @@ export const WorkspaceModal: React.FC = () => {
             </form>
           </div>
         </div>
-      </div>
-    </div>,
-    document.body
+    </ModalShell>
   );
 };

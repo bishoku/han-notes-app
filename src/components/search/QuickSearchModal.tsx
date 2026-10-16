@@ -2,7 +2,7 @@
  * QuickSearchModal.tsx — Spotlight & Raycast style Command Palette and Hybrid Search Modal.
  * Integrates instant 0ms in-memory keyword matching with debounced local ONNX vector search.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -16,14 +16,31 @@ import {
   X,
   ExternalLink,
   ChevronRight,
+  Plus,
+  Network,
+  Settings,
+  Palette,
+  GitBranch,
+  Command,
 } from 'lucide-react';
 import { useUiStore } from '@/store/uiStore';
 import { useNoteStore } from '@/store/noteStore';
+import { useGitStore } from '@/store/gitStore';
+import { showToast } from '@/store/toastStore';
 import {
   hybridSearchService,
   type SearchMatchItem,
   type SearchFilterType,
 } from '@/services/search/hybridSearchService';
+
+interface CommandActionItem {
+  id: string;
+  label: string;
+  shortcut?: string;
+  icon: React.ReactNode;
+  keywords: string[];
+  onExecute: () => void | Promise<void>;
+}
 
 export const QuickSearchModal: React.FC = () => {
   const { t } = useTranslation();
@@ -35,6 +52,9 @@ export const QuickSearchModal: React.FC = () => {
   const setViewMode = useUiStore((s) => s.setViewMode);
   const searchQuery = useUiStore((s) => s.searchQuery);
   const setSearchQuery = useUiStore((s) => s.setSearchQuery);
+  const setSettingsModalOpen = useUiStore((s) => s.setSettingsModalOpen);
+  const theme = useUiStore((s) => s.theme);
+  const setTheme = useUiStore((s) => s.setTheme);
 
   const selectNote = useNoteStore((s) => s.selectNote);
   const notes = useNoteStore((s) => s.notes);
@@ -48,6 +68,130 @@ export const QuickSearchModal: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const quickCommands = useMemo<CommandActionItem[]>(() => [
+    {
+      id: 'cmd_new_note',
+      label: t('createNewNote', 'Yeni Not Oluştur'),
+      shortcut: '⌘N',
+      icon: <Plus size={13} />,
+      keywords: ['new', 'note', 'yeni', 'not', 'create', 'oluştur'],
+      onExecute: async () => {
+        const { activeFolderPath, notes: allNotes, createNote } = useNoteStore.getState();
+        const baseTitle = t('untitledNote', 'Yeni Not');
+        let candidate = baseTitle;
+        let counter = 1;
+        const existingTitles = new Set(
+          allNotes.map((n) => (n.id.split('/').pop() || n.id).replace(/\.md$/i, '').toLowerCase())
+        );
+        while (existingTitles.has(candidate.toLowerCase())) {
+          counter += 1;
+          candidate = `${baseTitle} ${counter}`;
+        }
+        const newNoteId = await createNote(candidate, activeFolderPath || undefined);
+        setSearchModalOpen(false);
+        if (newNoteId) {
+          setViewMode('notes');
+          navigate(`/notes/${encodeURIComponent(newNoteId)}`);
+          showToast(t('newNoteCreated', 'Yeni not oluşturuldu'), {
+            description: candidate,
+            type: 'success',
+          });
+        }
+      },
+    },
+    {
+      id: 'cmd_tasks',
+      label: t('tasks', 'Görevler Görünümü'),
+      icon: <CheckSquare size={13} />,
+      keywords: ['tasks', 'görevler', 'gantt', 'todo'],
+      onExecute: () => {
+        setViewMode('tasks');
+        navigate('/tasks');
+        setSearchModalOpen(false);
+      },
+    },
+    {
+      id: 'cmd_decisions',
+      label: t('decisions', 'Kararlar Görünümü'),
+      icon: <ShieldCheck size={13} />,
+      keywords: ['decisions', 'kararlar', 'adr'],
+      onExecute: () => {
+        setViewMode('decisions');
+        navigate('/decisions');
+        setSearchModalOpen(false);
+      },
+    },
+    {
+      id: 'cmd_mindmap',
+      label: t('mindmap', 'Zihin Haritası Görünümü'),
+      icon: <Network size={13} />,
+      keywords: ['mindmap', 'graph', 'zihin', 'harita'],
+      onExecute: () => {
+        setViewMode('mindmap');
+        navigate('/mindmap');
+        setSearchModalOpen(false);
+      },
+    },
+    {
+      id: 'cmd_theme',
+      label: t('toggleTheme', 'Temayı Değiştir'),
+      icon: <Palette size={13} />,
+      keywords: ['theme', 'dark', 'light', 'tema', 'görünüm'],
+      onExecute: () => {
+        const themes = ['light', 'dark', 'nord', 'dracula', 'synthwave', 'retro'] as const;
+        const nextTheme = themes[(themes.indexOf(theme) + 1) % themes.length];
+        setTheme(nextTheme);
+        setSearchModalOpen(false);
+        showToast(`${t('theme', 'Tema')}: ${nextTheme.toUpperCase()}`, {
+          type: 'info',
+          duration: 1800,
+        });
+      },
+    },
+    {
+      id: 'cmd_snapshot',
+      label: t('createSnapshotNow', 'Anlık Görüntü (Snapshot) Oluştur'),
+      shortcut: '⌘S',
+      icon: <GitBranch size={13} />,
+      keywords: ['git', 'snapshot', 'commit', 'yedek', 'kaydet'],
+      onExecute: async () => {
+        const currentNoteId = useNoteStore.getState().currentNoteId;
+        const title = currentNoteId?.split('/').pop() || 'Manuel snapshot';
+        await useGitStore.getState().createSnapshot(`Manuel snapshot: ${title}`);
+        setSearchModalOpen(false);
+        showToast(t('snapshotCreated', 'Anlık görüntü kaydedildi'), {
+          description: title,
+          type: 'success',
+        });
+      },
+    },
+    {
+      id: 'cmd_settings',
+      label: t('settings', 'Ayarlar'),
+      shortcut: '⌘,',
+      icon: <Settings size={13} />,
+      keywords: ['settings', 'ayarlar', 'preferences'],
+      onExecute: () => {
+        setSearchModalOpen(false);
+        setSettingsModalOpen(true);
+      },
+    },
+  ], [t, navigate, setSearchModalOpen, setViewMode, setSettingsModalOpen, theme, setTheme]);
+
+  const matchingCommands = useMemo(() => {
+    if (activeFilter !== 'all') return [];
+    const raw = inputQuery.trim();
+    if (!raw) return quickCommands.slice(0, 4);
+    const isCommandMode = raw.startsWith('>');
+    const q = (isCommandMode ? raw.slice(1) : raw).trim().toLowerCase();
+    if (!q) return quickCommands;
+    return quickCommands.filter(
+      (cmd) =>
+        cmd.label.toLowerCase().includes(q) ||
+        cmd.keywords.some((kw) => kw.includes(q))
+    );
+  }, [inputQuery, activeFilter, quickCommands]);
 
   // Sync state when modal is opened
   useEffect(() => {
@@ -67,6 +211,13 @@ export const QuickSearchModal: React.FC = () => {
     }
 
     const trimmed = inputQuery.trim();
+    if (trimmed.startsWith('>')) {
+      setResults([]);
+      setSelectedIndex(0);
+      setIsSemanticLoading(false);
+      return;
+    }
+
     if (!trimmed) {
       // Default: show recent notes
       const recentMatches: SearchMatchItem[] = notes.slice(0, 10).map((n) => ({
@@ -168,10 +319,14 @@ export const QuickSearchModal: React.FC = () => {
       setSelectedIndex((prev) => (results.length > 0 ? (prev - 1 + results.length) % results.length : 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (e.metaKey || e.ctrlKey || (results.length === 0 && inputQuery.trim())) {
+      if (inputQuery.trim().startsWith('>') && matchingCommands[0]) {
+        matchingCommands[0].onExecute();
+      } else if (e.metaKey || e.ctrlKey || (results.length === 0 && inputQuery.trim() && matchingCommands.length === 0)) {
         handleOpenFullSearchView();
       } else if (results[selectedIndex]) {
         handleSelectNote(results[selectedIndex]);
+      } else if (matchingCommands[0]) {
+        matchingCommands[0].onExecute();
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -255,9 +410,42 @@ export const QuickSearchModal: React.FC = () => {
           ))}
         </div>
 
-        {/* 3. Results List */}
-        <div ref={listRef} className="max-h-[380px] overflow-y-auto p-2 space-y-1 select-text">
-          {results.length === 0 ? (
+        {/* 3. Quick Commands & Results List */}
+        <div ref={listRef} className="max-h-[400px] overflow-y-auto p-2 space-y-1 select-text">
+          {matchingCommands.length > 0 && (
+            <div className="mb-2 pb-1.5 border-b border-gray-100 dark:border-zinc-800/70">
+              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                <Command size={10} />
+                <span>{t('quickActions', 'Hızlı İşlemler')}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {matchingCommands.map((cmd) => (
+                  <button
+                    key={cmd.id}
+                    type="button"
+                    onClick={() => cmd.onExecute()}
+                    className="flex items-center justify-between px-2.5 py-2 rounded-xl hover:bg-purple-500/10 dark:hover:bg-purple-500/15 text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        {cmd.icon}
+                      </span>
+                      <span className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
+                        {cmd.label}
+                      </span>
+                    </div>
+                    {cmd.shortcut && (
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 text-[10px] font-mono text-gray-400 shrink-0">
+                        {cmd.shortcut}
+                      </kbd>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.length === 0 && !inputQuery.trim().startsWith('>') ? (
             <div className="py-12 px-4 flex flex-col items-center justify-center text-center">
               <div className="w-10 h-10 rounded-2xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-gray-400 mb-2">
                 <Search size={18} />

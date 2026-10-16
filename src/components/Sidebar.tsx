@@ -286,11 +286,18 @@ export const Sidebar: React.FC = () => {
 
       {/* Fixed Bottom Actions */}
       <SidebarBottomNav
+        isNotesActive={isNotesActive}
         isTasksActive={isTasksActive}
         isDecisionsActive={isDecisionsActive}
         isMindmapActive={isMindmapActive}
         isAiEnabled={isAiEnabled}
         isChatDrawerOpen={isChatDrawerOpen}
+        onNavigateNotes={() => {
+          setViewMode('notes');
+          const { currentNoteId } = useNoteStore.getState();
+          navigate(currentNoteId ? `/notes/${encodeURIComponent(currentNoteId)}` : '/notes');
+          if (isMobile) setSidebarOpen(false);
+        }}
         onNavigateTasks={() => {
           setViewMode('tasks');
           navigate('/tasks');

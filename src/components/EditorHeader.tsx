@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { TagCount } from '@/store/noteStore';
+import { useNoteStore, type TagCount } from '@/store/noteStore';
 import { MultiBadgeSelect } from '@/components/MultiBadgeSelect';
 import { useGitStore } from '@/store/gitStore';
 import { useAiStore } from '@/store/aiStore';
@@ -9,7 +9,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   PanelLeftOpen,
-  Calendar,
   Tag,
   X,
   History,
@@ -23,6 +22,8 @@ import {
   Sparkles,
   List,
   FileText,
+  Folder,
+  Pencil,
 } from 'lucide-react';
 
 import { useUiStore } from '@/store/uiStore';
@@ -76,12 +77,53 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   const setSidebarOpen = useUiStore(s => s.setSidebarOpen);
   const setSettingsModalOpen = useUiStore(s => s.setSettingsModalOpen);
 
+  const renameNode = useNoteStore(s => s.renameNode);
+  const setActiveFolder = useNoteStore(s => s.setActiveFolder);
+
   const isAiEnabled = useAiStore(s => s.settings.enabled);
   const isChatDrawerOpen = useAiStore(s => s.isChatDrawerOpen);
   const setChatDrawerOpen = useAiStore(s => s.setChatDrawerOpen);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMetaPopover, setShowMetaPopover] = useState(false);
+  const [isRenamingTitle, setIsRenamingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Split currentNoteId into folder breadcrumb and clean note title
+  const { folderPath, noteTitle } = useMemo(() => {
+    const clean = currentNoteId.replace(/\.md$/i, '');
+    const parts = clean.split('/').filter(Boolean);
+    const title = parts.pop() || clean;
+    return {
+      folderPath: parts.join('/'),
+      noteTitle: title,
+    };
+  }, [currentNoteId]);
+
+  const handleStartRename = () => {
+    setTitleDraft(noteTitle);
+    setIsRenamingTitle(true);
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }, 10);
+  };
+
+  const handleCommitRename = async () => {
+    if (!isRenamingTitle) return;
+    setIsRenamingTitle(false);
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === noteTitle) return;
+    const relPath = currentNoteId.endsWith('.md') ? currentNoteId : `${currentNoteId}.md`;
+    await renameNode(relPath, trimmed);
+  };
+
+  const handleFolderBreadcrumbClick = () => {
+    if (!folderPath) return;
+    setSidebarOpen(true);
+    setActiveFolder(folderPath);
+  };
 
   // Parse current frontmatter fields from localContent
   const frontmatterFields = useMemo(() => {
@@ -175,10 +217,57 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           </button>
         </div>
 
-        {/* Note Path / Title */}
-        <div className="flex items-center gap-1.5 truncate min-w-0 shrink">
-          <Calendar size={13} className="shrink-0 text-gray-400" />
-          <span className="truncate text-gray-700 dark:text-gray-300 font-semibold">{currentNoteId}</span>
+        {/* Interactive Note Breadcrumb & Inline Editable Title */}
+        <div className="flex items-center gap-1 min-w-0 shrink">
+          {folderPath && (
+            <>
+              <button
+                type="button"
+                onClick={handleFolderBreadcrumbClick}
+                className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors truncate max-w-[140px] cursor-pointer"
+                title={`${t('folder', 'Klasör')}: ${folderPath}`}
+              >
+                <Folder size={12} className="shrink-0 text-amber-500/80" />
+                <span className="truncate">{folderPath}</span>
+              </button>
+              <span className="hidden sm:inline text-gray-300 dark:text-zinc-700">/</span>
+            </>
+          )}
+
+          {isRenamingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleCommitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCommitRename();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setIsRenamingTitle(false);
+                }
+              }}
+              className="px-2 py-0.5 text-xs font-semibold text-gray-900 dark:text-gray-100 bg-white dark:bg-zinc-800 border border-mac-accent rounded-md focus:outline-none focus:ring-2 focus:ring-mac-accent/40 min-w-[120px] max-w-[240px]"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={handleStartRename}
+              className="group flex items-center gap-1.5 px-1.5 py-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors truncate min-w-0 cursor-pointer"
+              title={t('rename', 'Yeniden Adlandır')}
+            >
+              <FileText size={13} className="shrink-0 text-mac-accent/80" />
+              <span className="truncate text-gray-800 dark:text-gray-200 font-semibold">
+                {noteTitle}
+              </span>
+              <Pencil
+                size={11}
+                className="shrink-0 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            </button>
+          )}
         </div>
         
         {/* Desktop Note Tags Badges & Popover Trigger */}

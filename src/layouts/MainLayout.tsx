@@ -16,6 +16,8 @@ import { useSyncStore } from '@/store/syncStore';
 import { eventBus } from '@/lib/eventBus';
 import { applyAppTheme } from '@/utils/theme';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { ToastContainer } from '@/components/ui/ToastContainer';
+import { showToast } from '@/store/toastStore';
 
 const ChatDrawer = React.lazy(() =>
   import('@/components/ai/ChatDrawer').then((m) => ({ default: m.ChatDrawer }))
@@ -122,24 +124,87 @@ export const MainLayout: React.FC = () => {
     return () => window.removeEventListener('hashchange', checkHashSync);
   }, []);
 
-  // ── Global Keyboard Shortcuts (Cmd+K / Ctrl+K, Cmd+S / Ctrl+S) ──
+  // ── Global Keyboard Shortcuts (Cmd+K, Cmd+S, Cmd+N, Cmd+\, Cmd+,, Cmd+Shift+E) ──
   useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey;
+      if (!isMod) return;
+
+      const key = e.key.toLowerCase();
+
+      if (key === 'k') {
         e.preventDefault();
         setSearchModalOpen(true);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+
+      if (key === 's') {
         e.preventDefault();
         const currentNoteId = useNoteStore.getState().currentNoteId;
         const note = useNoteStore.getState().notes.find((n) => n.id === currentNoteId);
         const title = note?.title || currentNoteId?.split('/').pop() || 'Manuel snapshot';
-        useGitStore.getState().createSnapshot(`Manuel snapshot: ${title}`);
+        await useGitStore.getState().createSnapshot(`Manuel snapshot: ${title}`);
+        showToast(t('snapshotCreated', 'Anlık görüntü kaydedildi'), {
+          description: title,
+          type: 'success',
+        });
+        return;
+      }
+
+      if (key === '\\') {
+        e.preventDefault();
+        const current = useUiStore.getState().sidebarOpen;
+        useUiStore.getState().setSidebarOpen(!current);
+        return;
+      }
+
+      if (key === ',') {
+        e.preventDefault();
+        useUiStore.getState().setSettingsModalOpen(true);
+        return;
+      }
+
+      if (e.shiftKey && key === 'e') {
+        e.preventDefault();
+        const currentMode = useUiStore.getState().editorMode;
+        const nextMode = currentMode === 'preview' ? 'raw' : 'preview';
+        useUiStore.getState().setEditorMode(nextMode);
+        showToast(
+          nextMode === 'preview'
+            ? t('statusEditorPreview', 'Önizleme Modu')
+            : t('statusEditorRaw', 'Ham Metin Modu'),
+          { type: 'info', duration: 1800 }
+        );
+        return;
+      }
+
+      if (key === 'n' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        const { activeFolderPath, notes, createNote } = useNoteStore.getState();
+        const baseTitle = t('untitledNote', 'Yeni Not');
+        let candidate = baseTitle;
+        let counter = 1;
+        const existingTitles = new Set(
+          notes.map((n) => (n.id.split('/').pop() || n.id).replace(/\.md$/i, '').toLowerCase())
+        );
+        while (existingTitles.has(candidate.toLowerCase())) {
+          counter += 1;
+          candidate = `${baseTitle} ${counter}`;
+        }
+        const newNoteId = await createNote(candidate, activeFolderPath || undefined);
+        if (newNoteId) {
+          useUiStore.getState().setViewMode('notes');
+          navigate(`/notes/${encodeURIComponent(newNoteId)}`);
+          showToast(t('newNoteCreated', 'Yeni not oluşturuldu'), {
+            description: candidate,
+            type: 'success',
+          });
+        }
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [setSearchModalOpen]);
+  }, [setSearchModalOpen, navigate, t]);
 
   // ── Theme & Preferences Init ──
   useEffect(() => {
@@ -256,6 +321,7 @@ export const MainLayout: React.FC = () => {
         <WorkspaceModal />
         <MoveItemModal />
       </Suspense>
+      <ToastContainer />
     </div>
   );
 };

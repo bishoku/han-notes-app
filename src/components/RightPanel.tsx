@@ -135,40 +135,44 @@ export const RightPanel: React.FC = () => {
       />
       <aside className="fixed inset-y-0 right-0 z-50 w-[85%] max-w-[340px] md:relative md:inset-auto md:z-auto md:w-[25%] md:min-w-[250px] h-full bg-mac-sidebarLight dark:bg-mac-sidebarDark border-l border-mac-borderLight dark:border-mac-borderDark flex flex-col transition-all duration-200 ease-mac-ease shadow-2xl md:shadow-none animate-in slide-in-from-right duration-200 pt-safe pb-safe">
         {/* Tabs */}
-        <div className="flex items-center p-2 border-b border-mac-borderLight dark:border-mac-borderDark gap-1 shrink-0">
-          <button
-            onClick={() => setActiveTab('links')}
-            className={cn(
-              'flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150 relative cursor-pointer',
-              activeTab === 'links'
-                ? 'bg-white dark:bg-zinc-800 shadow-mac-panel text-mac-accent font-medium'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-            )}
-            title={t('backlinks')}
-          >
-            <Link2 size={16} />
-            {backlinks.length > 0 && (
-              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-mac-accent" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('outline')}
-            className={cn(
-              'flex-1 flex justify-center py-1.5 rounded-md transition-all duration-150 relative cursor-pointer',
-              activeTab === 'outline'
-                ? 'bg-white dark:bg-zinc-800 shadow-mac-panel text-gray-900 dark:text-gray-100'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-            )}
-            title={t('outline')}
-          >
-            <List size={16} />
-            {(headings.length > 0 || noteTasks.length > 0) && (
-              <span className="absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
-            )}
-          </button>
+        <div className="h-11 min-h-[44px] flex items-center px-2.5 border-b border-mac-borderLight dark:border-mac-borderDark gap-1.5 shrink-0">
+          <div className="flex-1 flex items-center bg-gray-100/90 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-gray-200/80 dark:border-zinc-700/80 select-none">
+            <button
+              onClick={() => setActiveTab('links')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-1 text-[11px] font-medium rounded-md transition-all duration-150 relative cursor-pointer',
+                activeTab === 'links'
+                  ? 'bg-white dark:bg-zinc-700 shadow-2xs text-mac-accent font-semibold'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
+              title={t('backlinks')}
+            >
+              <Link2 size={13} />
+              <span className="truncate">{t('backlinks')}</span>
+              {backlinks.length > 0 && (
+                <span className="w-1.5 h-1.5 rounded-full bg-mac-accent shrink-0" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('outline')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-1 text-[11px] font-medium rounded-md transition-all duration-150 relative cursor-pointer',
+                activeTab === 'outline'
+                  ? 'bg-white dark:bg-zinc-700 shadow-2xs text-gray-900 dark:text-gray-100 font-semibold'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
+              title={t('outline')}
+            >
+              <List size={13} />
+              <span className="truncate">{t('outline')}</span>
+              {(headings.length > 0 || noteTasks.length > 0) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 shrink-0" />
+              )}
+            </button>
+          </div>
           <button
             onClick={toggleRightPanel}
-            className="md:hidden p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md cursor-pointer ml-1"
+            className="md:hidden p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md cursor-pointer"
             title={t('close')}
           >
             <X size={16} />

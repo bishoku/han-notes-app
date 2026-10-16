@@ -1,15 +1,17 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckCircle, FileCheck, Network, Sparkles, Settings } from 'lucide-react';
+import { FileText, CheckCircle, FileCheck, Network, Sparkles, Settings } from 'lucide-react';
 import { SyncStatusBadge } from '@/components/sync/SyncStatusBadge';
 import { cn } from '@/lib/utils';
 
 interface SidebarBottomNavProps {
+  isNotesActive?: boolean;
   isTasksActive: boolean;
   isDecisionsActive: boolean;
   isMindmapActive: boolean;
   isAiEnabled: boolean;
   isChatDrawerOpen: boolean;
+  onNavigateNotes?: () => void;
   onNavigateTasks: () => void;
   onNavigateDecisions: () => void;
   onNavigateMindmap: () => void;
@@ -18,11 +20,13 @@ interface SidebarBottomNavProps {
 }
 
 export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
+  isNotesActive,
   isTasksActive,
   isDecisionsActive,
   isMindmapActive,
   isAiEnabled,
   isChatDrawerOpen,
+  onNavigateNotes,
   onNavigateTasks,
   onNavigateDecisions,
   onNavigateMindmap,
@@ -33,6 +37,20 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
 
   return (
     <div className="p-2 pb-safe md:pb-2 border-t border-mac-borderLight dark:border-mac-borderDark flex flex-col gap-1">
+      {onNavigateNotes && (
+        <button
+          onClick={onNavigateNotes}
+          className={cn(
+            'flex items-center gap-2 px-2.5 py-2 md:py-1.5 min-h-[40px] md:min-h-0 text-xs rounded-lg md:rounded-md transition-colors cursor-pointer active:scale-[0.99]',
+            isNotesActive
+              ? 'bg-mac-accent text-white font-medium shadow-xs'
+              : 'hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
+          )}
+        >
+          <FileText size={16} />
+          {t('notesExplorer')}
+        </button>
+      )}
       <button
         onClick={onNavigateTasks}
         className={cn(
@@ -99,3 +117,4 @@ export const SidebarBottomNav: React.FC<SidebarBottomNavProps> = ({
     </div>
   );
 };
+
